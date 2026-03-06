@@ -68,33 +68,49 @@ export default async function CoachDashboard() {
           </div>
         </div>
 
+        {/* AI Program Builder Highlight */}
+        <div className="mb-8 bg-gradient-to-r from-primary-600 to-primary-700 rounded-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-bold mb-2">🤖 AI Program Builder</h3>
+              <p className="text-primary-100">Generate complete periodized programs in 60 seconds with AI</p>
+            </div>
+            <Link
+              href="/coach/programs/ai-builder"
+              className="bg-white text-primary-600 px-8 py-3 rounded-lg font-bold hover:bg-gray-100 transition shadow-lg"
+            >
+              Try It Now →
+            </Link>
+          </div>
+        </div>
+
         {/* Quick Actions */}
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Link
               href="/coach/clients/new"
-              className="bg-primary-600 text-white rounded-lg px-4 py-3 text-center hover:bg-primary-700 transition"
+              className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
             >
               Add Client
             </Link>
             <Link
               href="/coach/programs/new"
-              className="bg-primary-600 text-white rounded-lg px-4 py-3 text-center hover:bg-primary-700 transition"
-            >
-              Create Program
-            </Link>
-            <Link
-              href="/coach/exercises"
               className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
             >
-              Exercise Library
+              Create Program Manually
             </Link>
             <Link
-              href="/coach/messages"
+              href="/coach/settings/ai"
               className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
             >
-              Messages
+              AI Settings
+            </Link>
+            <Link
+              href="/coach/help"
+              className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
+            >
+              📚 Help & Docs
             </Link>
           </div>
         </div>

@@ -103,6 +103,10 @@ model CoachProfile {
   aiCredits   Int      @default(5) // Free credits for pay-per-program
   totalProgramsGenerated Int @default(0)
 
+  // Onboarding
+  hasCompletedOnboarding Boolean @default(false)
+  onboardingCompletedAt DateTime?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
