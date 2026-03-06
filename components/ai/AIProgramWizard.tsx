@@ -51,6 +51,7 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [generating, setGenerating] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [generatedProgram, setGeneratedProgram] = useState<any>(null)
 
   // Form state
@@ -124,6 +125,37 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
       toast.error(error.message || "Failed to generate program")
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const handleSaveProgram = async () => {
+    if (!selectedClient || !generatedProgram) return
+
+    setSaving(true)
+
+    try {
+      const res = await fetch("/api/programs/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          programData: generatedProgram,
+          clientId: selectedClient.clientId,
+        }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || "Failed to save program")
+      }
+
+      const data = await res.json()
+      toast.success(`${generatedProgram.programName} saved successfully!`)
+      router.push(`/coach/programs/${data.programId}`)
+    } catch (error: any) {
+      console.error("Save error:", error)
+      toast.error(error.message || "Failed to save program")
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -429,21 +461,19 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
 
             <div className="flex gap-4">
               <button
-                onClick={() => {
-                  // TODO: Save program to database
-                  toast.success("Program saved! (Feature coming soon)")
-                  router.push("/coach/programs")
-                }}
-                className="flex-1 bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 font-semibold"
+                onClick={handleSaveProgram}
+                disabled={saving}
+                className="flex-1 bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save Program
+                {saving ? "Saving..." : "💾 Save Program"}
               </button>
               <button
                 onClick={() => {
                   setGeneratedProgram(null)
                   setStep(4)
                 }}
-                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 font-semibold"
+                disabled={saving}
+                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 font-semibold disabled:opacity-50"
               >
                 Generate Different Program
               </button>
