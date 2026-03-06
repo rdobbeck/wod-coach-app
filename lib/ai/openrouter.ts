@@ -94,76 +94,47 @@ export async function generateProgram(params: ProgramGenerationParams) {
     },
   })
 
-  // Create the program generation prompt
-  const systemPrompt = `You are an elite strength and conditioning coach with a PhD in Exercise Science. You specialize in evidence-based periodized program design.
+  // Optimized prompts to reduce token usage
+  const systemPrompt = `Expert S&C coach. Create periodized training programs with proper mesocycle/microcycle structure, exercise selection, and progression.`
 
-Your expertise includes:
-- Linear, block, and undulating periodization models
-- Progressive overload and volume management
-- Exercise selection for specific adaptations (hypertrophy, strength, power, endurance)
-- Deload timing and fatigue management
-- Velocity-based training (VBT) principles
-- Autoregulation strategies
-- Movement pattern balancing
+  const userPrompt = `${params.programLength}wk program
+Goals: ${params.clientGoals}
+Exp: ${params.experience}
+Days: ${params.trainingDays}/wk
+Equip: ${params.equipment.join(", ")}${params.injuries ? `\nLimits: ${params.injuries}` : ""}
 
-Create scientifically-backed, practical programs that coaches can implement immediately.`
-
-  const userPrompt = `Create a complete ${params.programLength}-week training program with this information:
-
-CLIENT PROFILE:
-- Training Goals: ${params.clientGoals}
-- Training Experience: ${params.experience}
-- Available Training Days: ${params.trainingDays} days per week
-- Equipment Available: ${params.equipment.join(", ")}
-${params.injuries ? `- Injuries/Limitations: ${params.injuries}` : ""}
-
-REQUIREMENTS:
-1. Structure the program with proper periodization (mesocycles and microcycles)
-2. Include specific exercises, sets, reps, rest periods
-3. Progress intensity and volume appropriately
-4. Include deload week(s) if program is 8+ weeks
-5. Explain the rationale for your phase structure
-
-Return ONLY valid JSON in this exact format:
+Return compact JSON:
 {
-  "programName": "string",
-  "description": "string",
-  "totalWeeks": number,
-  "rationale": "string explaining your periodization choices",
-  "mesocycles": [
-    {
-      "name": "string (e.g., Hypertrophy Phase)",
-      "focus": "HYPERTROPHY" | "STRENGTH" | "POWER" | "ENDURANCE" | "DELOAD",
-      "durationWeeks": number,
-      "description": "string",
-      "microcycles": [
-        {
-          "weekNumber": number,
-          "description": "string",
-          "workouts": [
-            {
-              "dayOfWeek": number (0-6, where 0 is Sunday),
-              "name": "string (e.g., Upper Body Push)",
-              "description": "string",
-              "exercises": [
-                {
-                  "name": "string (e.g., Barbell Bench Press)",
-                  "sets": number,
-                  "reps": "string (e.g., 8-12 or 5)",
-                  "restSeconds": number,
-                  "tempo": "string (e.g., 3-1-1-0)" | null,
-                  "notes": "string" | null
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-  ]
+  "n":"Program Name",
+  "d":"Brief description",
+  "w":${params.programLength},
+  "r":"Why this periodization",
+  "m":[{
+    "n":"Phase Name",
+    "f":"HYPERTROPHY|STRENGTH|POWER|ENDURANCE|DELOAD",
+    "w":4,
+    "d":"Phase description",
+    "c":[{
+      "wk":1,
+      "d":"Week notes",
+      "wo":[{
+        "day":1,
+        "n":"Workout Name",
+        "d":"Brief",
+        "ex":[{
+          "n":"Exercise Name",
+          "s":3,
+          "r":"8-12",
+          "rest":90,
+          "tempo":"3-1-1-0",
+          "note":"RPE 8"
+        }]
+      }]
+    }]
+  }]
 }
 
-IMPORTANT: Return ONLY the JSON object, no markdown, no explanatory text before or after.`
+Return JSON only, no markdown.`
 
   try {
     const completion = await openai.chat.completions.create({
@@ -173,7 +144,7 @@ IMPORTANT: Return ONLY the JSON object, no markdown, no explanatory text before 
         { role: "user", content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 8000,
+      max_tokens: 4000, // Reduced from 8000 due to compact format
     })
 
     const responseContent = completion.choices[0]?.message?.content
@@ -182,8 +153,45 @@ IMPORTANT: Return ONLY the JSON object, no markdown, no explanatory text before 
       throw new Error("No response from AI")
     }
 
-    // Parse JSON response
-    const programData = JSON.parse(responseContent)
+    // Clean response (remove markdown code blocks if present)
+    const cleanedResponse = responseContent
+      .replace(/```json\s*/g, "")
+      .replace(/```\s*/g, "")
+      .trim()
+
+    // Parse compact JSON response
+    const compactData = JSON.parse(cleanedResponse)
+
+    // Expand compact format to full format
+    const programData = {
+      programName: compactData.n,
+      description: compactData.d,
+      totalWeeks: compactData.w,
+      rationale: compactData.r,
+      mesocycles: compactData.m.map((meso: any) => ({
+        name: meso.n,
+        focus: meso.f,
+        durationWeeks: meso.w,
+        description: meso.d,
+        microcycles: meso.c.map((micro: any) => ({
+          weekNumber: micro.wk,
+          description: micro.d,
+          workouts: micro.wo.map((workout: any) => ({
+            dayOfWeek: workout.day,
+            name: workout.n,
+            description: workout.d,
+            exercises: workout.ex.map((ex: any) => ({
+              name: ex.n,
+              sets: ex.s,
+              reps: ex.r,
+              restSeconds: ex.rest,
+              tempo: ex.tempo || null,
+              notes: ex.note || null,
+            })),
+          })),
+        })),
+      })),
+    }
 
     // Increment coach's total programs generated
     await prisma.coachProfile.update({
