@@ -3,6 +3,8 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import AISettingsForm from "@/components/ai/AISettingsForm"
+import CreditPurchaseButtons from "@/components/ai/CreditPurchaseButtons"
+import PurchaseSuccessHandler from "@/components/ai/PurchaseSuccessHandler"
 import DashboardHeader from "@/components/DashboardHeader"
 
 export default async function AISettingsPage() {
@@ -29,6 +31,7 @@ export default async function AISettingsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <DashboardHeader userName={session.user.name || "Coach"} role="COACH" />
+      <PurchaseSuccessHandler />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
@@ -137,33 +140,7 @@ export default async function AISettingsPage() {
             <p className="text-gray-600 mb-6">
               Each credit = 1 AI-generated program. Credits never expire.
             </p>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <button className="border-2 border-gray-200 rounded-lg p-4 hover:border-primary-600 transition">
-                <div className="text-2xl font-bold mb-1">5</div>
-                <div className="text-sm text-gray-600">credits</div>
-                <div className="text-lg font-semibold mt-2">$15</div>
-              </button>
-              <button className="border-2 border-primary-600 bg-primary-50 rounded-lg p-4">
-                <div className="text-xs text-primary-600 font-bold mb-1">BEST VALUE</div>
-                <div className="text-2xl font-bold mb-1">10</div>
-                <div className="text-sm text-gray-600">credits</div>
-                <div className="text-lg font-semibold mt-2">$25</div>
-                <div className="text-xs text-green-600 mt-1">Save $5</div>
-              </button>
-              <button className="border-2 border-gray-200 rounded-lg p-4 hover:border-primary-600 transition">
-                <div className="text-2xl font-bold mb-1">25</div>
-                <div className="text-sm text-gray-600">credits</div>
-                <div className="text-lg font-semibold mt-2">$60</div>
-                <div className="text-xs text-green-600 mt-1">Save $15</div>
-              </button>
-              <button className="border-2 border-gray-200 rounded-lg p-4 hover:border-primary-600 transition">
-                <div className="text-2xl font-bold mb-1">50</div>
-                <div className="text-sm text-gray-600">credits</div>
-                <div className="text-lg font-semibold mt-2">$100</div>
-                <div className="text-xs text-green-600 mt-1">Save $50</div>
-              </button>
-            </div>
+            <CreditPurchaseButtons />
           </div>
         )}
 
