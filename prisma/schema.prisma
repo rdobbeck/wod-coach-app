@@ -95,11 +95,26 @@ model CoachProfile {
   certifications String[]
   specialties String[]
   yearsExp    Int?
+
+  // AI Program Builder Settings
+  aiProvider  AIProvider @default(GEMINI_FREE)
+  openrouterApiKey String? // Encrypted
+  preferredModel String? // e.g., "anthropic/claude-sonnet-4"
+  aiCredits   Int      @default(5) // Free credits for pay-per-program
+  totalProgramsGenerated Int @default(0)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscription Subscription?
+  creditPurchases AICreditPurchase[]
+}
+
+enum AIProvider {
+  GEMINI_FREE        // Google Gemini 2.0 Flash (free, limited)
+  PAY_PER_PROGRAM    // We handle API calls, charge credits
+  BRING_YOUR_OWN_KEY // Coach uses their OpenRouter key
 }
 
 model ClientProfile {
@@ -454,4 +469,23 @@ enum VBTSubscriptionStatus {
   PAST_DUE     // Payment failed
   CANCELLED    // User cancelled
   EXPIRED      // Trial ended, no payment
+}
+
+// ============================================
+// AI PROGRAM BUILDER CREDITS
+// ============================================
+
+model AICreditPurchase {
+  id          String   @id @default(cuid())
+  coachId     String
+  creditsAmount Int    // Number of program generation credits purchased
+  pricePerCredit Float @default(3.00) // $3 per program
+  totalAmount Float
+  stripePaymentIntentId String?
+  purchasedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  coach       CoachProfile @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@index([coachId, purchasedAt])
 }
