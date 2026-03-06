@@ -3,10 +3,11 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
+import DashboardHeader from "@/components/DashboardHeader"
 
 export default async function ClientDashboard() {
   const session = await getServerSession(authOptions)
-  
+
   if (!session || session.user.role !== "CLIENT") {
     redirect("/")
   }
@@ -89,6 +90,7 @@ export default async function ClientDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <DashboardHeader userName={session.user.name || "Client"} role="CLIENT" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">My Dashboard</h1>
