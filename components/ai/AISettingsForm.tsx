@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 interface AISettingsFormProps {
   coach: {
     id: string
-    aiProvider: "GEMINI_FREE" | "PAY_PER_PROGRAM" | "BRING_YOUR_OWN_KEY"
+    aiProvider: "GEMINI_FREE" | "VENICE_FREE" | "PAY_PER_PROGRAM" | "BRING_YOUR_OWN_KEY"
     openrouterApiKey: string | null
     preferredModel: string | null
   }

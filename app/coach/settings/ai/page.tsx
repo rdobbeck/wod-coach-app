@@ -49,6 +49,7 @@ export default async function AISettingsPage() {
               <div className="text-sm text-gray-500">AI Provider</div>
               <div className="text-lg font-semibold mt-1">
                 {coach.aiProvider === "GEMINI_FREE" && "Free (Gemini)"}
+                {coach.aiProvider === "VENICE_FREE" && "Free (Venice)"}
                 {coach.aiProvider === "PAY_PER_PROGRAM" && "Pay-Per-Program"}
                 {coach.aiProvider === "BRING_YOUR_OWN_KEY" && "Your API Key"}
               </div>
@@ -75,20 +76,37 @@ export default async function AISettingsPage() {
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-xl font-semibold mb-6">Choose Your AI Plan</h2>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* Free Plan */}
+          <div className="grid md:grid-cols-4 gap-6">
+            {/* Free Plan - Gemini */}
             <div className={`border-2 rounded-lg p-6 ${coach.aiProvider === "GEMINI_FREE" ? "border-primary-600 bg-primary-50" : "border-gray-200"}`}>
-              <h3 className="text-lg font-bold mb-2">Free</h3>
+              <h3 className="text-lg font-bold mb-2">Free (Gemini)</h3>
               <div className="text-3xl font-black mb-4">$0</div>
               <ul className="space-y-2 text-sm text-gray-600 mb-6">
                 <li>✓ 5 programs/month</li>
                 <li>✓ Google Gemini 2.0</li>
-                <li>✓ Good quality results</li>
+                <li>✓ Good quality</li>
                 <li>✗ Monthly limit</li>
               </ul>
               {coach.aiProvider !== "GEMINI_FREE" && (
                 <button className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition">
-                  Switch to Free
+                  Switch
+                </button>
+              )}
+            </div>
+
+            {/* Free Plan - Venice */}
+            <div className={`border-2 rounded-lg p-6 ${coach.aiProvider === "VENICE_FREE" ? "border-primary-600 bg-primary-50" : "border-gray-200"}`}>
+              <h3 className="text-lg font-bold mb-2">Free (Venice)</h3>
+              <div className="text-3xl font-black mb-4">$0</div>
+              <ul className="space-y-2 text-sm text-gray-600 mb-6">
+                <li>✓ Unlimited programs</li>
+                <li>✓ Llama 3.3 70B</li>
+                <li>✓ Privacy-focused</li>
+                <li>✓ No data retention</li>
+              </ul>
+              {coach.aiProvider !== "VENICE_FREE" && (
+                <button className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition">
+                  Switch
                 </button>
               )}
             </div>

@@ -117,6 +117,7 @@ model CoachProfile {
 
 enum AIProvider {
   GEMINI_FREE        // Google Gemini 2.0 Flash (free, limited)
+  VENICE_FREE        // Venice.ai - Privacy-focused, no data retention, unlimited free
   PAY_PER_PROGRAM    // We handle API calls, charge credits
   BRING_YOUR_OWN_KEY // Coach uses their OpenRouter key
 }

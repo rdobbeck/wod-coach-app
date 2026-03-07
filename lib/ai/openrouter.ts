@@ -1,13 +1,20 @@
 import OpenAI from "openai"
 import { prisma } from "../prisma"
 
-// OpenRouter API endpoint
+// API endpoints
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+const VENICE_BASE_URL = "https://api.venice.ai/api/v1"
 
 // Free models (no cost)
 export const FREE_MODELS = {
   GEMINI_FLASH: "google/gemini-2.0-flash-exp:free",
   GEMINI_PRO: "google/gemini-pro-1.5-exp",
+}
+
+// Venice.ai models (privacy-focused, no data retention, unlimited free)
+export const VENICE_MODELS = {
+  LLAMA_70B: "llama-3.3-70b",
+  LLAMA_405B: "llama-3.1-405b",
 }
 
 // Premium models (for pay-per-program)
@@ -41,6 +48,7 @@ export async function generateProgram(params: ProgramGenerationParams) {
   // Determine which AI provider/model to use
   let apiKey: string
   let model: string
+  let baseURL: string = OPENROUTER_BASE_URL
 
   switch (coach.aiProvider) {
     case "GEMINI_FREE":
@@ -51,6 +59,17 @@ export async function generateProgram(params: ProgramGenerationParams) {
       // Check monthly limit (5 free programs)
       if (coach.totalProgramsGenerated >= 5) {
         throw new Error("Free tier limit reached. Upgrade to pay-per-program or add your own API key.")
+      }
+      break
+
+    case "VENICE_FREE":
+      // Use Venice.ai (privacy-focused, no data retention, unlimited free)
+      apiKey = process.env.VENICE_API_KEY || ""
+      model = VENICE_MODELS.LLAMA_70B
+      baseURL = VENICE_BASE_URL
+
+      if (!apiKey) {
+        throw new Error("Venice.ai API key not configured. Please contact support.")
       }
       break
 
@@ -84,9 +103,9 @@ export async function generateProgram(params: ProgramGenerationParams) {
       throw new Error("Invalid AI provider configuration")
   }
 
-  // Initialize OpenAI client (compatible with OpenRouter)
+  // Initialize OpenAI client (compatible with OpenRouter and Venice)
   const openai = new OpenAI({
-    baseURL: OPENROUTER_BASE_URL,
+    baseURL: baseURL,
     apiKey: apiKey,
     defaultHeaders: {
       "HTTP-Referer": process.env.NEXTAUTH_URL || "https://wod.coach",
