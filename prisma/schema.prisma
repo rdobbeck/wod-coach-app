@@ -175,6 +175,8 @@ model Program {
   endDate     DateTime?
   isActive    Boolean  @default(true)
   goals       String[]
+  programType String?  // "AI_GENERATED", "MANUAL", etc.
+  aiRationale String?  @db.Text // AI's explanation for program design
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -201,11 +203,10 @@ model Mesocycle {
 model Microcycle {
   id          String   @id @default(cuid())
   mesocycleId String
-  name        String
+  weekNumber  Int      // Week number within the mesocycle
   description String?  @db.Text
   startDate   DateTime
   endDate     DateTime
-  order       Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

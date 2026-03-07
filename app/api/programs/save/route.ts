@@ -56,7 +56,7 @@ export async function POST(req: Request) {
             description: mesoData.description,
             startDate: mesoStartDate,
             endDate: mesoEndDate,
-            orderIndex: programData.mesocycles.indexOf(mesoData),
+            order: programData.mesocycles.indexOf(mesoData),
           },
         })
 
@@ -88,6 +88,8 @@ export async function POST(req: Request) {
                 name: workoutData.name,
                 description: workoutData.description || null,
                 scheduledDate: workoutDate,
+                dayOfWeek: workoutData.dayOfWeek,
+                order: microData.workouts.indexOf(workoutData),
                 isCompleted: false,
               },
             })
@@ -110,7 +112,7 @@ export async function POST(req: Request) {
                     muscleGroups: [],
                     equipment: [],
                     difficulty: "INTERMEDIATE",
-                    isPublic: false,
+                    isCustom: true, // AI-generated exercises are custom
                   },
                 })
               }
@@ -125,7 +127,7 @@ export async function POST(req: Request) {
                   restSeconds: exData.restSeconds,
                   tempo: exData.tempo,
                   notes: exData.notes,
-                  orderIndex: workoutData.exercises.indexOf(exData),
+                  order: workoutData.exercises.indexOf(exData),
                 },
               })
             }

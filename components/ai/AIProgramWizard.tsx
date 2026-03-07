@@ -9,8 +9,8 @@ interface Client {
   clientId: string
   client: {
     id: string
-    name: string
-    email: string
+    name: string | null
+    email: string | null
     clientProfile: {
       goals: string[]
       equipment: string[]
@@ -232,8 +232,8 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
                         : "border-gray-200 hover:border-primary-300"
                     }`}
                   >
-                    <div className="font-semibold text-lg">{client.client.name}</div>
-                    <div className="text-sm text-gray-500">{client.client.email}</div>
+                    <div className="font-semibold text-lg">{client.client.name || "Unnamed Client"}</div>
+                    <div className="text-sm text-gray-500">{client.client.email || "No email"}</div>
                     {client.client.clientProfile?.goals && client.client.clientProfile.goals.length > 0 && (
                       <div className="text-sm text-gray-600 mt-2">
                         Goals: {client.client.clientProfile.goals.join(", ")}
@@ -250,7 +250,7 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
         {step === 2 && (
           <div>
             <h2 className="text-2xl font-bold mb-2">Training Goals</h2>
-            <p className="text-gray-600 mb-6">What does {selectedClient?.client.name} want to achieve?</p>
+            <p className="text-gray-600 mb-6">What does {selectedClient?.client.name || "your client"} want to achieve?</p>
 
             <textarea
               value={clientGoals}
@@ -377,7 +377,7 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
             <div className="bg-gray-50 rounded-lg p-6 space-y-4">
               <div>
                 <div className="text-sm font-medium text-gray-500">Client</div>
-                <div className="text-lg font-semibold">{selectedClient?.client.name}</div>
+                <div className="text-lg font-semibold">{selectedClient?.client.name || "Unnamed Client"}</div>
               </div>
 
               <div>
