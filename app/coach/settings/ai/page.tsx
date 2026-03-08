@@ -49,8 +49,8 @@ export default async function AISettingsPage() {
             <div className="border-2 border-gray-200 rounded-lg p-4">
               <div className="text-sm text-gray-500">AI Provider</div>
               <div className="text-lg font-semibold mt-1">
-                {coach.aiProvider === "GEMINI_FREE" && "Free (Gemini)"}
-                {coach.aiProvider === "VENICE_FREE" && "Free (Venice)"}
+                {coach.aiProvider === "GEMINI_FREE" && "Free Tier"}
+                {coach.aiProvider === "VENICE_FREE" && "Venice API"}
                 {coach.aiProvider === "PAY_PER_PROGRAM" && "Pay-Per-Program"}
                 {coach.aiProvider === "BRING_YOUR_OWN_KEY" && "Your API Key"}
               </div>

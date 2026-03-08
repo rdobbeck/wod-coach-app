@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from "react"
-import { setup as setupLoom, isSupported } from "@loomhq/record-sdk"
+import { setup as setupLoom } from "@loomhq/record-sdk"
 import { oembed } from "@loomhq/loom-embed"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -24,15 +24,9 @@ export default function LoomRecorder({ coachId, clientId, clientName, onVideoSen
 
   useEffect(() => {
     const initLoom = async () => {
-      const supported = await isSupported()
-      if (!supported) {
-        toast.error("Loom recording is not supported in your browser")
-        return
-      }
-
       try {
         const { configureButton } = await setupLoom({
-          apiKey: process.env.NEXT_PUBLIC_LOOM_API_KEY!,
+          publicAppId: process.env.NEXT_PUBLIC_LOOM_PUBLIC_APP_ID!,
         })
 
         const button = document.getElementById("loom-record-btn")

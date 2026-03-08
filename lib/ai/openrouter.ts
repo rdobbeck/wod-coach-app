@@ -5,13 +5,13 @@ import { prisma } from "../prisma"
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 const VENICE_BASE_URL = "https://api.venice.ai/api/v1"
 
-// Free models (no cost)
+// Free models (no cost) - updated March 2026
 export const FREE_MODELS = {
-  GEMINI_FLASH: "google/gemini-2.0-flash-exp:free",
-  GEMINI_PRO: "google/gemini-pro-1.5-exp",
+  META_LLAMA: "meta-llama/llama-3.3-70b-instruct:free",
+  GEMINI_PRO: "google/gemini-2.5-pro-exp-03-25:free",
 }
 
-// Venice.ai models (privacy-focused, no data retention, unlimited free)
+// Venice.ai models (privacy-focused, no data retention, ~25 prompts/day free)
 export const VENICE_MODELS = {
   LLAMA_70B: "llama-3.3-70b",
   LLAMA_405B: "llama-3.1-405b",
@@ -54,7 +54,7 @@ export async function generateProgram(params: ProgramGenerationParams) {
     case "GEMINI_FREE":
       // Use our OpenRouter key with free model
       apiKey = process.env.OPENROUTER_API_KEY || ""
-      model = FREE_MODELS.GEMINI_FLASH
+      model = FREE_MODELS.META_LLAMA
 
       // Check monthly limit (5 free programs)
       if (coach.totalProgramsGenerated >= 5) {
@@ -63,7 +63,7 @@ export async function generateProgram(params: ProgramGenerationParams) {
       break
 
     case "VENICE_FREE":
-      // Use Venice.ai (privacy-focused, no data retention, unlimited free)
+      // Use Venice.ai (privacy-focused, no data retention, ~25 prompts/day free)
       apiKey = process.env.VENICE_API_KEY || ""
       model = VENICE_MODELS.LLAMA_70B
       baseURL = VENICE_BASE_URL

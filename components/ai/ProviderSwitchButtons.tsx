@@ -34,15 +34,15 @@ export default function ProviderSwitchButtons({ currentProvider }: ProviderSwitc
 
   return (
     <div className="grid md:grid-cols-4 gap-6">
-      {/* Free Plan - Gemini */}
+      {/* Free Plan - OpenRouter */}
       <div className={`border-2 rounded-lg p-6 ${currentProvider === "GEMINI_FREE" ? "border-primary-600 bg-primary-50" : "border-gray-200"}`}>
-        <h3 className="text-lg font-bold mb-2">Free (Gemini)</h3>
+        <h3 className="text-lg font-bold mb-2">Free Tier</h3>
         <div className="text-3xl font-black mb-4">$0</div>
         <ul className="space-y-2 text-sm text-gray-600 mb-6">
-          <li>✓ 5 programs/month</li>
-          <li>✓ Google Gemini 2.0</li>
+          <li>✓ 200 programs/day</li>
+          <li>✓ Llama 3.3 70B</li>
           <li>✓ Good quality</li>
-          <li>✗ Monthly limit</li>
+          <li>✓ 20 req/min limit</li>
         </ul>
         {currentProvider !== "GEMINI_FREE" && (
           <button
@@ -55,23 +55,22 @@ export default function ProviderSwitchButtons({ currentProvider }: ProviderSwitc
         )}
       </div>
 
-      {/* Free Plan - Venice */}
-      <div className={`border-2 rounded-lg p-6 ${currentProvider === "VENICE_FREE" ? "border-primary-600 bg-primary-50" : "border-gray-200"}`}>
-        <h3 className="text-lg font-bold mb-2">Free (Venice)</h3>
-        <div className="text-3xl font-black mb-4">$0</div>
+      {/* Venice - Requires Credits */}
+      <div className={`border-2 rounded-lg p-6 opacity-50 ${currentProvider === "VENICE_FREE" ? "border-primary-600 bg-primary-50" : "border-gray-200"}`}>
+        <h3 className="text-lg font-bold mb-2">Venice API</h3>
+        <div className="text-3xl font-black mb-4">Credits</div>
         <ul className="space-y-2 text-sm text-gray-600 mb-6">
-          <li>✓ Unlimited programs</li>
+          <li>✗ Requires API credits</li>
           <li>✓ Llama 3.3 70B</li>
           <li>✓ Privacy-focused</li>
-          <li>✓ No data retention</li>
+          <li className="text-xs italic">Visit venice.ai/settings/api</li>
         </ul>
         {currentProvider !== "VENICE_FREE" && (
           <button
-            onClick={() => switchProvider("VENICE_FREE")}
-            disabled={switching}
-            className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
+            disabled={true}
+            className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg transition opacity-50 cursor-not-allowed"
           >
-            {switching ? "Switching..." : "Switch"}
+            Requires Credits
           </button>
         )}
       </div>
