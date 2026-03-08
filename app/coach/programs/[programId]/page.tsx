@@ -35,7 +35,11 @@ export default async function ProgramDetailPage({
             include: {
               workouts: {
                 include: {
-                  exercises: true,
+                  exercises: {
+                    include: {
+                      exercise: true,
+                    },
+                  },
                 },
                 orderBy: {
                   dayOfWeek: "asc",
@@ -57,6 +61,11 @@ export default async function ProgramDetailPage({
   if (!program) {
     redirect("/coach/programs")
   }
+
+  // Calculate total weeks from start and end dates
+  const totalWeeks = program.endDate
+    ? Math.ceil((new Date(program.endDate).getTime() - new Date(program.startDate).getTime()) / (7 * 24 * 60 * 60 * 1000))
+    : 0
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -100,10 +109,10 @@ export default async function ProgramDetailPage({
             <p className="text-gray-600 mb-4">{program.description}</p>
           )}
 
-          {program.rationale && (
+          {program.aiRationale && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="font-semibold text-blue-900 mb-2">Program Rationale</h3>
-              <p className="text-sm text-blue-800">{program.rationale}</p>
+              <p className="text-sm text-blue-800">{program.aiRationale}</p>
             </div>
           )}
         </div>
@@ -112,7 +121,7 @@ export default async function ProgramDetailPage({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-sm text-gray-500">Duration</div>
-            <div className="text-2xl font-bold text-gray-900">{program.totalWeeks} weeks</div>
+            <div className="text-2xl font-bold text-gray-900">{totalWeeks} weeks</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-sm text-gray-500">Mesocycles</div>
@@ -127,7 +136,7 @@ export default async function ProgramDetailPage({
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-sm text-gray-500">End Date</div>
             <div className="text-lg font-semibold text-gray-900">
-              {new Date(program.endDate).toLocaleDateString()}
+              {program.endDate ? new Date(program.endDate).toLocaleDateString() : "Ongoing"}
             </div>
           </div>
         </div>
@@ -143,7 +152,7 @@ export default async function ProgramDetailPage({
                       {mesocycle.name || `Mesocycle ${mesoIndex + 1}`}
                     </h2>
                     <p className="text-sm text-gray-600 mt-1">
-                      {mesocycle.durationWeeks} weeks • Focus: {mesocycle.focus}
+                      {Math.ceil((new Date(mesocycle.endDate).getTime() - new Date(mesocycle.startDate).getTime()) / (7 * 24 * 60 * 60 * 1000))} weeks • Focus: {mesocycle.focus}
                     </p>
                   </div>
                 </div>
@@ -190,7 +199,7 @@ export default async function ProgramDetailPage({
                                 </div>
                                 <div className="flex-1">
                                   <div className="font-semibold text-gray-900">
-                                    {exercise.name}
+                                    {exercise.exercise.name}
                                   </div>
                                   <div className="text-gray-600 mt-1">
                                     {exercise.sets} sets × {exercise.reps} reps

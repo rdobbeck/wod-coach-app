@@ -92,7 +92,9 @@ export default async function AllProgramsPage() {
                 <div className="border-t border-gray-200 pt-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Duration</span>
-                    <span className="font-medium text-gray-900">{program.totalWeeks} weeks</span>
+                    <span className="font-medium text-gray-900">
+                      {program.endDate ? Math.ceil((new Date(program.endDate).getTime() - new Date(program.startDate).getTime()) / (7 * 24 * 60 * 60 * 1000)) : 0} weeks
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Mesocycles</span>

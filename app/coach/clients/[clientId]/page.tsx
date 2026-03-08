@@ -179,8 +179,6 @@ export default async function ClientDetailPage({
                       <div className="flex gap-4 text-sm text-gray-500">
                         <span>{program.mesocycles.length} mesocycles</span>
                         <span>•</span>
-                        <span>{program.totalWeeks} weeks</span>
-                        <span>•</span>
                         <span>Started {new Date(program.startDate).toLocaleDateString()}</span>
                       </div>
                     </div>

@@ -56,13 +56,14 @@ model User {
   // Coach relationships
   coachProfile  CoachProfile?
   clients       ClientCoach[] @relation("CoachClients")
-  programs      Program[]
+  coachPrograms Program[]     @relation("CoachPrograms")
   messagesSent  Message[]     @relation("SentMessages")
   videoMessagesSent VideoMessage[] @relation("SentVideoMessages")
 
   // Client relationships
   clientProfile ClientProfile?
   coaches       ClientCoach[] @relation("ClientCoaches")
+  clientPrograms Program[]    @relation("ClientPrograms")
   workoutLogs   WorkoutLog[]
   assessments   Assessment[]
   habits        HabitLog[]
@@ -183,7 +184,8 @@ model Program {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  coach       User     @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  coach       User     @relation("CoachPrograms", fields: [coachId], references: [id], onDelete: Cascade)
+  client      User     @relation("ClientPrograms", fields: [clientId], references: [id], onDelete: Cascade)
   mesocycles  Mesocycle[]
 }
 
