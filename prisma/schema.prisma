@@ -58,6 +58,7 @@ model User {
   clients       ClientCoach[] @relation("CoachClients")
   programs      Program[]
   messagesSent  Message[]     @relation("SentMessages")
+  videoMessagesSent VideoMessage[] @relation("SentVideoMessages")
 
   // Client relationships
   clientProfile ClientProfile?
@@ -67,6 +68,7 @@ model User {
   habits        HabitLog[]
   wearablesData WearablesData[]
   messagesReceived Message[]  @relation("ReceivedMessages")
+  videoMessagesReceived VideoMessage[] @relation("ReceivedVideoMessages")
   vbtSubscription VBTSubscription?
 }
 
@@ -325,6 +327,28 @@ model Message {
 
   sender      User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+// Loom Video Messages for Coach-Client Communication
+model VideoMessage {
+  id          String   @id @default(cuid())
+  senderId    String   // Coach ID
+  receiverId  String   // Client ID
+  loomVideoId String   // Loom video ID
+  loomShareUrl String  // Loom share URL
+  loomEmbedUrl String  // Loom embed URL
+  title       String?  // Optional title
+  description String?  @db.Text // Optional description
+  workoutId   String?  // Optional: link to specific workout
+  programId   String?  // Optional: link to specific program
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sender      User     @relation("SentVideoMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User     @relation("ReceivedVideoMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId])
 }
 
 // ============================================

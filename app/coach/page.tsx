@@ -95,10 +95,10 @@ export default async function CoachDashboard() {
               Add Client
             </Link>
             <Link
-              href="/coach/programs/new"
+              href="/coach/programs/ai-builder"
               className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
             >
-              Create Program Manually
+              🤖 Create with AI
             </Link>
             <Link
               href="/coach/settings/ai"
@@ -180,10 +180,10 @@ export default async function CoachDashboard() {
                           View
                         </Link>
                         <Link
-                          href={`/coach/programs/new?clientId=${clientCoach.clientId}`}
+                          href="/coach/programs/ai-builder"
                           className="text-primary-600 hover:text-primary-900"
                         >
-                          Create Program
+                          🤖 Create Program
                         </Link>
                       </td>
                     </tr>
