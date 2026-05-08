@@ -253,10 +253,15 @@ model ExerciseLibrary {
   instructions    String?  @db.Text
   isCustom        Boolean  @default(false)
   createdBy       String?
+  coachrxId       String?  @unique @map("coachrx_id")
+  locked          Boolean  @default(false)
+  lastSyncedAt    DateTime? @map("last_synced_at")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   workoutExercises WorkoutExercise[]
+
+  @@index([coachrxId])
 }
 
 model WorkoutExercise {

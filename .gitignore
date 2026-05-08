@@ -42,3 +42,4 @@ next-env.d.ts
 prisma/*.db
 prisma/*.db-journal
 .env.production
+supabase/.temp/
