@@ -87,7 +87,7 @@ export default async function CoachDashboard() {
         {/* Quick Actions */}
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Link
               href="/coach/clients/new"
               className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
@@ -99,6 +99,12 @@ export default async function CoachDashboard() {
               className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
             >
               🤖 Create with AI
+            </Link>
+            <Link
+              href="/coach/library"
+              className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
+            >
+              📚 Exercise Library
             </Link>
             <Link
               href="/coach/settings/ai"

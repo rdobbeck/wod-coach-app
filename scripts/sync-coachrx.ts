@@ -421,7 +421,11 @@ type RunSummary = {
   error?: string;
 };
 
-async function logRunFinish(id: number, s: RunSummary) {
+async function logRunFinish(id: number | undefined, s: RunSummary) {
+  if (id === undefined) {
+    console.warn(`[sync] Skipping logRunFinish — no log row exists for this run`);
+    return;
+  }
   try {
     await withRetry(`logRunFinish(${id})`, async () => {
       const supa = getSupabase();
@@ -554,18 +558,16 @@ async function main(): Promise<number> {
   } catch (e) {
     const message = (e as Error).message;
     console.error(`[sync] ERROR: ${message}`);
-    if (logId !== undefined) {
-      await logRunFinish(logId, {
-        status: "error",
-        rowsSeen: 0,
-        rowsUpserted: 0,
-        rowsDeleted: 0,
-        rowsInsertedApp: 0,
-        rowsUpdatedApp: 0,
-        rowsSkippedLocked: 0,
-        error: message,
-      });
-    }
+    await logRunFinish(logId, {
+      status: "error",
+      rowsSeen: 0,
+      rowsUpserted: 0,
+      rowsDeleted: 0,
+      rowsInsertedApp: 0,
+      rowsUpdatedApp: 0,
+      rowsSkippedLocked: 0,
+      error: message,
+    });
     return 1;
   }
 }
