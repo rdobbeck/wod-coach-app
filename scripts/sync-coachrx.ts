@@ -129,15 +129,39 @@ function toMirrorRow(row: RawRow, fetchedAt: string): MirrorRow {
  * never leaves the tab; only the response JSON body crosses to Node.
  */
 async function fetchLibraryViaWrapper(): Promise<RawRow[]> {
-  const tab = findCoachRxTab();
-  console.log(`[sync] Using CoachRx tab ${tab.tabId} (${tab.url})`);
+  // Tab id can vanish between OpenTabs calls if Chrome rotates tabs overnight.
+  // Re-resolve on every call so a stale id doesn't crash the run.
+  function resolveTabId(): number {
+    const t = findCoachRxTab();
+    return t.tabId;
+  }
+  function isTabGoneError(e: unknown): boolean {
+    const msg = (e as Error).message ?? "";
+    return /No tab with id/i.test(msg);
+  }
+  async function withFreshTab<T>(label: string, fn: (tabId: number) => T | Promise<T>): Promise<T> {
+    let tabId = resolveTabId();
+    try {
+      return await fn(tabId);
+    } catch (e) {
+      if (!isTabGoneError(e)) throw e;
+      console.warn(`[sync] ${label}: tab ${tabId} gone, re-resolving`);
+      tabId = resolveTabId();
+      return await fn(tabId);
+    }
+  }
+
+  const initialTab = findCoachRxTab();
+  console.log(`[sync] Using CoachRx tab ${initialTab.tabId} (${initialTab.url})`);
 
   // Ensure we're on the library page so the bearer is loaded into the
   // page's storage (the React app populates it on auth).
-  navigateTab(tab.tabId, `https://dashboard.coachrx.app/library/exercises`);
+  await withFreshTab("navigate", (id) =>
+    navigateTab(id, `https://dashboard.coachrx.app/library/exercises`)
+  );
   await sleep(3000);
   // Clipboard write requires a focused document.
-  focusTab(tab.tabId);
+  await withFreshTab("focus", (id) => focusTab(id));
   await sleep(500);
 
   // In-page: read bearer from page storage, do the fetch, write the response
@@ -226,7 +250,9 @@ async function fetchLibraryViaWrapper(): Promise<RawRow[]> {
     | { ok: true; status: number; size: number; tokenSource?: string }
     | { ok: false; error: string };
 
-  const raw = executeScript<unknown>(tab.tabId, fetchCode);
+  const raw = await withFreshTab("execute_script", (id) =>
+    executeScript<unknown>(id, fetchCode)
+  );
   if (process.env.SYNC_DEBUG) {
     const head = JSON.stringify(raw).slice(0, 300);
     console.log(`[sync] DEBUG raw type=${typeof raw} keys=${
@@ -311,15 +337,77 @@ async function fetchLibraryViaWrapper(): Promise<RawRow[]> {
   return extractRows(parsed);
 }
 
-async function logRunStart() {
-  const supa = getSupabase();
-  const { data, error } = await supa
-    .from("coachrx_sync_log")
-    .insert({ status: "running" })
-    .select("id")
-    .single();
-  if (error) throw new Error(`Could not insert sync log row: ${error.message}`);
-  return data.id as number;
+// Generic retry-with-backoff for network / Supabase 5xx transients.
+// Returns the function's result; rethrows after maxAttempts.
+async function withRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  maxAttempts = 3
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const msg = (e as Error).message ?? String(e);
+      // Retry on transient network / gateway errors. Treat anything that looks
+      // like a 5xx or a fetch-layer failure as retryable.
+      const transient =
+        /\b5\d\d\b/.test(msg) ||
+        /fetch failed/i.test(msg) ||
+        /network/i.test(msg) ||
+        /ECONN|ETIMEDOUT|ENOTFOUND/.test(msg) ||
+        /cloudflare/i.test(msg);
+      if (!transient || attempt === maxAttempts) throw e;
+      const delay = 1000 * attempt;
+      console.warn(`[sync] ${label}: attempt ${attempt} failed (${msg.slice(0, 120)}); retrying in ${delay}ms`);
+      await sleep(delay);
+    }
+  }
+  throw lastErr;
+}
+
+async function cleanupStaleRunning(): Promise<number> {
+  try {
+    const supa = getSupabase();
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data, error } = await supa
+      .from("coachrx_sync_log")
+      .update({
+        status: "abandoned",
+        finished_at: new Date().toISOString(),
+        error: "left in running state past 1h cutoff",
+      })
+      .eq("status", "running")
+      .lt("started_at", cutoff)
+      .select("id");
+    if (error) {
+      console.warn(`[sync] Could not clean up stale running rows: ${error.message}`);
+      return 0;
+    }
+    return data?.length ?? 0;
+  } catch (e) {
+    console.warn(`[sync] cleanupStaleRunning crashed: ${(e as Error).message}`);
+    return 0;
+  }
+}
+
+async function logRunStart(): Promise<number | undefined> {
+  return withRetry("logRunStart", async () => {
+    const supa = getSupabase();
+    const { data, error } = await supa
+      .from("coachrx_sync_log")
+      .insert({ status: "running" })
+      .select("id")
+      .single();
+    if (error) throw new Error(`Could not insert sync log row: ${error.message}`);
+    return data.id as number;
+  }).catch((e) => {
+    // Soft-failure: prefer running the sync without a log row over aborting.
+    console.warn(`[sync] logRunStart gave up after retries: ${(e as Error).message}`);
+    return undefined;
+  });
 }
 
 type RunSummary = {
@@ -334,23 +422,27 @@ type RunSummary = {
 };
 
 async function logRunFinish(id: number, s: RunSummary) {
-  const supa = getSupabase();
-  const { error } = await supa
-    .from("coachrx_sync_log")
-    .update({
-      finished_at: new Date().toISOString(),
-      status: s.status,
-      rows_seen: s.rowsSeen,
-      rows_upserted: s.rowsUpserted,
-      rows_deleted: s.rowsDeleted,
-      rows_inserted_app: s.rowsInsertedApp,
-      rows_updated_app: s.rowsUpdatedApp,
-      rows_skipped_locked: s.rowsSkippedLocked,
-      error: s.error ?? null,
-    })
-    .eq("id", id);
-  if (error) {
-    console.error(`[sync] Could not update sync log ${id}: ${error.message}`);
+  try {
+    await withRetry(`logRunFinish(${id})`, async () => {
+      const supa = getSupabase();
+      const { error } = await supa
+        .from("coachrx_sync_log")
+        .update({
+          finished_at: new Date().toISOString(),
+          status: s.status,
+          rows_seen: s.rowsSeen,
+          rows_upserted: s.rowsUpserted,
+          rows_deleted: s.rowsDeleted,
+          rows_inserted_app: s.rowsInsertedApp,
+          rows_updated_app: s.rowsUpdatedApp,
+          rows_skipped_locked: s.rowsSkippedLocked,
+          error: s.error ?? null,
+        })
+        .eq("id", id);
+      if (error) throw new Error(error.message);
+    });
+  } catch (e) {
+    console.error(`[sync] Could not update sync log ${id}: ${(e as Error).message}`);
   }
 }
 
@@ -419,12 +511,12 @@ async function main(): Promise<number> {
   const started = new Date().toISOString();
   console.log(`[sync] Started ${started}`);
 
-  let logId: number | undefined;
-  try {
-    logId = await logRunStart();
-  } catch (e) {
-    console.error(`[sync] FATAL: could not write sync log: ${(e as Error).message}`);
-    return 2;
+  const cleaned = await cleanupStaleRunning();
+  if (cleaned > 0) console.log(`[sync] Marked ${cleaned} stale 'running' rows as 'abandoned'`);
+
+  const logId = await logRunStart();
+  if (logId === undefined) {
+    console.warn(`[sync] Proceeding without a sync log row — will retry log updates later`);
   }
 
   try {
