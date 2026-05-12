@@ -43,3 +43,9 @@ prisma/*.db
 prisma/*.db-journal
 .env.production
 supabase/.temp/
+
+# playwright
+.auth/
+test-results/
+playwright-report/
+test-walkthrough/
