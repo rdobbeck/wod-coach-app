@@ -14,6 +14,12 @@ the pilot clients are programmed in WOD Coach only (CoachRx stays for everyone e
   normal program template by Thu; the importer brings it over and schedules it.
 - Logging: a **result text box per exercise** (same as CoachRx, imports 1:1) plus an
   optional **"+ sets"** control for per-set reps/weight.
+- **Clients can move a workout to another day** (e.g. Monday's session on Wednesday).
+  Per-client switch, imported from CoachRx `can_move_workouts` (both pilots: on;
+  31/41 of the roster on). Coach sees that it was moved and from when.
+- **Exercise history one tap away on both sides:** for any exercise, see every previous
+  time the client did it: date, weight, reps, RPE, result text, newest first.
+- **RPE:** optional 1-10 per exercise (and per set inside "+ sets").
 
 **Where things stand (Sep 21)**
 - DB restored and clean; 4,542 CoachRx exercises synced into `ExerciseLibrary` daily.
@@ -68,6 +74,10 @@ Tasks
      missing reps/weight
    - WorkoutLog: `status` (completed/missed), `clientNotes`; `WorkoutComment` for the
      CoachRx comment threads
+   - `ExerciseLog.rpe` (optional 1-10); `SetLog.rpe` already exists
+   - Workout: `originalDate` + `movedBy` (set when a workout is moved)
+   - ClientProfile: `canMoveWorkouts` (default true), `units` (lb/kg)
+   - Index `ExerciseLog` by (client, exercise, date) so history lookups stay instant
 
 ## Day 2: Importer
 
@@ -78,6 +88,10 @@ Tasks
    `ExerciseLibrary` by `coachrx_id` (fallback: name match, else keep as text).
 3. History → `WorkoutLog` (completed/missed) + `ExerciseLog.resultText` per exercise +
    comments. Exercises linked to the library by name (client rows carry no IDs).
+   Unmatched names are normalized and grouped so their history still lines up; the dry
+   run lists them so they can be mapped by hand. (History is only as good as this
+   linking, so the coach editor also picks exercises from the library, not free text.)
+   Also imports `can_move_workouts` → `canMoveWorkouts`.
 4. `--program <id> --start <date>`: import a CoachRx template (exercise IDs + videos
    linked directly) and schedule it for a client — used for the new pilot blocks.
 5. Dry-run mode that prints counts + unmatched exercises before writing.
@@ -91,11 +105,23 @@ Keep it to four screens:
 1. **Today** (`/client`): today's workout card with a big Start button, a 7-day strip
    (done / missed / upcoming), coach name. Nothing else.
 2. **Workout** (`/client/workouts/[id]`): coach notes + warmup at top; each exercise
-   shows video (tap to play), the prescription, a result text box (with last time's
-   result shown as a hint), and an optional "+ sets" row editor; cooldown; Finish →
-   optional note. Autosaves as they go so a dropped connection doesn't lose a session.
+   shows video (tap to play), the prescription, a **"Last time"** line right under the
+   name (date · weight × reps · RPE, or the result text), a result text box, optional
+   RPE chips (1-10), and an optional "+ sets" row editor; cooldown; Finish → optional note.
+   Tapping the exercise name or "Last time" opens the **exercise history sheet**. Autosaves as they go so a dropped connection doesn't lose a session.
 3. **History** (`/client/workouts`): completed workouts, newest first, tap to view.
-4. **Profile** (`/client/profile`): name, goals, injuries, sign out.
+4. **Profile** (`/client/profile`): name, goals, injuries, units, sign out.
+
+**Moving a workout** (if `canMoveWorkouts`): "Move" on any not-yet-completed workout,
+from Today, the week strip or the workout screen → pick a day (today or later; missed
+workouts can be pulled forward to today) → it moves; the original date is kept. If the
+target day already has a workout, both stay and are listed in order. Completed workouts
+can't be moved.
+
+**Exercise history sheet** (shared component, used on both sides): every past entry for
+that exercise for that client, newest first: date, workout name, sets (weight × reps @
+RPE) or result text, notes. Top of sheet: best/most recent at a glance. Also reachable
+from History → tap any exercise.
 
 Also: hide the Progress/Messages links until they exist, and add a PWA manifest + icon
 so clients can "Add to Home Screen" (feels like an app, no App Store).
@@ -104,10 +130,14 @@ so clients can "Add to Home Screen" (feels like an app, no App Store).
 
 1. **Invite flow:** "Invite" on a client → one-time link (reuse `VerificationToken`,
    7-day expiry) → `/auth/invite/[token]` set-password page → lands on Today.
-2. **Client detail:** calendar of their program with completion status; tap a workout to
-   see what they logged and their notes.
+2. **Client detail:** calendar of their program with completion status (moved workouts
+   flagged with their original date); tap a workout to see what they logged and their
+   notes; tap any exercise to open the same **exercise history sheet** the client sees.
+   An "Exercises" tab lists every exercise the client has done, with last result + date,
+   so you can check before programming. Toggle for "client can move workouts".
 3. **Minimal program editor:** edit a workout (exercises, prescription, notes, warmup,
-   cooldown), move it to another date, duplicate it, add a new one. No drag-and-drop
+   cooldown), move it to another date, duplicate it, add a new one. While editing an
+   exercise, its "Last time" line shows so you can set loads without leaving the page. No drag-and-drop
    week builder yet; the AI builder remains for creating whole programs.
 
 ## Day 5 (Fri): Rollout
