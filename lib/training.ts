@@ -4,6 +4,9 @@ import { dayKey, type HistoryEntry } from "./training-format"
 
 export { dayKey, fromDayKey, summarizeEntry, type HistoryEntry } from "./training-format"
 
+/** Workouts a client may see: not part of a draft (unpublished) program. */
+export const clientVisible = { OR: [{ programId: null }, { program: { isDraft: false } }] }
+
 /** True if `userId` is the client themself or one of the client's coaches. */
 export async function canAccessClient(userId: string, clientId: string) {
   if (userId === clientId) return true
@@ -70,7 +73,7 @@ export async function getLastTimes(
 export async function getHistoryOverview(clientId: string) {
   const [workouts, logs] = await Promise.all([
     prisma.workout.findMany({
-      where: { clientId, isCompleted: true },
+      where: { clientId, isCompleted: true, ...clientVisible },
       orderBy: { scheduledDate: "desc" },
       take: 200,
       select: { id: true, name: true, scheduledDate: true, program: { select: { name: true } }, _count: { select: { exercises: true } } },

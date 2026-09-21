@@ -34,6 +34,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (!workout?.clientId || !(await canAccessClient(session.user.id, workout.clientId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
+  if (session.user.id === workout.clientId && workout.programId) {
+    const program = await prisma.program.findUnique({ where: { id: workout.programId }, select: { isDraft: true } })
+    if (program?.isDraft) return NextResponse.json({ error: "Not found" }, { status: 404 }) // unpublished
+  }
   const clientId = workout.clientId
   const byId = new Map(workout.exercises.map((e) => [e.id, e]))
 

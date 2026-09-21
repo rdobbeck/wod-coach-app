@@ -10,7 +10,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
   const workout = await prisma.workout.findUnique({
     where: { id: params.id },
     include: {
-      program: { select: { name: true } },
+      program: { select: { name: true, isDraft: true } },
       exercises: {
         orderBy: { order: "asc" },
         include: { exercise: { select: { id: true, name: true, videoUrl: true } } },
@@ -22,7 +22,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
       comments: { orderBy: { createdAt: "asc" } },
     },
   })
-  if (!workout || workout.clientId !== session.user.id) notFound()
+  if (!workout || workout.clientId !== session.user.id || workout.program?.isDraft) notFound()
 
   const profile = await prisma.clientProfile.findUnique({ where: { userId: session.user.id } })
   const exercises = workout.exercises.map((e) => ({

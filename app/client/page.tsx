@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { dayKey } from "@/lib/training"
+import { clientVisible, dayKey } from "@/lib/training"
 import TodayView, { type DayWorkout } from "@/components/client/TodayView"
 
 export default async function ClientToday() {
@@ -12,6 +12,7 @@ export default async function ClientToday() {
       where: {
         clientId: session.user.id,
         scheduledDate: { gte: new Date(now - 21 * 86_400_000), lte: new Date(now + 21 * 86_400_000) },
+        ...clientVisible,
       },
       orderBy: [{ scheduledDate: "asc" }, { order: "asc" }],
       include: {

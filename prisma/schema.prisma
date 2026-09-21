@@ -187,6 +187,7 @@ model Program {
   startDate        DateTime
   endDate          DateTime?
   isActive         Boolean   @default(true)
+  isDraft          Boolean   @default(false) // AI-generated, awaiting coach review; hidden from the client
   goals            String[]
   programType      String? // "AI_GENERATED", "MANUAL", etc.
   aiRationale      String?   @db.Text // AI's explanation for program design

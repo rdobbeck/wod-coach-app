@@ -26,6 +26,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!workout?.clientId || !(await canAccessClient(session.user.id, workout.clientId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
+  if (session.user.id === workout.clientId && workout.programId) {
+    const program = await prisma.program.findUnique({ where: { id: workout.programId }, select: { isDraft: true } })
+    if (program?.isDraft) return NextResponse.json({ error: "Not found" }, { status: 404 }) // unpublished
+  }
   if (workout.isCompleted) {
     return NextResponse.json({ error: "Completed workouts can't be moved" }, { status: 400 })
   }

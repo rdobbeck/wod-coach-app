@@ -53,6 +53,8 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [generatedProgram, setGeneratedProgram] = useState<any>(null)
+  // Set once the server has saved the generated program to the calendar.
+  const [saved, setSaved] = useState<{ programId: string; exercisesLinked: number; exerciseRows: number } | null>(null)
 
   // Form state
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -114,6 +116,7 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
           programLength,
           injuries: injuries || undefined,
           clientId: selectedClient.clientId,
+          startDate,
         }),
       })
 
@@ -124,8 +127,9 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
 
       const data = await res.json()
       setGeneratedProgram(data.program)
+      setSaved({ programId: data.programId, exercisesLinked: data.exercisesLinked, exerciseRows: data.exerciseRows })
       setStep(5) // Move to preview step
-      toast.success("Program generated successfully!")
+      toast.success("Program generated and saved as a draft")
     } catch (error: any) {
       console.error("Generation error:", error)
       toast.error(error.message || "Failed to generate program")
@@ -134,37 +138,35 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
     }
   }
 
-  const handleSaveProgram = async () => {
-    if (!selectedClient || !generatedProgram) return
-
+  const handlePublish = async () => {
+    if (!saved) return
     setSaving(true)
-
-    try {
-      const res = await fetch("/api/programs/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          programData: generatedProgram,
-          clientId: selectedClient.clientId,
-          startDate,
-        }),
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || "Failed to save program")
-      }
-
-      const data = await res.json()
-      toast.success(`${generatedProgram.programName} is on ${selectedClient.client.name ?? "the client"}'s calendar (${data.exercisesLinked}/${data.exerciseRows} exercises linked to videos)`)
-      router.push(`/coach/clients/${selectedClient.clientId}`)
-    } catch (error: any) {
-      console.error("Save error:", error)
-      toast.error(error.message || "Failed to save program")
-    } finally {
-      setSaving(false)
-    }
+    const res = await fetch(`/api/programs/${saved.programId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ publish: true }),
+    })
+    setSaving(false)
+    if (!res.ok) return toast.error("Couldn't publish")
+    toast.success("Published. The client can see it now.")
+    router.push(`/coach/clients/${selectedClient?.clientId}`)
   }
+
+  // Programs are saved as drafts as soon as they're generated; this removes one to try again.
+  const handleDiscard = async () => {
+    if (!saved) return
+    setSaving(true)
+    const res = await fetch(`/api/programs/${saved.programId}`, { method: "DELETE" })
+    setSaving(false)
+    if (!res.ok) {
+      toast.error((await res.json().catch(() => ({}))).error ?? "Couldn't discard program")
+      return
+    }
+    setGeneratedProgram(null)
+    setSaved(null)
+    setStep(4)
+  }
+
 
   const handleEquipmentToggle = (item: string) => {
     setEquipment((prev) =>
@@ -451,7 +453,10 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
         {step === 5 && generatedProgram && (
           <div>
             <h2 className="text-2xl font-bold mb-2">✨ Program Generated!</h2>
-            <p className="text-gray-600 mb-6">Review and edit before saving</p>
+            <p className="text-gray-600 mb-6">
+              Saved as a <strong>draft</strong> on {selectedClient?.client.name ?? "the client"}'s calendar starting {new Date(`${startDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              {saved && ` · ${saved.exercisesLinked}/${saved.exerciseRows} exercises linked to videos`}. The client can't see it until you publish.
+            </p>
 
             <div className="bg-gray-50 rounded-lg p-6 mb-6">
               <h3 className="text-xl font-bold mb-2">{generatedProgram.programName}</h3>
@@ -478,21 +483,25 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
 
             <div className="flex gap-4">
               <button
-                onClick={handleSaveProgram}
+                onClick={handlePublish}
                 disabled={saving}
-                className="flex-1 bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 font-semibold disabled:opacity-50"
               >
-                {saving ? "Saving..." : "💾 Save Program"}
+                ✅ Publish to client
               </button>
               <button
-                onClick={() => {
-                  setGeneratedProgram(null)
-                  setStep(4)
-                }}
+                onClick={() => router.push(`/coach/clients/${selectedClient?.clientId}`)}
+                disabled={saving}
+                className="flex-1 bg-white border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 font-semibold disabled:opacity-50"
+              >
+                📅 Review in calendar
+              </button>
+              <button
+                onClick={handleDiscard}
                 disabled={saving}
                 className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 font-semibold disabled:opacity-50"
               >
-                Generate Different Program
+                {saving ? "Discarding..." : "Discard & regenerate"}
               </button>
             </div>
           </div>
@@ -545,7 +554,8 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
         {generating && (
           <div className="mt-8 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4" />
-            <p className="text-gray-600">AI is designing the program... this usually takes 1-3 minutes. Keep this tab open.</p>
+            <p className="text-gray-600">AI is designing the program... this usually takes 1-3 minutes.</p>
+            <p className="text-sm text-gray-500 mt-1">It's saved as a draft automatically (only you can see it), so it's safe to leave this page.</p>
           </div>
         )}
       </div>

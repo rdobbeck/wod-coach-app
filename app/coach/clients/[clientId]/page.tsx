@@ -6,6 +6,7 @@ import Link from "next/link"
 import DashboardHeader from "@/components/DashboardHeader"
 import ClientActions from "@/components/coach/ClientActions"
 import AddWorkoutButton from "@/components/coach/AddWorkoutButton"
+import DraftProgramBar from "@/components/coach/DraftProgramBar"
 import HistoryView from "@/components/client/HistoryView"
 import { dayKey, getHistoryOverview } from "@/lib/training"
 
@@ -44,7 +45,7 @@ export default async function ClientDetailPage({
     prisma.workout.findMany({
       where: { clientId: client.id, scheduledDate: { gte: monday, lte: end } },
       orderBy: [{ scheduledDate: "asc" }, { order: "asc" }],
-      include: { _count: { select: { exercises: true, comments: true } }, logs: { select: { notes: true } } },
+      include: { _count: { select: { exercises: true, comments: true } }, logs: { select: { notes: true } }, program: { select: { isDraft: true } } },
     }),
     tab === "calendar" ? null : getHistoryOverview(client.id),
     prisma.program.findMany({ where: { clientId: client.id }, orderBy: { startDate: "desc" }, take: 10 }),
@@ -103,6 +104,16 @@ export default async function ClientDetailPage({
 
         {tab === "calendar" && (
           <div className="mt-4 space-y-4">
+            {programs
+              .filter((p) => p.isDraft)
+              .map((p) => (
+                <DraftProgramBar
+                  key={p.id}
+                  programId={p.id}
+                  name={p.name}
+                  range={`${fmt(p.startDate, { month: "short", day: "numeric" })}${p.endDate ? ` – ${fmt(p.endDate, { month: "short", day: "numeric" })}` : ""}`}
+                />
+              ))}
             {weeks.map((week) => (
               <section key={week[0].key} className="rounded-xl border border-gray-200 bg-white">
                 <h2 className="border-b border-gray-100 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -119,8 +130,8 @@ export default async function ClientDetailPage({
                       <div className="min-w-0 flex-1 space-y-1">
                         {d.items.map((w) => {
                           const rest = w._count.exercises === 0 && /rest/i.test(w.name)
-                          const status = rest ? "Rest" : w.isCompleted ? "Done" : d.key < todayKey ? "Missed" : "Planned"
-                          const color = { Rest: "bg-gray-100 text-gray-600", Done: "bg-green-100 text-green-800", Missed: "bg-red-100 text-red-700", Planned: "bg-primary-100 text-primary-800" }[status]
+                          const status = w.program?.isDraft ? "Draft" : rest ? "Rest" : w.isCompleted ? "Done" : d.key < todayKey ? "Missed" : "Planned"
+                          const color = { Draft: "bg-violet-100 text-violet-800", Rest: "bg-gray-100 text-gray-600", Done: "bg-green-100 text-green-800", Missed: "bg-red-100 text-red-700", Planned: "bg-primary-100 text-primary-800" }[status]
                           return (
                             <Link key={w.id} href={`/coach/clients/${client.id}/workouts/${w.id}`} className="flex items-center gap-2 text-sm hover:underline">
                               <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${color}`}>{status}</span>
