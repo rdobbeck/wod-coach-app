@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("POSTGRES_PRISMA_URL")
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
   directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
@@ -50,27 +50,27 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
+  accounts Account[]
+  sessions Session[]
 
   // Coach relationships
-  coachProfile  CoachProfile?
-  clients       ClientCoach[] @relation("CoachClients")
-  coachPrograms Program[]     @relation("CoachPrograms")
-  messagesSent  Message[]     @relation("SentMessages")
+  coachProfile      CoachProfile?
+  clients           ClientCoach[]  @relation("CoachClients")
+  coachPrograms     Program[]      @relation("CoachPrograms")
+  messagesSent      Message[]      @relation("SentMessages")
   videoMessagesSent VideoMessage[] @relation("SentVideoMessages")
 
   // Client relationships
-  clientProfile ClientProfile?
-  coaches       ClientCoach[] @relation("ClientCoaches")
-  clientPrograms Program[]    @relation("ClientPrograms")
-  workoutLogs   WorkoutLog[]
-  assessments   Assessment[]
-  habits        HabitLog[]
-  wearablesData WearablesData[]
-  messagesReceived Message[]  @relation("ReceivedMessages")
-  videoMessagesReceived VideoMessage[] @relation("ReceivedVideoMessages")
-  vbtSubscription VBTSubscription?
+  clientProfile         ClientProfile?
+  coaches               ClientCoach[]    @relation("ClientCoaches")
+  clientPrograms        Program[]        @relation("ClientPrograms")
+  workoutLogs           WorkoutLog[]
+  assessments           Assessment[]
+  habits                HabitLog[]
+  wearablesData         WearablesData[]
+  messagesReceived      Message[]        @relation("ReceivedMessages")
+  videoMessagesReceived VideoMessage[]   @relation("ReceivedVideoMessages")
+  vbtSubscription       VBTSubscription?
 }
 
 model VerificationToken {
@@ -92,69 +92,69 @@ enum UserRole {
 // ============================================
 
 model CoachProfile {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  bio         String?  @db.Text
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  bio            String?  @db.Text
   certifications String[]
-  specialties String[]
-  yearsExp    Int?
+  specialties    String[]
+  yearsExp       Int?
 
   // AI Program Builder Settings
-  aiProvider  AIProvider @default(GEMINI_FREE)
-  openrouterApiKey String? // Encrypted
-  preferredModel String? // e.g., "anthropic/claude-sonnet-4"
-  aiCredits   Int      @default(5) // Free credits for pay-per-program
-  totalProgramsGenerated Int @default(0)
+  aiProvider             AIProvider @default(GEMINI_FREE)
+  openrouterApiKey       String? // Encrypted
+  preferredModel         String? // e.g., "anthropic/claude-sonnet-4"
+  aiCredits              Int        @default(5) // Free credits for pay-per-program
+  totalProgramsGenerated Int        @default(0)
 
   // Onboarding
-  hasCompletedOnboarding Boolean @default(false)
-  onboardingCompletedAt DateTime?
+  hasCompletedOnboarding Boolean   @default(false)
+  onboardingCompletedAt  DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscription Subscription?
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription    Subscription?
   creditPurchases AICreditPurchase[]
 }
 
 enum AIProvider {
-  GEMINI_FREE        // Google Gemini 2.0 Flash (free, limited)
-  VENICE_FREE        // Venice.ai - Privacy-focused, no data retention, unlimited free
-  PAY_PER_PROGRAM    // We handle API calls, charge credits
+  GEMINI_FREE // Google Gemini 2.0 Flash (free, limited)
+  VENICE_FREE // Venice.ai - Privacy-focused, no data retention, unlimited free
+  PAY_PER_PROGRAM // We handle API calls, charge credits
   BRING_YOUR_OWN_KEY // Coach uses their OpenRouter key
 }
 
 model ClientProfile {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  dateOfBirth       DateTime?
-  gender            String?
-  height            Float?
-  weight            Float?
-  goals             String[]
-  activityLevel     String?
-  injuries          String?  @db.Text
-  equipment         String[]
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  dateOfBirth          DateTime?
+  gender               String?
+  height               Float?
+  weight               Float?
+  goals                String[]
+  activityLevel        String?
+  injuries             String?   @db.Text
+  equipment            String[]
   preferredWorkoutDays String[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ClientCoach {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   clientId  String
   coachId   String
   status    ClientStatus @default(ACTIVE)
-  startDate DateTime @default(now())
+  startDate DateTime     @default(now())
   endDate   DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
-  client    User     @relation("ClientCoaches", fields: [clientId], references: [id], onDelete: Cascade)
-  coach     User     @relation("CoachClients", fields: [coachId], references: [id], onDelete: Cascade)
+  client User @relation("ClientCoaches", fields: [clientId], references: [id], onDelete: Cascade)
+  coach  User @relation("CoachClients", fields: [coachId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, coachId])
 }
@@ -170,23 +170,23 @@ enum ClientStatus {
 // ============================================
 
 model Program {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  description String?  @db.Text
+  description String?   @db.Text
   coachId     String
   clientId    String
   startDate   DateTime
   endDate     DateTime?
-  isActive    Boolean  @default(true)
+  isActive    Boolean   @default(true)
   goals       String[]
-  programType String?  // "AI_GENERATED", "MANUAL", etc.
-  aiRationale String?  @db.Text // AI's explanation for program design
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  programType String? // "AI_GENERATED", "MANUAL", etc.
+  aiRationale String?   @db.Text // AI's explanation for program design
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  coach       User     @relation("CoachPrograms", fields: [coachId], references: [id], onDelete: Cascade)
-  client      User     @relation("ClientPrograms", fields: [clientId], references: [id], onDelete: Cascade)
-  mesocycles  Mesocycle[]
+  coach      User        @relation("CoachPrograms", fields: [coachId], references: [id], onDelete: Cascade)
+  client     User        @relation("ClientPrograms", fields: [clientId], references: [id], onDelete: Cascade)
+  mesocycles Mesocycle[]
 }
 
 model Mesocycle {
@@ -196,27 +196,27 @@ model Mesocycle {
   description String?  @db.Text
   startDate   DateTime
   endDate     DateTime
-  focus       String   // e.g., "Hypertrophy", "Strength", "Endurance"
+  focus       String // e.g., "Hypertrophy", "Strength", "Endurance"
   order       Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  program     Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
   microcycles Microcycle[]
 }
 
 model Microcycle {
   id          String   @id @default(cuid())
   mesocycleId String
-  weekNumber  Int      // Week number within the mesocycle
+  weekNumber  Int // Week number within the mesocycle
   description String?  @db.Text
   startDate   DateTime
   endDate     DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  mesocycle   Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
-  workouts    Workout[]
+  mesocycle Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
+  workouts  Workout[]
 }
 
 // ============================================
@@ -224,40 +224,40 @@ model Microcycle {
 // ============================================
 
 model Workout {
-  id          String   @id @default(cuid())
-  microcycleId String?
-  name        String
-  description String?  @db.Text
+  id            String   @id @default(cuid())
+  microcycleId  String?
+  name          String
+  description   String?  @db.Text
   scheduledDate DateTime
-  dayOfWeek   Int      // 0-6 (Sunday-Saturday)
-  order       Int
-  isCompleted Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  dayOfWeek     Int // 0-6 (Sunday-Saturday)
+  order         Int
+  isCompleted   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  microcycle  Microcycle? @relation(fields: [microcycleId], references: [id], onDelete: Cascade)
-  exercises   WorkoutExercise[]
-  logs        WorkoutLog[]
+  microcycle Microcycle?       @relation(fields: [microcycleId], references: [id], onDelete: Cascade)
+  exercises  WorkoutExercise[]
+  logs       WorkoutLog[]
 }
 
 model ExerciseLibrary {
-  id              String   @id @default(cuid())
-  name            String
-  description     String?  @db.Text
-  category        String   // e.g., "Upper Push", "Lower Pull", "Core"
-  muscleGroups    String[]
-  equipment       String[]
-  difficulty      String   // "Beginner", "Intermediate", "Advanced"
-  videoUrl        String?
-  thumbnailUrl    String?
-  instructions    String?  @db.Text
-  isCustom        Boolean  @default(false)
-  createdBy       String?
-  coachrxId       String?  @unique @map("coachrx_id")
-  locked          Boolean  @default(false)
-  lastSyncedAt    DateTime? @map("last_synced_at")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           String    @id @default(cuid())
+  name         String
+  description  String?   @db.Text
+  category     String // e.g., "Upper Push", "Lower Pull", "Core"
+  muscleGroups String[]
+  equipment    String[]
+  difficulty   String // "Beginner", "Intermediate", "Advanced"
+  videoUrl     String?
+  thumbnailUrl String?
+  instructions String?   @db.Text
+  isCustom     Boolean   @default(false)
+  createdBy    String?
+  coachrxId    String?   @unique @map("coachrx_id")
+  locked       Boolean   @default(false)
+  lastSyncedAt DateTime? @map("last_synced_at")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   workoutExercises WorkoutExercise[]
 
@@ -270,17 +270,17 @@ model WorkoutExercise {
   exerciseId  String
   order       Int
   sets        Int
-  reps        String   // Can be "8-12", "AMRAP", etc.
+  reps        String // Can be "8-12", "AMRAP", etc.
   weight      Float?
   restSeconds Int?
-  tempo       String?  // e.g., "3-1-1-0"
+  tempo       String? // e.g., "3-1-1-0"
   notes       String?  @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workout     Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  exercise    ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  setLogs     SetLog[]
+  workout  Workout         @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  setLogs  SetLog[]
 }
 
 // ============================================
@@ -292,15 +292,15 @@ model WorkoutLog {
   workoutId   String
   userId      String
   completedAt DateTime @default(now())
-  duration    Int?     // in minutes
+  duration    Int? // in minutes
   notes       String?  @db.Text
-  rating      Int?     // 1-5 RPE or difficulty
+  rating      Int? // 1-5 RPE or difficulty
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workout     Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  setLogs     SetLog[]
+  workout Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  setLogs SetLog[]
 }
 
 model SetLog {
@@ -310,13 +310,13 @@ model SetLog {
   setNumber         Int
   reps              Int
   weight            Float?
-  rpe               Float?   // Rate of Perceived Exertion
+  rpe               Float? // Rate of Perceived Exertion
   isCompleted       Boolean  @default(true)
   notes             String?
   createdAt         DateTime @default(now())
 
-  workoutLog        WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
-  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  workoutLog      WorkoutLog      @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+  workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
 }
 
 // ============================================
@@ -324,36 +324,36 @@ model SetLog {
 // ============================================
 
 model Message {
-  id          String   @id @default(cuid())
-  senderId    String
-  receiverId  String
-  content     String   @db.Text
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  content    String   @db.Text
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  sender      User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
 }
 
 // Loom Video Messages for Coach-Client Communication
 model VideoMessage {
-  id          String   @id @default(cuid())
-  senderId    String   // Coach ID
-  receiverId  String   // Client ID
-  loomVideoId String   // Loom video ID
-  loomShareUrl String  // Loom share URL
-  loomEmbedUrl String  // Loom embed URL
-  title       String?  // Optional title
-  description String?  @db.Text // Optional description
-  workoutId   String?  // Optional: link to specific workout
-  programId   String?  // Optional: link to specific program
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  senderId     String // Coach ID
+  receiverId   String // Client ID
+  loomVideoId  String // Loom video ID
+  loomShareUrl String // Loom share URL
+  loomEmbedUrl String // Loom embed URL
+  title        String? // Optional title
+  description  String?  @db.Text // Optional description
+  workoutId    String? // Optional: link to specific workout
+  programId    String? // Optional: link to specific program
+  isRead       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  sender      User     @relation("SentVideoMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver    User     @relation("ReceivedVideoMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender   User @relation("SentVideoMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedVideoMessages", fields: [receiverId], references: [id], onDelete: Cascade)
 
   @@index([senderId, receiverId])
 }
@@ -363,16 +363,16 @@ model VideoMessage {
 // ============================================
 
 model Assessment {
-  id          String   @id @default(cuid())
-  userId      String
-  type        String   // e.g., "Initial", "Progress Check", "Final"
-  date        DateTime @default(now())
-  data        Json     // Flexible JSON for different assessment types
-  notes       String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String
+  type      String // e.g., "Initial", "Progress Check", "Final"
+  date      DateTime @default(now())
+  data      Json // Flexible JSON for different assessment types
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ============================================
@@ -380,18 +380,18 @@ model Assessment {
 // ============================================
 
 model HabitLog {
-  id          String   @id @default(cuid())
-  userId      String
-  date        DateTime @default(now())
-  habitType   String   // e.g., "Sleep", "Nutrition", "Hydration", "Steps"
-  value       Float?
-  unit        String?  // e.g., "hours", "calories", "oz", "steps"
-  data        Json?    // Additional flexible data
-  notes       String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @default(now())
+  habitType String // e.g., "Sleep", "Nutrition", "Hydration", "Steps"
+  value     Float?
+  unit      String? // e.g., "hours", "calories", "oz", "steps"
+  data      Json? // Additional flexible data
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ============================================
@@ -399,17 +399,17 @@ model HabitLog {
 // ============================================
 
 model WearablesData {
-  id          String   @id @default(cuid())
-  userId      String
-  source      WearableSource
-  dataType    String   // e.g., "sleep", "hrv", "activity", "readiness"
-  date        DateTime
-  value       Float?
-  data        Json     // Raw data from wearable
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String         @id @default(cuid())
+  userId    String
+  source    WearableSource
+  dataType  String // e.g., "sleep", "hrv", "activity", "readiness"
+  date      DateTime
+  value     Float?
+  data      Json // Raw data from wearable
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
 }
@@ -428,17 +428,17 @@ enum WearableSource {
 // ============================================
 
 model Video {
-  id          String   @id @default(cuid())
-  title       String
-  description String?  @db.Text
-  url         String
+  id           String   @id @default(cuid())
+  title        String
+  description  String?  @db.Text
+  url          String
   thumbnailUrl String?
-  duration    Int?     // in seconds
-  category    String?
-  tags        String[]
-  uploadedBy  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  duration     Int? // in seconds
+  category     String?
+  tags         String[]
+  uploadedBy   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // ============================================
@@ -446,26 +446,26 @@ model Video {
 // ============================================
 
 model Subscription {
-  id          String   @id @default(cuid())
-  coachId     String   @unique
-  tier        SubscriptionTier @default(FREE)
-  status      SubscriptionStatus @default(ACTIVE)
-  clientLimit Int      @default(5)
-  startDate   DateTime @default(now())
-  endDate     DateTime?
-  stripeCustomerId String?
+  id                   String             @id @default(cuid())
+  coachId              String             @unique
+  tier                 SubscriptionTier   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  clientLimit          Int                @default(5)
+  startDate            DateTime           @default(now())
+  endDate              DateTime?
+  stripeCustomerId     String?
   stripeSubscriptionId String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
-  coach       CoachProfile @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  coach CoachProfile @relation(fields: [coachId], references: [id], onDelete: Cascade)
 }
 
 enum SubscriptionTier {
-  FREE          // 1-5 clients
-  STARTER       // 6-50 clients
-  PROFESSIONAL  // 51-150 clients
-  ENTERPRISE    // Unlimited
+  FREE // 1-5 clients
+  STARTER // 6-50 clients
+  PROFESSIONAL // 51-150 clients
+  ENTERPRISE // Unlimited
 }
 
 enum SubscriptionStatus {
@@ -480,32 +480,32 @@ enum SubscriptionStatus {
 // ============================================
 
 model VBTSubscription {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  status      VBTSubscriptionStatus @default(TRIAL)
-  startDate   DateTime @default(now())
-  endDate     DateTime?
-  lastPaymentDate DateTime?
-  nextPaymentDate DateTime?
-  weeklyPrice Float    @default(4.99) // $4.99/week
-  stripeCustomerId String?
+  id                   String                @id @default(cuid())
+  userId               String                @unique
+  status               VBTSubscriptionStatus @default(TRIAL)
+  startDate            DateTime              @default(now())
+  endDate              DateTime?
+  lastPaymentDate      DateTime?
+  nextPaymentDate      DateTime?
+  weeklyPrice          Float                 @default(4.99) // $4.99/week
+  stripeCustomerId     String?
   stripeSubscriptionId String?
-  trialEndsAt DateTime? // 7-day free trial
-  cancelledAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  trialEndsAt          DateTime? // 7-day free trial
+  cancelledAt          DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
 }
 
 enum VBTSubscriptionStatus {
-  TRIAL        // 7-day free trial
-  ACTIVE       // Paying weekly
-  PAST_DUE     // Payment failed
-  CANCELLED    // User cancelled
-  EXPIRED      // Trial ended, no payment
+  TRIAL // 7-day free trial
+  ACTIVE // Paying weekly
+  PAST_DUE // Payment failed
+  CANCELLED // User cancelled
+  EXPIRED // Trial ended, no payment
 }
 
 // ============================================
@@ -513,16 +513,16 @@ enum VBTSubscriptionStatus {
 // ============================================
 
 model AICreditPurchase {
-  id          String   @id @default(cuid())
-  coachId     String
-  creditsAmount Int    // Number of program generation credits purchased
-  pricePerCredit Float @default(3.00) // $3 per program
-  totalAmount Float
+  id                    String   @id @default(cuid())
+  coachId               String
+  creditsAmount         Int // Number of program generation credits purchased
+  pricePerCredit        Float    @default(3.00) // $3 per program
+  totalAmount           Float
   stripePaymentIntentId String?
-  purchasedAt DateTime @default(now())
-  createdAt   DateTime @default(now())
+  purchasedAt           DateTime @default(now())
+  createdAt             DateTime @default(now())
 
-  coach       CoachProfile @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  coach CoachProfile @relation(fields: [coachId], references: [id], onDelete: Cascade)
 
   @@index([coachId, purchasedAt])
 }
