@@ -13,6 +13,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
+import { exerciseKey } from "../lib/exercise-key";
 
 const prisma = new PrismaClient();
 
@@ -87,15 +88,6 @@ type CrxProfile = {
 // ---------- helpers ----------
 const clean = (s: string | null | undefined) => (s && s.trim() ? s.trim() : null);
 
-/** Normalized exercise key: lowercase, no ordering prefixes ("A1."), no punctuation. */
-function exerciseKey(name: string, dropParens = false) {
-  let s = name.toLowerCase();
-  if (dropParens) s = s.replace(/\([^)]*\)/g, " ");
-  return s
-    .replace(/^\s*[a-z]?\d+[.)]\s*/, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
 
 // CoachRx dates are calendar days; store at noon UTC so no timezone shifts the day.
 const dayDate = (d: string) => new Date(`${d.replace(/\//g, "-")}T12:00:00.000Z`);
