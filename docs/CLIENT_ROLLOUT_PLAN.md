@@ -51,20 +51,13 @@ What this means:
 - Date-range params on client workouts: `?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
   (without them the endpoint returns `[]`).
 
-## Day 1 (Mon-Tue): CoachRx data discovery + schema prep
+## Day 1 (Mon-Tue): Schema prep
 
-**Gate: needs Ryan's written authorization** for read-only GETs beyond
-`/api/v1/exercises.json` (same bearer-in-tab pattern, never persisted, only JSON bodies
-leave the tab). Endpoints to read:
-- `GET /api/v1/programs.json` and `GET /api/v1/programs/<id>/workouts.json` (templates)
-- `GET /api/v1/clients...` (roster + profile fields; exact path to discover)
-- `GET /api/v1/clients/<slug>/workouts.json` (assigned calendar; check whether logged
-  results/notes/completion come back here or from another endpoint)
+Authorization granted Sep 21 (read-only GETs; see memory/plan above). Discovery done.
 
 Tasks
-1. Pull one sample of each response for 1 pilot client; save to `backups/coachrx-samples/`
-   (gitignored). Write a field map: CoachRx field → WOD Coach column.
-2. Pick the pilot clients (Ryan) — ideally mid-program, logging regularly.
+1. ~~Pull samples + field map~~ done (see Discovery results).
+2. ~~Pick pilots~~ done: Sasha Letchinger, Andrew Thresher.
 3. Schema additions (expected, confirm against samples):
    - `coachrxId` (unique, nullable) on Program, Workout, WorkoutLog, User → idempotent re-runs
    - Workout: `coachNotes`, `warmup`, `cooldown` (CoachRx workouts carry all three)
@@ -133,8 +126,8 @@ email notifications, full roster migration, two-way sync with CoachRx.
 
 ## Risks
 
-- **CoachRx history shape is unknown** until Day 1. If logged results aren't exposed,
-  history import degrades to completion + notes only (plan still holds).
+- **Free-text results can't be charted.** Per-set logging is opt-in, so progress charts
+  (not this week) will only have data where clients use "+ sets".
 - **OpenTabs rate limits** (~15 calls then 30s wait): import runs slow but fine for 3 clients.
 - **Other-device work** could conflict with client pages; push it early in the week.
 - **Previews share the production DB**, so test data lands in prod. Consider a separate
