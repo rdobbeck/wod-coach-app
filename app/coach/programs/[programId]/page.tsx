@@ -199,7 +199,7 @@ export default async function ProgramDetailPage({
                                 </div>
                                 <div className="flex-1">
                                   <div className="font-semibold text-gray-900">
-                                    {exercise.exercise.name}
+                                    {exercise.name ?? exercise.exercise?.name}
                                   </div>
                                   <div className="text-gray-600 mt-1">
                                     {exercise.sets} sets × {exercise.reps} reps

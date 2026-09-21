@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import { findCoachRxTab, executeScript } from "./opentabs";
 
 /**
@@ -7,7 +8,9 @@ import { findCoachRxTab, executeScript } from "./opentabs";
  * clients (list + profile) and client workouts. Same pattern as the exercise
  * sync: the bearer is read from page storage inside the tab and used for one
  * fetch; it is never stashed, returned, persisted or logged. Only the JSON body
- * leaves the tab, via window.__crxReadBody read back in slices.
+ * leaves the tab: gzipped + base64'd in the page (CompressionStream), stashed on
+ * window.__crxReadBody and read back in slices, which cuts ~450 KB client
+ * histories from ~30 OpenTabs calls to ~2.
  */
 const ALLOWED: RegExp[] = [
   /^\/api\/v1\/programs(\.json)?(\?[^#]*)?$/,
@@ -17,7 +20,8 @@ const ALLOWED: RegExp[] = [
   /^\/api\/v1\/clients\/[A-Za-z0-9_-]+\/workouts(\.json)?(\?[^#]*)?$/,
 ];
 
-const READ_CHUNK = 16_000;
+// base64 has nothing to escape, so slices can sit close to OpenTabs' ~50 KB cap.
+const READ_CHUNK = 40_000;
 const READ_PAUSE_MS = 1_000;
 const RATE_LIMIT_PAUSE_MS = 30_000;
 const POLL_MS = 2_000;
@@ -93,8 +97,14 @@ export async function coachrxGet(path: string): Promise<{ status: number; body: 
         const text = await r.text();
         let sum = 0;
         for (let i = 0; i < text.length; i++) sum = (sum * 31 + text.charCodeAt(i)) >>> 0;
-        window.__crxReadBody = text;
-        return { ok: true, status: r.status, size: text.length, checksum: sum };
+        const gz = new Uint8Array(await new Response(
+          new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))
+        ).arrayBuffer());
+        let bin = '';
+        for (let i = 0; i < gz.length; i += 0x8000) bin += String.fromCharCode.apply(null, gz.subarray(i, i + 0x8000));
+        const b64 = btoa(bin);
+        window.__crxReadBody = b64;
+        return { ok: true, status: r.status, size: b64.length, checksum: sum };
       } catch (e) {
         return { ok: false, error: String(e) };
       }
@@ -129,7 +139,7 @@ export async function coachrxGet(path: string): Promise<{ status: number; body: 
   }
   await exec("delete window.__crxReadBody; delete window.__crxReadState; true").catch(() => undefined);
 
-  const text = parts.join("");
+  const text = gunzipSync(Buffer.from(parts.join(""), "base64")).toString("utf8");
   let sum = 0;
   for (let i = 0; i < text.length; i++) sum = (sum * 31 + text.charCodeAt(i)) >>> 0;
   if (sum !== res.checksum) throw new Error(`coachrxGet ${path}: checksum mismatch`);

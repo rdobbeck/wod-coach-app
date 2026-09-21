@@ -172,7 +172,7 @@ export default async function ClientDashboard() {
                   {workout.exercises.map((we, idx) => (
                     <div key={we.id} className="flex items-center text-sm">
                       <span className="text-gray-500 w-8">{idx + 1}.</span>
-                      <span className="flex-1 font-medium">{we.exercise.name}</span>
+                      <span className="flex-1 font-medium">{we.name ?? we.exercise?.name}</span>
                       <span className="text-gray-600">{we.sets} sets × {we.reps} reps</span>
                     </div>
                   ))}

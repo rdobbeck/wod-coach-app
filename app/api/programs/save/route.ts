@@ -85,6 +85,8 @@ export async function POST(req: Request) {
             const workout = await tx.workout.create({
               data: {
                 microcycleId: microcycle.id,
+                clientId,
+                programId: newProgram.id,
                 name: workoutData.name,
                 description: workoutData.description || null,
                 scheduledDate: workoutDate,

@@ -47,6 +47,7 @@ model User {
   image          String?
   hashedPassword String?
   role           UserRole  @default(CLIENT)
+  coachrxId      String?   @unique // CoachRx client id, set by the importer
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -71,6 +72,10 @@ model User {
   messagesReceived      Message[]        @relation("ReceivedMessages")
   videoMessagesReceived VideoMessage[]   @relation("ReceivedVideoMessages")
   vbtSubscription       VBTSubscription?
+  workouts              Workout[]        @relation("ClientWorkouts")
+  workoutsMoved         Workout[]        @relation("MovedWorkouts")
+  exerciseLogs          ExerciseLog[]
+  workoutComments       WorkoutComment[]
 }
 
 model VerificationToken {
@@ -137,6 +142,10 @@ model ClientProfile {
   injuries             String?   @db.Text
   equipment            String[]
   preferredWorkoutDays String[]
+  canMoveWorkouts      Boolean   @default(true) // client may reschedule their own workouts
+  units                String    @default("lb") // "lb" | "kg"
+  phone                String?
+  coachrxSlug          String?   @unique
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -170,23 +179,27 @@ enum ClientStatus {
 // ============================================
 
 model Program {
-  id          String    @id @default(cuid())
-  name        String
-  description String?   @db.Text
-  coachId     String
-  clientId    String
-  startDate   DateTime
-  endDate     DateTime?
-  isActive    Boolean   @default(true)
-  goals       String[]
-  programType String? // "AI_GENERATED", "MANUAL", etc.
-  aiRationale String?   @db.Text // AI's explanation for program design
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  name             String
+  description      String?   @db.Text
+  coachId          String
+  clientId         String
+  startDate        DateTime
+  endDate          DateTime?
+  isActive         Boolean   @default(true)
+  goals            String[]
+  programType      String? // "AI_GENERATED", "MANUAL", etc.
+  aiRationale      String?   @db.Text // AI's explanation for program design
+  coachrxProgramId String? // source CoachRx program, when imported
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   coach      User        @relation("CoachPrograms", fields: [coachId], references: [id], onDelete: Cascade)
   client     User        @relation("ClientPrograms", fields: [clientId], references: [id], onDelete: Cascade)
   mesocycles Mesocycle[]
+  workouts   Workout[]
+
+  @@unique([clientId, coachrxProgramId])
 }
 
 model Mesocycle {
@@ -224,20 +237,38 @@ model Microcycle {
 // ============================================
 
 model Workout {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   microcycleId  String?
+  // Direct links so a client's calendar is one query; imported CoachRx history
+  // has workouts that belong to no program.
+  clientId      String?
+  programId     String?
   name          String
-  description   String?  @db.Text
+  description   String?   @db.Text
+  coachNotes    String?   @db.Text
+  warmup        String?   @db.Text
+  cooldown      String?   @db.Text
   scheduledDate DateTime
   dayOfWeek     Int // 0-6 (Sunday-Saturday)
   order         Int
-  isCompleted   Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isCompleted   Boolean   @default(false)
+  // Set when the client or coach moves the workout to another day.
+  originalDate  DateTime?
+  movedAt       DateTime?
+  movedById     String?
+  coachrxId     String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   microcycle Microcycle?       @relation(fields: [microcycleId], references: [id], onDelete: Cascade)
+  client     User?             @relation("ClientWorkouts", fields: [clientId], references: [id], onDelete: Cascade)
+  program    Program?          @relation(fields: [programId], references: [id], onDelete: SetNull)
+  movedBy    User?             @relation("MovedWorkouts", fields: [movedById], references: [id], onDelete: SetNull)
   exercises  WorkoutExercise[]
   logs       WorkoutLog[]
+  comments   WorkoutComment[]
+
+  @@index([clientId, scheduledDate])
 }
 
 model ExerciseLibrary {
@@ -260,27 +291,33 @@ model ExerciseLibrary {
   updatedAt    DateTime  @updatedAt
 
   workoutExercises WorkoutExercise[]
+  exerciseLogs     ExerciseLog[]
 
   @@index([coachrxId])
 }
 
 model WorkoutExercise {
-  id          String   @id @default(cuid())
-  workoutId   String
-  exerciseId  String
-  order       Int
-  sets        Int
-  reps        String // Can be "8-12", "AMRAP", etc.
-  weight      Float?
-  restSeconds Int?
-  tempo       String? // e.g., "3-1-1-0"
-  notes       String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  workoutId     String
+  exerciseId    String? // null when an imported row matched no library exercise
+  name          String? // display name; falls back to exercise.name
+  prescription  String?  @db.Text // free text, e.g. "3x8 @ RPE 7, rest 90s"
+  supersetGroup String? // rows sharing a value are done as a superset/circuit
+  order         Int
+  sets          Int?
+  reps          String? // Can be "8-12", "AMRAP", etc.
+  weight        Float?
+  restSeconds   Int?
+  tempo         String? // e.g., "3-1-1-0"
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  workout  Workout         @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  exercise ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  setLogs  SetLog[]
+  coachrxItemId String?          @unique
+  workout       Workout          @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise      ExerciseLibrary? @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
+  setLogs       SetLog[]
+  exerciseLogs  ExerciseLog[]
 }
 
 // ============================================
@@ -298,17 +335,21 @@ model WorkoutLog {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workout Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  setLogs SetLog[]
+  workout      Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  setLogs      SetLog[]
+  exerciseLogs ExerciseLog[]
+
+  @@unique([workoutId, userId]) // one log per workout per client; autosave upserts it
 }
 
 model SetLog {
   id                String   @id @default(cuid())
   workoutLogId      String
   workoutExerciseId String
+  exerciseLogId     String?
   setNumber         Int
-  reps              Int
+  reps              Int?
   weight            Float?
   rpe               Float? // Rate of Perceived Exertion
   isCompleted       Boolean  @default(true)
@@ -317,6 +358,49 @@ model SetLog {
 
   workoutLog      WorkoutLog      @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
   workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  exerciseLog     ExerciseLog?    @relation(fields: [exerciseLogId], references: [id], onDelete: Cascade)
+}
+
+// One row per exercise per logged workout: the free-text result (how clients
+// log in CoachRx) plus optional RPE; per-set detail hangs off it as SetLogs.
+// Exercise history = this table filtered by client + exercise, newest first.
+model ExerciseLog {
+  id                String   @id @default(cuid())
+  workoutLogId      String
+  workoutExerciseId String
+  userId            String
+  exerciseId        String? // library exercise, when linked
+  exerciseKey       String // normalized name; groups history for unlinked rows
+  resultText        String?  @db.Text
+  rpe               Float?
+  performedAt       DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workoutLog      WorkoutLog       @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+  workoutExercise WorkoutExercise  @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise        ExerciseLibrary? @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
+  setLogs         SetLog[]
+
+  @@unique([workoutLogId, workoutExerciseId])
+  @@index([userId, exerciseId, performedAt])
+  @@index([userId, exerciseKey, performedAt])
+}
+
+model WorkoutComment {
+  id         String   @id @default(cuid())
+  workoutId  String
+  authorId   String?
+  authorName String // kept for imported comments whose author has no account
+  body       String   @db.Text
+  coachrxId  String?  @unique
+  createdAt  DateTime @default(now())
+
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  author  User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([workoutId, createdAt])
 }
 
 // ============================================
