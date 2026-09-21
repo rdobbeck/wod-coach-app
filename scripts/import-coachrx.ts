@@ -1,0 +1,346 @@
+#!/usr/bin/env tsx
+/**
+ * Import CoachRx clients (profile + full workout history + comments) from an
+ * export made by export-coachrx.ts. Reads only local JSON; never calls CoachRx.
+ *
+ *   npm run import:coachrx -- --client sasha-letchinger --coach you@example.com [--dry-run]
+ *   options: --export <dir> (default: newest backups/coachrx-export-*), repeat --client
+ *
+ * Idempotent: every row is keyed on its CoachRx id, so re-running updates in place.
+ * Exercises are linked to ExerciseLibrary by normalized name (client calendar rows
+ * carry no exercise ids); unmatched names are listed in the dry run.
+ */
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
+
+// ---------- args ----------
+const argv = process.argv.slice(2);
+const flag = (name: string) => argv.includes(`--${name}`);
+const values = (name: string) =>
+  argv.flatMap((a, i) => (a === `--${name}` && argv[i + 1] ? [argv[i + 1]] : []));
+const dryRun = flag("dry-run");
+const slugs = values("client");
+const coachEmail = values("coach")[0]?.toLowerCase();
+const exportDir =
+  values("export")[0] ??
+  (() => {
+    const dirs = readdirSync("backups")
+      .filter((d) => d.startsWith("coachrx-export-"))
+      .sort();
+    if (!dirs.length) throw new Error("No backups/coachrx-export-* found; run npm run export:coachrx");
+    return join("backups", dirs[dirs.length - 1]);
+  })();
+
+// ---------- CoachRx shapes (only the fields we use) ----------
+type CrxItem = {
+  id: number | string;
+  name: string;
+  description: string | null;
+  is_circuit: boolean;
+  position: number | null;
+  status: string;
+  result: string | null;
+};
+type CrxComment = {
+  id: number | string;
+  body: string;
+  created_at: string;
+  author: { name: string; type: string; slug?: string } | null;
+};
+type CrxWorkout = {
+  id: number | string;
+  due_date: string; // "2025/04/19"
+  order: number | null;
+  rest_day: boolean;
+  rest_day_instructions: string | null;
+  title: string | null;
+  status: string; // completed | missed | pending
+  coach_notes: string | null;
+  warmup: string | null;
+  cooldown: string | null;
+  workout_items: CrxItem[];
+  comments: CrxComment[];
+  assigned_program: { id: number | string; name: string } | null;
+};
+type CrxProfile = {
+  client: {
+    id: number | string;
+    slug: string;
+    name: string;
+    email: string | null;
+    weight: number | null;
+    can_move_workouts?: boolean;
+    user: {
+      height: string | null;
+      weight: string | null;
+      units: string | null;
+      gender: string | null;
+      birthday: string | null;
+      phone_number: string | null;
+    };
+  };
+};
+
+// ---------- helpers ----------
+const clean = (s: string | null | undefined) => (s && s.trim() ? s.trim() : null);
+
+/** Normalized exercise key: lowercase, no ordering prefixes ("A1."), no punctuation. */
+function exerciseKey(name: string, dropParens = false) {
+  let s = name.toLowerCase();
+  if (dropParens) s = s.replace(/\([^)]*\)/g, " ");
+  return s
+    .replace(/^\s*[a-z]?\d+[.)]\s*/, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+// CoachRx dates are calendar days; store at noon UTC so no timezone shifts the day.
+const dayDate = (d: string) => new Date(`${d.replace(/\//g, "-")}T12:00:00.000Z`);
+
+/** "KB Deadlift — Bilateral" / "Push-Up, Feet Elevated" -> the movement before the qualifier. */
+const baseName = (name: string) => name.split(/\s[—–-]\s|,|\s\(/)[0];
+
+async function buildExerciseIndex() {
+  const rows = await prisma.exerciseLibrary.findMany({
+    select: { id: true, name: true, videoUrl: true, isCustom: true, coachrxId: true },
+  });
+  // Prefer entries with a video, then Ryan's own (custom) entries.
+  rows.sort((a, b) => Number(!!b.videoUrl) - Number(!!a.videoUrl) || Number(b.isCustom) - Number(a.isCustom));
+  const exact = new Map<string, string>();
+  const loose = new Map<string, string>();
+  for (const r of rows) {
+    const k = exerciseKey(r.name);
+    if (!exact.has(k)) exact.set(k, r.id);
+    const l = exerciseKey(r.name, true);
+    if (!loose.has(l)) loose.set(l, r.id);
+  }
+  // Most reliable: the exercise Ryan picked for the same row name in his program
+  // templates (template rows carry CoachRx exercise ids; client calendar rows don't).
+  const byCoachrxId = new Map(rows.filter((r) => r.coachrxId).map((r) => [r.coachrxId!, r.id]));
+  const fromTemplates = new Map<string, string>();
+  const programDir = join(exportDir, "programs");
+  if (existsSync(programDir)) {
+    for (const f of readdirSync(programDir)) {
+      const { workouts } = JSON.parse(readFileSync(join(programDir, f), "utf8")) as {
+        workouts?: { workout_items?: { name: string; workout_item_exercises_attributes?: { exercise_id?: number }[] }[] }[];
+      };
+      for (const it of (workouts ?? []).flatMap((w) => w.workout_items ?? [])) {
+        const crx = it.workout_item_exercises_attributes?.[0]?.exercise_id;
+        const id = crx ? byCoachrxId.get(String(crx)) : undefined;
+        if (id && !fromTemplates.has(exerciseKey(it.name))) fromTemplates.set(exerciseKey(it.name), id);
+      }
+    }
+  }
+  console.log(`[import] exercise index: ${rows.length} library, ${fromTemplates.size} names from program templates`);
+  return (name: string) =>
+    fromTemplates.get(exerciseKey(name)) ??
+    exact.get(exerciseKey(name)) ??
+    loose.get(exerciseKey(name, true)) ??
+    exact.get(exerciseKey(baseName(name))) ??
+    null;
+}
+
+function load<T>(file: string): T {
+  const p = join(exportDir, file);
+  if (!existsSync(p)) throw new Error(`Missing ${p} (is the export finished for this client?)`);
+  return JSON.parse(readFileSync(p, "utf8")) as T;
+}
+
+// ---------- import ----------
+async function importClient(slug: string, coachId: string | null, match: (n: string) => string | null) {
+  const profile = load<CrxProfile>(`clients/${slug}.profile.json`).client;
+  const workouts = load<{ workouts: CrxWorkout[] }>(`clients/${slug}.workouts.json`).workouts;
+  const listed = load<{ clients: { slug: string; can_move_workouts: boolean }[] }>("clients.json").clients.find(
+    (c) => c.slug === slug
+  );
+
+  const items = workouts.flatMap((w) => w.workout_items);
+  const unmatched = new Map<string, number>();
+  for (const it of items) if (!match(it.name)) unmatched.set(it.name, (unmatched.get(it.name) ?? 0) + 1);
+  const programs = new Map<string, CrxWorkout[]>();
+  for (const w of workouts) {
+    const pid = w.assigned_program ? String(w.assigned_program.id) : "";
+    if (pid) programs.set(pid, [...(programs.get(pid) ?? []), w]);
+  }
+  const summary = {
+    client: profile.name,
+    workouts: workouts.length,
+    completed: workouts.filter((w) => w.status === "completed").length,
+    programs: programs.size,
+    exerciseRows: items.length,
+    linked: items.length - Array.from(unmatched.values()).reduce((a, b) => a + b, 0),
+    results: items.filter((i) => clean(i.result)).length,
+    comments: workouts.reduce((n, w) => n + w.comments.length, 0),
+  };
+  console.log(`[import] ${slug}: ${JSON.stringify(summary)}`);
+  const top = Array.from(unmatched.entries()).sort((a, b) => b[1] - a[1]);
+  if (top.length) {
+    console.log(`[import]   ${top.length} unmatched exercise names (top 25):`);
+    for (const [n, c] of top.slice(0, 25)) console.log(`             ${c}x  ${n}`);
+  }
+  if (dryRun || !coachId) return;
+
+  // Client user + profile + link to coach
+  const email = clean(profile.email)?.toLowerCase() ?? `${slug}@coachrx-import.local`;
+  const crxId = String(profile.id);
+  const existing =
+    (await prisma.user.findUnique({ where: { coachrxId: crxId } })) ??
+    (await prisma.user.findUnique({ where: { email } }));
+  const user = existing
+    ? await prisma.user.update({ where: { id: existing.id }, data: { coachrxId: crxId, name: existing.name ?? profile.name } })
+    : await prisma.user.create({ data: { email, name: profile.name, role: "CLIENT", coachrxId: crxId } });
+
+  const u = profile.user;
+  const num = (v: string | number | null | undefined) => (v === null || v === undefined || v === "" ? null : Number(v));
+  const profileData = {
+    dateOfBirth: u.birthday ? new Date(u.birthday) : null,
+    gender: clean(u.gender),
+    height: num(u.height),
+    weight: num(u.weight) ?? num(profile.weight),
+    units: u.units === "metric" ? "kg" : "lb",
+    phone: clean(u.phone_number),
+    canMoveWorkouts: listed?.can_move_workouts ?? true,
+    coachrxSlug: slug,
+  };
+  await prisma.clientProfile.upsert({
+    where: { userId: user.id },
+    update: profileData,
+    create: { userId: user.id, ...profileData },
+  });
+  await prisma.clientCoach.upsert({
+    where: { clientId_coachId: { clientId: user.id, coachId } },
+    update: {},
+    create: { clientId: user.id, coachId },
+  });
+
+  // Programs (one per CoachRx program the client was assigned)
+  const programIds = new Map<string, string>();
+  for (const [pid, ws] of Array.from(programs.entries())) {
+    const dates = ws.map((w) => w.due_date).sort();
+    const data = {
+      name: ws[0].assigned_program!.name.trim(),
+      coachId,
+      startDate: dayDate(dates[0]),
+      endDate: dayDate(dates[dates.length - 1]),
+      isActive: dates[dates.length - 1] >= new Date().toISOString().slice(0, 10).replace(/-/g, "/"),
+      programType: "COACHRX_IMPORT",
+      goals: [],
+    };
+    const p = await prisma.program.upsert({
+      where: { clientId_coachrxProgramId: { clientId: user.id, coachrxProgramId: pid } },
+      update: data,
+      create: { ...data, clientId: user.id, coachrxProgramId: pid },
+    });
+    programIds.set(pid, p.id);
+  }
+
+  // Workouts, exercises, logs, comments
+  let done = 0;
+  for (const w of workouts) {
+    const date = dayDate(w.due_date);
+    const wData = {
+      clientId: user.id,
+      programId: w.assigned_program ? programIds.get(String(w.assigned_program.id)) ?? null : null,
+      name: clean(w.title) ?? (w.rest_day ? "Rest day" : "Workout"),
+      description: w.rest_day ? clean(w.rest_day_instructions) : null,
+      coachNotes: clean(w.coach_notes),
+      warmup: clean(w.warmup),
+      cooldown: clean(w.cooldown),
+      scheduledDate: date,
+      dayOfWeek: date.getUTCDay(),
+      order: w.order ?? 1,
+      isCompleted: w.status === "completed",
+    };
+    const workout = await prisma.workout.upsert({
+      where: { coachrxId: String(w.id) },
+      update: wData,
+      create: { ...wData, coachrxId: String(w.id) },
+    });
+
+    const weIds = new Map<string, string>();
+    for (let idx = 0; idx < w.workout_items.length; idx++) {
+      const it = w.workout_items[idx];
+      const eData = {
+        workoutId: workout.id,
+        exerciseId: match(it.name),
+        name: it.name.trim(),
+        prescription: clean(it.description),
+        supersetGroup: it.is_circuit ? "circuit" : null,
+        order: it.position ?? idx + 1,
+      };
+      const we = await prisma.workoutExercise.upsert({
+        where: { coachrxItemId: String(it.id) },
+        update: eData,
+        create: { ...eData, coachrxItemId: String(it.id) },
+      });
+      weIds.set(String(it.id), we.id);
+    }
+
+    if (w.status === "completed") {
+      const log = await prisma.workoutLog.upsert({
+        where: { workoutId_userId: { workoutId: workout.id, userId: user.id } },
+        update: { completedAt: date },
+        create: { workoutId: workout.id, userId: user.id, completedAt: date },
+      });
+      for (const it of w.workout_items) {
+        const resultText = clean(it.result);
+        if (!resultText && it.status !== "completed") continue;
+        const xData = {
+          userId: user.id,
+          exerciseId: match(it.name),
+          exerciseKey: exerciseKey(it.name),
+          resultText,
+          performedAt: date,
+        };
+        await prisma.exerciseLog.upsert({
+          where: { workoutLogId_workoutExerciseId: { workoutLogId: log.id, workoutExerciseId: weIds.get(String(it.id))! } },
+          update: xData,
+          create: { ...xData, workoutLogId: log.id, workoutExerciseId: weIds.get(String(it.id))! },
+        });
+      }
+    }
+
+    for (const c of w.comments) {
+      const byClient = c.author?.type === "Client";
+      const cData = {
+        workoutId: workout.id,
+        authorId: byClient ? user.id : coachId,
+        authorName: c.author?.name ?? "Unknown",
+        body: c.body,
+        createdAt: new Date(c.created_at),
+      };
+      await prisma.workoutComment.upsert({
+        where: { coachrxId: String(c.id) },
+        update: cData,
+        create: { ...cData, coachrxId: String(c.id) },
+      });
+    }
+    if (++done % 25 === 0) console.log(`[import]   ${slug}: ${done}/${workouts.length} workouts`);
+  }
+  console.log(`[import] ${slug}: imported as user ${user.id} (${email})`);
+}
+
+async function main() {
+  if (!slugs.length) throw new Error("Pass at least one --client <slug>");
+  let coachId: string | null = null;
+  if (!dryRun) {
+    if (!coachEmail) throw new Error("Pass --coach <email of your WOD Coach account> (or --dry-run)");
+    const coach = await prisma.user.findUnique({ where: { email: coachEmail } });
+    if (!coach || coach.role !== "COACH") throw new Error(`No COACH account with email ${coachEmail}; sign up first`);
+    coachId = coach.id;
+  }
+  console.log(`[import] from ${exportDir}${dryRun ? " (dry run, nothing written)" : ""}`);
+  const match = await buildExerciseIndex();
+  for (const slug of slugs) await importClient(slug, coachId, match);
+}
+
+main()
+  .then(() => prisma.$disconnect())
+  .catch(async (e) => {
+    console.error(`[import] ERROR: ${(e as Error).message}`);
+    await prisma.$disconnect();
+    process.exit(1);
+  });

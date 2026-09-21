@@ -11,6 +11,7 @@
     "db:push": "prisma db push",
     "sync:coachrx": "tsx scripts/sync-coachrx.ts",
     "export:coachrx": "tsx scripts/export-coachrx.ts",
+    "import:coachrx": "tsx scripts/import-coachrx.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
