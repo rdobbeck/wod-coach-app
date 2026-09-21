@@ -18,6 +18,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { exerciseKey } from "../lib/exercise-key";
+import { buildExerciseMatcher } from "../lib/exercise-match";
 
 const prisma = new PrismaClient();
 
@@ -98,26 +99,12 @@ const clean = (s: string | null | undefined) => (s && s.trim() ? s.trim() : null
 // CoachRx dates are calendar days; store at noon UTC so no timezone shifts the day.
 const dayDate = (d: string) => new Date(`${d.replace(/\//g, "-")}T12:00:00.000Z`);
 
-/** "KB Deadlift — Bilateral" / "Push-Up, Feet Elevated" -> the movement before the qualifier. */
-const baseName = (name: string) => name.split(/\s[—–-]\s|,|\s\(/)[0];
-
 async function buildExerciseIndex() {
-  const rows = await prisma.exerciseLibrary.findMany({
-    select: { id: true, name: true, videoUrl: true, isCustom: true, coachrxId: true },
-  });
-  // Prefer entries with a video, then Ryan's own (custom) entries.
-  rows.sort((a, b) => Number(!!b.videoUrl) - Number(!!a.videoUrl) || Number(b.isCustom) - Number(a.isCustom));
-  const exact = new Map<string, string>();
-  const loose = new Map<string, string>();
-  for (const r of rows) {
-    const k = exerciseKey(r.name);
-    if (!exact.has(k)) exact.set(k, r.id);
-    const l = exerciseKey(r.name, true);
-    if (!loose.has(l)) loose.set(l, r.id);
-  }
   // Most reliable: the exercise Ryan picked for the same row name in his program
   // templates (template rows carry CoachRx exercise ids; client calendar rows don't).
-  const byCoachrxId = new Map(rows.filter((r) => r.coachrxId).map((r) => [r.coachrxId!, r.id]));
+  const byCoachrxId = new Map(
+    (await prisma.exerciseLibrary.findMany({ where: { coachrxId: { not: null } }, select: { id: true, coachrxId: true } })).map((r) => [r.coachrxId!, r.id])
+  );
   const fromTemplates = new Map<string, string>();
   const programDir = join(exportDir, "programs");
   if (existsSync(programDir)) {
@@ -132,13 +119,9 @@ async function buildExerciseIndex() {
       }
     }
   }
-  console.log(`[import] exercise index: ${rows.length} library, ${fromTemplates.size} names from program templates`);
-  return (name: string) =>
-    fromTemplates.get(exerciseKey(name)) ??
-    exact.get(exerciseKey(name)) ??
-    loose.get(exerciseKey(name, true)) ??
-    exact.get(exerciseKey(baseName(name))) ??
-    null;
+  const match = await buildExerciseMatcher(prisma, fromTemplates);
+  console.log(`[import] exercise index: ${match.size} library, ${fromTemplates.size} names from program templates`);
+  return match;
 }
 
 function load<T>(file: string): T {

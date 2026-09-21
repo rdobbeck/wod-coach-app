@@ -13,17 +13,15 @@ interface AISettingsFormProps {
 }
 
 const AVAILABLE_MODELS = [
-  { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4 (Recommended)", description: "Best for complex programs" },
-  { id: "anthropic/claude-opus-4", name: "Claude Opus 4 (Premium)", description: "Highest quality, slower" },
-  { id: "openai/gpt-4-turbo", name: "GPT-4 Turbo", description: "Fast and reliable" },
-  { id: "google/gemini-pro-1.5-exp", name: "Gemini Pro 1.5", description: "Google's best model" },
-  { id: "meta-llama/llama-3.1-70b-instruct", name: "Llama 3.1 70B", description: "Open source, cost-effective" },
+  { id: "anthropic/claude-fable-5.1", name: "Claude Fable 5.1 (Recommended)", description: "Top quality, ~$2 per 16-week program" },
+  { id: "anthropic/claude-opus-5", name: "Claude Opus 5", description: "Excellent, ~$1 per program" },
+  { id: "anthropic/claude-sonnet-5", name: "Claude Sonnet 5", description: "Very good, ~$0.40 per program" },
 ]
 
 export default function AISettingsForm({ coach }: AISettingsFormProps) {
   const router = useRouter()
   const [apiKey, setApiKey] = useState(coach.openrouterApiKey || "")
-  const [selectedModel, setSelectedModel] = useState(coach.preferredModel || "anthropic/claude-sonnet-4")
+  const [selectedModel, setSelectedModel] = useState(coach.preferredModel || "anthropic/claude-fable-5.1")
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
 

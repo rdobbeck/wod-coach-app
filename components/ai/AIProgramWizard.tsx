@@ -62,6 +62,12 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
   const [experience, setExperience] = useState<"BEGINNER" | "INTERMEDIATE" | "ADVANCED">("INTERMEDIATE")
   const [programLength, setProgramLength] = useState(12)
   const [injuries, setInjuries] = useState("")
+  // Week 1 starts on this day; defaults to next Monday.
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7))
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  })
 
   const canProceed = () => {
     switch (step) {
@@ -140,6 +146,7 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
         body: JSON.stringify({
           programData: generatedProgram,
           clientId: selectedClient.clientId,
+          startDate,
         }),
       })
 
@@ -149,8 +156,8 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
       }
 
       const data = await res.json()
-      toast.success(`${generatedProgram.programName} saved successfully!`)
-      router.push(`/coach/programs/${data.programId}`)
+      toast.success(`${generatedProgram.programName} is on ${selectedClient.client.name ?? "the client"}'s calendar (${data.exercisesLinked}/${data.exerciseRows} exercises linked to videos)`)
+      router.push(`/coach/clients/${selectedClient.clientId}`)
     } catch (error: any) {
       console.error("Save error:", error)
       toast.error(error.message || "Failed to save program")
@@ -418,6 +425,16 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
                   <div>{injuries}</div>
                 </div>
               )}
+
+              <label className="block">
+                <span className="text-sm font-medium text-gray-500">Start date (week 1, day 1)</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="mt-1 block rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </label>
             </div>
 
             <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -528,7 +545,7 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
         {generating && (
           <div className="mt-8 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4" />
-            <p className="text-gray-600">AI is creating your program... This may take 30-60 seconds.</p>
+            <p className="text-gray-600">AI is designing the program... this usually takes 1-3 minutes. Keep this tab open.</p>
           </div>
         )}
       </div>

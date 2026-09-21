@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth"
 import { generateProgram } from "@/lib/ai/openrouter"
 import { prisma } from "@/lib/prisma"
 
+// Program generation with a large model can take a couple of minutes.
+export const maxDuration = 300
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions)
