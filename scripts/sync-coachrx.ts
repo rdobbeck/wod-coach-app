@@ -18,19 +18,23 @@
 
 import "dotenv/config";
 import { config as loadDotenv } from "dotenv";
-import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { z } from "zod";
 
 // .env.local takes precedence over .env (Next.js convention)
 loadDotenv({ path: resolve(process.cwd(), ".env.local"), override: true });
 
-import { findCoachRxTab, executeScript, focusTab, navigateTab } from "./lib/opentabs";
+import { findCoachRxTab, executeScript, navigateTab } from "./lib/opentabs";
 import { getSupabase } from "./lib/supabase";
 
 const API_FILTER = "/api/v1/exercises.json";
 const UPSERT_CHUNK = 200;
 const FETCH_TIMEOUT_MS = 15_000;
+// browser_execute_script caps each result at ~50 KB including JSON escaping,
+// so read the stashed body back in 16 KB slices with a pause between calls.
+const READ_CHUNK = 16_000;
+const READ_PAUSE_MS = 1_000;
+const RATE_LIMIT_PAUSE_MS = 30_000;
 
 // CoachRx returns JSON:API format: { data: [{ id, type, attributes: {...}, relationships: {coach: {data: {id}}} }] }
 const CoachRxAttributes = z
@@ -160,15 +164,12 @@ async function fetchLibraryViaWrapper(): Promise<RawRow[]> {
     navigateTab(id, `https://dashboard.coachrx.app/library/exercises`)
   );
   await sleep(3000);
-  // Clipboard write requires a focused document.
-  await withFreshTab("focus", (id) => focusTab(id));
-  await sleep(500);
 
-  // In-page: read bearer from page storage, do the fetch, write the response
-  // body to the system clipboard. The bearer never leaves the tab — only the
-  // public exercises JSON does, via pbpaste from this Node process.
-  // browser_execute_script caps string return values at ~50 KB and per-call
-  // rate limits any chunked-retrieval scheme; clipboard sidesteps both.
+  // In-page: read bearer from page storage, do the fetch, stash the response
+  // body on window.__crxSyncBody. The bearer never leaves the tab and is never
+  // stashed — only the public exercises JSON is, and Node reads it back in
+  // slices below. (Previously went via the clipboard, which Chrome now refuses
+  // for scripted pages with "Document is not focused".)
   const fetchCode = String.raw`
     (async () => {
       function digToken(value) {
@@ -208,38 +209,10 @@ async function fetchLibraryViaWrapper(): Promise<RawRow[]> {
         });
         if (!r.ok) return { ok: false, error: 'HTTP ' + r.status + ' ' + r.statusText };
         const text = await r.text();
-        // Try modern clipboard API first; fall back to execCommand which has
-        // less strict focus requirements (works without OS-level window focus).
-        let copied = false;
-        let lastErr = '';
-        try {
-          await navigator.clipboard.writeText(text);
-          copied = true;
-        } catch (e) {
-          lastErr = String(e);
-        }
-        if (!copied) {
-          try {
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.position = 'fixed';
-            ta.style.top = '-9999px';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.select();
-            ta.setSelectionRange(0, text.length);
-            const success = document.execCommand('copy');
-            ta.remove();
-            if (success) copied = true;
-            else lastErr = lastErr || 'execCommand returned false';
-          } catch (e) {
-            lastErr = lastErr || String(e);
-          }
-        }
-        if (!copied) {
-          return { ok: false, error: 'clipboard write failed: ' + lastErr, size: text.length };
-        }
-        return { ok: true, status: r.status, size: text.length, tokenSource: found.source };
+        let sum = 0;
+        for (let i = 0; i < text.length; i++) sum = (sum * 31 + text.charCodeAt(i)) >>> 0;
+        window.__crxSyncBody = text;
+        return { ok: true, status: r.status, size: text.length, checksum: sum, tokenSource: found.source };
       } catch (e) {
         return { ok: false, error: String(e) };
       }
@@ -247,7 +220,7 @@ async function fetchLibraryViaWrapper(): Promise<RawRow[]> {
   `;
 
   type WrapperResult =
-    | { ok: true; status: number; size: number; tokenSource?: string }
+    | { ok: true; status: number; size: number; checksum: number; tokenSource?: string }
     | { ok: false; error: string };
 
   const raw = await withFreshTab("execute_script", (id) =>
@@ -313,20 +286,7 @@ async function fetchLibraryViaWrapper(): Promise<RawRow[]> {
     }`
   );
 
-  // Read the body from the system clipboard. macOS pbpaste may add CR
-  // characters around newlines; JSON.parse tolerates that.
-  let body: string;
-  try {
-    body = execFileSync("pbpaste", { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
-  } catch (e) {
-    throw new Error(`pbpaste failed: ${(e as Error).message}`);
-  }
-  if (Math.abs(body.length - result.size) > body.length * 0.01) {
-    throw new Error(
-      `Clipboard content (${body.length} bytes) differs from expected size (${result.size}) by more than 1%. ` +
-        `Did the clipboard get overwritten between fetch and read?`
-    );
-  }
+  const body = await readStashedBody(withFreshTab, unwrap, result.size, result.checksum);
 
   let parsed: unknown;
   try {
@@ -335,6 +295,62 @@ async function fetchLibraryViaWrapper(): Promise<RawRow[]> {
     throw new Error(`CoachRx response was not valid JSON: ${(e as Error).message}`);
   }
   return extractRows(parsed);
+}
+
+/**
+ * Read window.__crxSyncBody back from the tab in READ_CHUNK slices, verify
+ * length + checksum, then clear the stash. Each slice call is paced to stay
+ * under OpenTabs' per-call rate limit; if we hit it anyway, wait and retry.
+ */
+async function readStashedBody(
+  withFreshTab: <T>(label: string, fn: (tabId: number) => T | Promise<T>) => Promise<T>,
+  unwrap: (v: unknown) => unknown,
+  size: number,
+  checksum: number
+): Promise<string> {
+  const parts: string[] = [];
+  const total = Math.ceil(size / READ_CHUNK);
+  for (let n = 0, offset = 0; offset < size; n++, offset += READ_CHUNK) {
+    const code = `({ chunk: (window.__crxSyncBody || '').slice(${offset}, ${offset + READ_CHUNK}) })`;
+    let chunk: string | undefined;
+    for (let attempt = 1; attempt <= 3 && chunk === undefined; attempt++) {
+      try {
+        const res = unwrap(
+          await withFreshTab(`read_chunk_${n}`, (id) => executeScript<unknown>(id, code))
+        ) as { chunk?: unknown };
+        if (typeof res?.chunk !== "string") throw new Error(`chunk ${n} missing from result`);
+        chunk = res.chunk;
+      } catch (e) {
+        const msg = (e as Error).message ?? "";
+        if (!/rate limit/i.test(msg) || attempt === 3) throw e;
+        console.warn(`[sync] Rate limited on chunk ${n}; waiting ${RATE_LIMIT_PAUSE_MS / 1000}s`);
+        await sleep(RATE_LIMIT_PAUSE_MS);
+      }
+    }
+    const expected = Math.min(READ_CHUNK, size - offset);
+    if (chunk!.length !== expected) {
+      throw new Error(
+        `Chunk ${n} was ${chunk!.length} chars, expected ${expected} (truncated by OpenTabs?)`
+      );
+    }
+    parts.push(chunk!);
+    if (n % 20 === 0) console.log(`[sync] Read chunk ${n + 1}/${total}`);
+    await sleep(READ_PAUSE_MS);
+  }
+
+  await withFreshTab("clear_stash", (id) =>
+    executeScript<unknown>(id, "delete window.__crxSyncBody; true")
+  ).catch(() => undefined);
+
+  const body = parts.join("");
+  let sum = 0;
+  for (let i = 0; i < body.length; i++) sum = (sum * 31 + body.charCodeAt(i)) >>> 0;
+  if (body.length !== size || sum !== checksum) {
+    throw new Error(
+      `Reassembled body mismatch: ${body.length}/${size} chars, checksum ${sum} vs ${checksum}`
+    );
+  }
+  return body;
 }
 
 // Generic retry-with-backoff for network / Supabase 5xx transients.

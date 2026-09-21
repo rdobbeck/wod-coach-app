@@ -49,3 +49,5 @@ supabase/.temp/
 test-results/
 playwright-report/
 test-walkthrough/
+backups/
+.env*
