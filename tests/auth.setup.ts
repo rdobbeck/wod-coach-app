@@ -35,13 +35,9 @@ setup("authenticate as coach", async ({ page, request, baseURL }) => {
   await page.locator('input[name="password"]').fill(TEST_PASSWORD)
   await page.locator('button[type="submit"]').click()
 
-  // The signin page redirects to "/" after success; the home page doesn't
-  // auto-redirect coaches but shows a "Welcome back" banner. Wait for the
-  // post-signin home state, then verify the session is real by visiting
-  // /coach (which requires a COACH session).
-  await page.waitForURL(/localhost:\d+\/(?:\?.*)?$/, { timeout: 10_000 })
-  await expect(page.locator("body")).toContainText(/welcome back/i)
-  await page.goto("/coach")
+  // The signin page sends users to "/", which redirects signed-in coaches to
+  // /coach (a COACH-only page), so landing there proves the session is real.
+  await page.waitForURL(/\/coach$/, { timeout: 10_000 })
   await expect(page.locator("h1")).toContainText(/coach dashboard/i)
 
   await page.context().storageState({ path: STORAGE_STATE })

@@ -1,34 +1,13 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import Link from "next/link"
+import { redirect } from "next/navigation"
 
 export default async function Home() {
   const session = await getServerSession(authOptions)
 
-  if (session) {
-    const dashboardUrl = session.user.role === "COACH" ? "/coach" : "/client"
-
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-24">
-        <div className="z-10 max-w-5xl w-full items-center justify-center">
-          <h1 className="text-4xl font-bold text-center mb-4">
-            Welcome back, {session.user.name}!
-          </h1>
-          <p className="text-center text-lg mb-8 text-gray-600">
-            You're logged in as a {session.user.role.toLowerCase()}
-          </p>
-          <div className="flex justify-center gap-4">
-            <Link
-              href={dashboardUrl}
-              className="bg-primary-600 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-primary-700 transition"
-            >
-              Go to Dashboard →
-            </Link>
-          </div>
-        </div>
-      </main>
-    )
-  }
+  // Signed-in users go straight to their dashboard (clients open the app on Today).
+  if (session) redirect(session.user.role === "COACH" ? "/coach" : "/client")
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
