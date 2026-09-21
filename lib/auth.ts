@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "./prisma"
 import bcrypt from "bcryptjs"
+import { devLoginProvider, isDevLoginEnabled } from "./dev-login"
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -44,7 +45,8 @@ export const authOptions: NextAuthOptions = {
 
         return user
       }
-    })
+    }),
+    ...(isDevLoginEnabled() ? [devLoginProvider] : []),
   ],
   pages: {
     signIn: '/auth/signin',

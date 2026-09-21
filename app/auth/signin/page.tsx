@@ -1,7 +1,7 @@
 'use client'
 
-import { signIn } from "next-auth/react"
-import { useState } from "react"
+import { getProviders, signIn } from "next-auth/react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 
@@ -11,6 +11,17 @@ export default function SignIn() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  // Test login is only registered by the server on localhost/previews.
+  const [devLogin, setDevLogin] = useState(false)
+
+  useEffect(() => {
+    getProviders().then((p) => setDevLogin(!!p?.["dev-login"]))
+  }, [])
+
+  const handleDevLogin = (role: "COACH" | "CLIENT") => {
+    setLoading(true)
+    signIn("dev-login", { role, callbackUrl: role === "COACH" ? "/coach" : "/client" })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -134,6 +145,30 @@ export default function SignIn() {
             </button>
           </div>
         </div>
+
+        {devLogin && (
+          <div className="mt-6 rounded-md border border-dashed border-amber-400 bg-amber-50 p-4">
+            <p className="text-center text-xs font-medium uppercase tracking-wide text-amber-800">
+              Test login (not shown on the live site)
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <button
+                onClick={() => handleDevLogin("COACH")}
+                disabled={loading}
+                className="py-2 px-4 rounded-md border border-amber-300 bg-white text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              >
+                Test coach
+              </button>
+              <button
+                onClick={() => handleDevLogin("CLIENT")}
+                disabled={loading}
+                className="py-2 px-4 rounded-md border border-amber-300 bg-white text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              >
+                Test client
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
