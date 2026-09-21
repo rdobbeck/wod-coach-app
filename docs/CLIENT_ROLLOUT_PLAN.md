@@ -29,6 +29,20 @@ the pilot clients are programmed in WOD Coach only (CoachRx stays for everyone e
   `/profile`, `/messages` are dead links and there is no workout logging code anywhere.
 - Coach side has client list/detail, program list/detail, AI builder, exercise library.
 
+## Status (Mon Sep 21, evening)
+
+Built, tested end to end on localhost (Playwright, phone viewport), committed on `test-login`:
+- [x] Full CoachRx export (`npm run export:coachrx`), resumable, gzip transport
+- [x] Schema for the pilot (applied to Supabase)
+- [x] Importer: client history (`--client`) and template scheduling (`--program --start`)
+- [x] Client app: Today, Workout (autosave, Last time, result text, RPE, sets, video),
+      History (workouts + exercises), Profile, Move workout, add-to-home-screen
+- [x] Coach: client calendar, workout view/editor, duplicate/delete, invites,
+      "can move workouts" switch, exercise history on the coach side
+- [ ] Ryan: create his coach account on the live site (email for `--coach`)
+- [ ] Ryan: build Sasha's + Andrew's new blocks in CoachRx, send program ids + start dates
+- [ ] Import pilots (history), schedule blocks, merge to master, send invite links
+
 ---
 
 ## Discovery results (Sep 21) — pilots: Sasha Letchinger, Andrew Thresher
