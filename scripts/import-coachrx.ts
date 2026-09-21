@@ -6,6 +6,10 @@
  *   npm run import:coachrx -- --client sasha-letchinger --coach you@example.com [--dry-run]
  *   options: --export <dir> (default: newest backups/coachrx-export-*), repeat --client
  *
+ *   Schedule a CoachRx program template as a new block for a client:
+ *   npm run import:coachrx -- --client <slug> --coach <email> --program <id> --start 2026-09-28
+ *   Template day N lands on start + N-1. Re-running with another --start moves the block.
+ *
  * Idempotent: every row is keyed on its CoachRx id, so re-running updates in place.
  * Exercises are linked to ExerciseLibrary by normalized name (client calendar rows
  * carry no exercise ids); unmatched names are listed in the dry run.
@@ -25,6 +29,8 @@ const values = (name: string) =>
 const dryRun = flag("dry-run");
 const slugs = values("client");
 const coachEmail = values("coach")[0]?.toLowerCase();
+const programId = values("program")[0];
+const startDay = values("start")[0];
 const exportDir =
   values("export")[0] ??
   (() => {
@@ -315,6 +321,74 @@ async function importClient(slug: string, coachId: string | null, match: (n: str
   console.log(`[import] ${slug}: imported as user ${user.id} (${email})`);
 }
 
+type TplItem = CrxItem & { workout_item_exercises_attributes?: { exercise_id?: number }[] };
+type TplWorkout = Omit<CrxWorkout, "workout_items"> & { position: number | null; workout_items: TplItem[] };
+
+/** Put a program template on a client's calendar starting at `startDay` (YYYY-MM-DD). */
+async function scheduleProgram(slug: string, coachId: string | null, match: (n: string) => string | null) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDay ?? "")) throw new Error("--start YYYY-MM-DD is required with --program");
+  const workouts = load<{ workouts: TplWorkout[] }>(`programs/${programId}.workouts.json`).workouts;
+  const meta = load<{ programs: { id: number | string; name: string }[] }>("programs.json").programs.find((p) => String(p.id) === programId);
+  const libByCrx = new Map(
+    (await prisma.exerciseLibrary.findMany({ where: { coachrxId: { not: null } }, select: { id: true, coachrxId: true } })).map((r) => [r.coachrxId!, r.id])
+  );
+  const exerciseFor = (it: TplItem) => {
+    const crx = it.workout_item_exercises_attributes?.[0]?.exercise_id;
+    return (crx ? libByCrx.get(String(crx)) : undefined) ?? match(it.name);
+  };
+  const start = dayDate(startDay!.replace(/-/g, "/"));
+  const dateFor = (w: TplWorkout) => new Date(start.getTime() + ((w.position ?? 1) - 1) * 86_400_000);
+  const items = workouts.flatMap((w) => w.workout_items);
+  const last = workouts.reduce((d, w) => (dateFor(w) > d ? dateFor(w) : d), start);
+  console.log(
+    `[import] ${slug}: schedule "${meta?.name?.trim() ?? programId}" ${startDay} -> ${last.toISOString().slice(0, 10)}: ` +
+      `${workouts.length} workouts, ${items.length} exercise rows, ${items.filter((i) => exerciseFor(i)).length} linked`
+  );
+  if (dryRun || !coachId) return;
+
+  const user = await prisma.user.findFirst({ where: { clientProfile: { coachrxSlug: slug } } });
+  if (!user) throw new Error(`${slug} isn't imported yet; run the client import first`);
+  // One scheduled copy per template per client; a new --start moves it (repeat blocks: duplicate in-app).
+  const key = `tpl:${programId}`;
+  const program = await prisma.program.upsert({
+    where: { clientId_coachrxProgramId: { clientId: user.id, coachrxProgramId: key } },
+    update: { name: meta?.name?.trim() ?? "Program", startDate: start, endDate: last, isActive: true },
+    create: { name: meta?.name?.trim() ?? "Program", coachId, clientId: user.id, coachrxProgramId: key, startDate: start, endDate: last, isActive: true, programType: "COACHRX_TEMPLATE", goals: [] },
+  });
+  for (const w of workouts) {
+    const date = dateFor(w);
+    const data = {
+      clientId: user.id,
+      programId: program.id,
+      name: clean(w.title) ?? (w.rest_day ? "Rest day" : "Workout"),
+      description: w.rest_day ? clean(w.rest_day_instructions) : null,
+      coachNotes: clean(w.coach_notes),
+      warmup: clean(w.warmup),
+      cooldown: clean(w.cooldown),
+      scheduledDate: date,
+      dayOfWeek: date.getUTCDay(),
+      order: w.order ?? 1,
+    };
+    // Keyed per client + template workout, so re-running (or a new --start) updates in place.
+    const wKey = `tpl:${w.id}:${user.id}`;
+    const workout = await prisma.workout.upsert({ where: { coachrxId: wKey }, update: data, create: { ...data, coachrxId: wKey } });
+    for (let i = 0; i < w.workout_items.length; i++) {
+      const it = w.workout_items[i];
+      const eData = {
+        workoutId: workout.id,
+        exerciseId: exerciseFor(it),
+        name: it.name.trim(),
+        prescription: clean(it.description),
+        supersetGroup: it.is_circuit ? "circuit" : null,
+        order: it.position ?? i + 1,
+      };
+      const iKey = `tpl:${it.id}:${user.id}`;
+      await prisma.workoutExercise.upsert({ where: { coachrxItemId: iKey }, update: eData, create: { ...eData, coachrxItemId: iKey } });
+    }
+  }
+  console.log(`[import] ${slug}: scheduled ${workouts.length} workouts (program ${program.id})`);
+}
+
 async function main() {
   if (!slugs.length) throw new Error("Pass at least one --client <slug>");
   let coachId: string | null = null;
@@ -326,7 +400,10 @@ async function main() {
   }
   console.log(`[import] from ${exportDir}${dryRun ? " (dry run, nothing written)" : ""}`);
   const match = await buildExerciseIndex();
-  for (const slug of slugs) await importClient(slug, coachId, match);
+  for (const slug of slugs) {
+    if (programId) await scheduleProgram(slug, coachId, match);
+    else await importClient(slug, coachId, match);
+  }
 }
 
 main()
