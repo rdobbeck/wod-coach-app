@@ -13,7 +13,8 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { coachId, name, email, password, goals, equipment, injuries } = body
+    const { name, email, password, goals, equipment, injuries } = body
+    const coachId = session.user.id // never trust a coachId from the request body
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({

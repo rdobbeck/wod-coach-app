@@ -16,8 +16,24 @@ type X = {
 
 const fmt = (d: string, o: Intl.DateTimeFormatOptions) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { ...o, timeZone: "UTC" })
 
-export default function HistoryView({ workouts, exercises, units }: { workouts: W[]; exercises: X[]; units: string }) {
-  const [tab, setTab] = useState<"workouts" | "exercises">("workouts")
+export default function HistoryView({
+  workouts,
+  exercises,
+  units,
+  clientId,
+  workoutBase = "/client/workouts/",
+  initialTab = "workouts",
+  title = "History",
+}: {
+  workouts: W[]
+  exercises: X[]
+  units: string
+  clientId?: string // set when a coach is viewing a client
+  workoutBase?: string // link prefix for a workout id (strings only: this is rendered from server pages)
+  initialTab?: "workouts" | "exercises"
+  title?: string | null
+}) {
+  const [tab, setTab] = useState<"workouts" | "exercises">(initialTab)
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState<X | null>(null)
   const shown = exercises.filter((x) => x.name.toLowerCase().includes(query.toLowerCase()))
@@ -32,7 +48,7 @@ export default function HistoryView({ workouts, exercises, units }: { workouts: 
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900">History</h1>
+      {title && <h1 className="text-2xl font-bold text-gray-900">{title}</h1>}
       <div className="grid grid-cols-2 rounded-xl bg-gray-200 p-1 text-sm font-semibold">
         {(["workouts", "exercises"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-lg py-2 capitalize ${tab === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>
@@ -47,7 +63,7 @@ export default function HistoryView({ workouts, exercises, units }: { workouts: 
             <section key={m.label} className="space-y-2">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{m.label}</h2>
               {m.items.map((w) => (
-                <Link key={w.id} href={`/client/workouts/${w.id}`} className="block rounded-2xl border border-gray-200 bg-white px-4 py-3">
+                <Link key={w.id} href={`${workoutBase}${w.id}`} className="block rounded-2xl border border-gray-200 bg-white px-4 py-3">
                   <div className="flex items-baseline justify-between gap-3">
                     <p className="truncate font-semibold text-gray-900">{w.name}</p>
                     <span className="shrink-0 text-xs text-gray-500">{fmt(w.day, { weekday: "short", month: "short", day: "numeric" })}</span>
@@ -91,7 +107,7 @@ export default function HistoryView({ workouts, exercises, units }: { workouts: 
         </>
       )}
 
-      {open && <ExerciseHistorySheet exerciseId={open.exerciseId} name={open.name} units={units} onClose={() => setOpen(null)} />}
+      {open && <ExerciseHistorySheet clientId={clientId} exerciseId={open.exerciseId} name={open.name} units={units} onClose={() => setOpen(null)} />}
     </div>
   )
 }

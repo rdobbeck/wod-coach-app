@@ -4,199 +4,172 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import DashboardHeader from "@/components/DashboardHeader"
+import ClientActions from "@/components/coach/ClientActions"
+import AddWorkoutButton from "@/components/coach/AddWorkoutButton"
+import HistoryView from "@/components/client/HistoryView"
+import { dayKey, getHistoryOverview } from "@/lib/training"
+
+const WEEKS_BACK = 4
+const WEEKS_AHEAD = 4
 
 export default async function ClientDetailPage({
   params,
+  searchParams,
 }: {
   params: { clientId: string }
+  searchParams: { tab?: string }
 }) {
   const session = await getServerSession(authOptions)
+  if (!session || session.user.role !== "COACH") redirect("/")
 
-  if (!session || session.user.role !== "COACH") {
-    redirect("/")
-  }
-
-  // Get client relationship
   const clientCoach = await prisma.clientCoach.findFirst({
-    where: {
-      coachId: session.user.id,
-      clientId: params.clientId,
-    },
-    include: {
-      client: {
-        include: {
-          clientProfile: true,
-        },
-      },
-    },
+    where: { coachId: session.user.id, clientId: params.clientId },
+    include: { client: { include: { clientProfile: true } } },
   })
-
-  if (!clientCoach) {
-    redirect("/coach/clients")
-  }
-
-  // Get client's programs
-  const programs = await prisma.program.findMany({
-    where: {
-      clientId: params.clientId,
-      coachId: session.user.id,
-    },
-    include: {
-      mesocycles: true,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  })
-
+  if (!clientCoach) redirect("/coach/clients")
   const client = clientCoach.client
+  const profile = client.clientProfile
+  const tab = searchParams.tab === "exercises" || searchParams.tab === "history" ? searchParams.tab : "calendar"
+
+  // Calendar window: Monday WEEKS_BACK weeks ago -> Sunday WEEKS_AHEAD weeks ahead.
+  const today = new Date()
+  today.setUTCHours(12, 0, 0, 0)
+  const monday = new Date(today)
+  monday.setUTCDate(today.getUTCDate() - ((today.getUTCDay() + 6) % 7) - WEEKS_BACK * 7)
+  const end = new Date(monday)
+  end.setUTCDate(monday.getUTCDate() + (WEEKS_BACK + WEEKS_AHEAD + 1) * 7 - 1)
+  const todayKey = dayKey(today)
+
+  const [workouts, overview, programs] = await Promise.all([
+    prisma.workout.findMany({
+      where: { clientId: client.id, scheduledDate: { gte: monday, lte: end } },
+      orderBy: [{ scheduledDate: "asc" }, { order: "asc" }],
+      include: { _count: { select: { exercises: true, comments: true } }, logs: { select: { notes: true } } },
+    }),
+    tab === "calendar" ? null : getHistoryOverview(client.id),
+    prisma.program.findMany({ where: { clientId: client.id }, orderBy: { startDate: "desc" }, take: 10 }),
+  ])
+
+  const weeks = Array.from({ length: WEEKS_BACK + WEEKS_AHEAD + 1 }, (_, w) =>
+    Array.from({ length: 7 }, (_, d) => {
+      const day = new Date(monday)
+      day.setUTCDate(monday.getUTCDate() + w * 7 + d)
+      const key = dayKey(day)
+      return { key, day, items: workouts.filter((x) => dayKey(x.scheduledDate) === key) }
+    })
+  )
+  const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-US", { ...o, timeZone: "UTC" })
 
   return (
     <div className="min-h-screen bg-gray-50">
       <DashboardHeader userName={session.user.name || "Coach"} role="COACH" />
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+        <Link href="/coach/clients" className="text-sm text-primary-600 hover:text-primary-700">← All clients</Link>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Back Button */}
-        <Link
-          href="/coach/clients"
-          className="text-primary-600 hover:text-primary-700 mb-6 inline-block"
-        >
-          ← Back to All Clients
-        </Link>
-
-        {/* Client Header */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 h-16 w-16 bg-primary-100 rounded-full flex items-center justify-center">
-                <span className="text-primary-600 font-medium text-2xl">
-                  {client.name?.[0] || "?"}
-                </span>
-              </div>
-              <div className="ml-6">
-                <h1 className="text-3xl font-bold text-gray-900">
-                  {client.name || "Unnamed Client"}
-                </h1>
-                <p className="text-gray-600 mt-1">{client.email}</p>
-                <span
-                  className={`mt-2 inline-flex px-2 text-xs leading-5 font-semibold rounded-full ${
-                    clientCoach.status === "ACTIVE"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
-                >
-                  {clientCoach.status}
-                </span>
-              </div>
+        <div className="mt-3 rounded-xl border border-gray-200 bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{client.name || "Unnamed client"}</h1>
+              <p className="text-sm text-gray-600">{client.email}</p>
+              <p className="mt-1 text-xs text-gray-500">
+                {[profile?.units === "kg" ? "kg" : "lb", profile?.goals.length ? `Goals: ${profile.goals.join(", ")}` : null, profile?.injuries ? `Notes: ${profile.injuries}` : null]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
             </div>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${clientCoach.status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"}`}>
+              {clientCoach.status}
+            </span>
+          </div>
+          <div className="mt-4">
+            <ClientActions clientId={client.id} canMoveWorkouts={profile?.canMoveWorkouts ?? true} hasPassword={!!client.hashedPassword} />
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-1 rounded-lg bg-gray-200 p-1 text-sm font-semibold sm:w-fit">
+          {[
+            ["calendar", "Calendar"],
+            ["history", "History"],
+          ].map(([k, label]) => (
             <Link
-              href="/coach/programs/ai-builder"
-              className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition"
+              key={k}
+              href={`/coach/clients/${client.id}${k === "calendar" ? "" : `?tab=${k}`}`}
+              className={`flex-1 rounded-md px-4 py-2 text-center ${(tab === "calendar" ? k === "calendar" : k === "history") ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}
             >
-              🤖 Create Program
+              {label}
             </Link>
-          </div>
+          ))}
         </div>
 
-        {/* Client Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Profile Details</h2>
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Start Date</dt>
-                <dd className="mt-1 text-sm text-gray-900">
-                  {new Date(clientCoach.startDate).toLocaleDateString()}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Goals</dt>
-                <dd className="mt-1 text-sm text-gray-900">
-                  {client.clientProfile?.goals.join(", ") || "No goals set"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Equipment</dt>
-                <dd className="mt-1 text-sm text-gray-900">
-                  {client.clientProfile?.equipment.join(", ") || "No equipment listed"}
-                </dd>
-              </div>
-              {client.clientProfile?.injuries && (
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Injuries/Limitations</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
-                    {client.clientProfile.injuries}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Quick Stats</h2>
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Total Programs</dt>
-                <dd className="mt-1 text-2xl font-semibold text-gray-900">{programs.length}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Active Programs</dt>
-                <dd className="mt-1 text-2xl font-semibold text-gray-900">
-                  {programs.filter((p) => p.isActive).length}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-
-        {/* Programs */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Training Programs</h2>
-          {programs.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p className="mb-4">No programs created yet</p>
-              <Link
-                href="/coach/programs/ai-builder"
-                className="inline-block bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition"
-              >
-                🤖 Create First Program
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {programs.map((program) => (
-                <Link
-                  key={program.id}
-                  href={`/coach/programs/${program.id}`}
-                  className="block border border-gray-200 rounded-lg p-4 hover:border-primary-600 hover:shadow-md transition"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1">{program.name}</h3>
-                      <p className="text-sm text-gray-600 mb-2">
-                        {program.description || "No description"}
-                      </p>
-                      <div className="flex gap-4 text-sm text-gray-500">
-                        <span>{program.mesocycles.length} mesocycles</span>
-                        <span>•</span>
-                        <span>Started {new Date(program.startDate).toLocaleDateString()}</span>
+        {tab === "calendar" && (
+          <div className="mt-4 space-y-4">
+            {weeks.map((week) => (
+              <section key={week[0].key} className="rounded-xl border border-gray-200 bg-white">
+                <h2 className="border-b border-gray-100 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Week of {fmt(week[0].day, { month: "short", day: "numeric" })}
+                  {week.some((d) => d.key === todayKey) && <span className="ml-2 text-primary-600">This week</span>}
+                </h2>
+                <ul className="divide-y divide-gray-100">
+                  {week.map((d) => (
+                    <li key={d.key} className={`flex gap-3 px-4 py-2 ${d.key === todayKey ? "bg-primary-50/50" : ""}`}>
+                      <div className="w-20 shrink-0 text-sm">
+                        <span className="font-semibold text-gray-900">{fmt(d.day, { weekday: "short" })}</span>{" "}
+                        <span className="text-gray-500">{fmt(d.day, { month: "numeric", day: "numeric" })}</span>
                       </div>
-                    </div>
-                    <span
-                      className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        program.isActive
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {program.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-                </Link>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        {d.items.map((w) => {
+                          const rest = w._count.exercises === 0 && /rest/i.test(w.name)
+                          const status = rest ? "Rest" : w.isCompleted ? "Done" : d.key < todayKey ? "Missed" : "Planned"
+                          const color = { Rest: "bg-gray-100 text-gray-600", Done: "bg-green-100 text-green-800", Missed: "bg-red-100 text-red-700", Planned: "bg-primary-100 text-primary-800" }[status]
+                          return (
+                            <Link key={w.id} href={`/coach/clients/${client.id}/workouts/${w.id}`} className="flex items-center gap-2 text-sm hover:underline">
+                              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${color}`}>{status}</span>
+                              <span className="truncate text-gray-900">{w.name}</span>
+                              {w.originalDate && <span className="shrink-0 text-[11px] text-gray-500">moved from {fmt(w.originalDate, { month: "numeric", day: "numeric" })}</span>}
+                              {(w.logs[0]?.notes || w._count.comments > 0) && <span className="shrink-0 text-[11px] text-gray-500">💬</span>}
+                            </Link>
+                          )
+                        })}
+                      </div>
+                      <AddWorkoutButton clientId={client.id} date={d.key} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )}
+
+        {tab !== "calendar" && overview && (
+          <div className="mt-4 max-w-xl">
+            <HistoryView
+              title={null}
+              clientId={client.id}
+              units={profile?.units ?? "lb"}
+              workouts={overview.workouts}
+              exercises={overview.exercises}
+              workoutBase={`/coach/clients/${client.id}/workouts/`}
+              initialTab={tab === "exercises" ? "exercises" : "workouts"}
+            />
+          </div>
+        )}
+
+        {programs.length > 0 && (
+          <section className="mt-6 rounded-xl border border-gray-200 bg-white p-4">
+            <h2 className="text-sm font-semibold text-gray-900">Programs</h2>
+            <ul className="mt-2 divide-y divide-gray-100 text-sm">
+              {programs.map((p) => (
+                <li key={p.id} className="flex justify-between gap-3 py-2">
+                  <span className="truncate text-gray-800">{p.name}</span>
+                  <span className="shrink-0 text-gray-500">
+                    {fmt(p.startDate, { month: "short", day: "numeric", year: "numeric" })}
+                    {p.endDate && ` – ${fmt(p.endDate, { month: "short", day: "numeric", year: "numeric" })}`}
+                  </span>
+                </li>
               ))}
-            </div>
-          )}
-        </div>
+            </ul>
+          </section>
+        )}
       </div>
     </div>
   )
