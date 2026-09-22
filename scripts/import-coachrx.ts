@@ -20,7 +20,8 @@ import { PrismaClient } from "@prisma/client";
 import { exerciseKey } from "../lib/exercise-key";
 import { buildExerciseMatcher } from "../lib/exercise-match";
 
-const prisma = new PrismaClient();
+// Imports into production (public schema) regardless of DB_SCHEMA.
+const prisma = new PrismaClient({ datasources: { db: { url: process.env.POSTGRES_PRISMA_URL } } });
 
 // ---------- args ----------
 const argv = process.argv.slice(2);

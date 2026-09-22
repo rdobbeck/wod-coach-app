@@ -6,10 +6,16 @@
  *
  *   npm run seed:demo
  */
+import { config as loadDotenv } from "dotenv";
+import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { exerciseKey } from "../lib/exercise-key";
+import { dbUrl } from "../lib/db-url";
 
-const prisma = new PrismaClient();
+// Follows DB_SCHEMA, so demo data lands in the preview schema, not production.
+const prisma = new PrismaClient({ datasources: { db: { url: dbUrl() } } });
+loadDotenv({ path: resolve(process.cwd(), ".env.local"), override: true });
+
 const DEMO_CLIENT = "demo-client@dev.local";
 const DEMO_COACH = "demo-coach@dev.local";
 

@@ -19,7 +19,8 @@ loadDotenv({ path: resolve(process.cwd(), ".env.local"), override: true });
 
 const DIR = "backups/db";
 const KEEP = 14;
-const prisma = new PrismaClient();
+// Always backs up production (public schema), even when DB_SCHEMA is set locally.
+const prisma = new PrismaClient({ datasources: { db: { url: process.env.POSTGRES_PRISMA_URL } } });
 
 // BigInt (sync log ids) and Decimal-like values need a JSON-safe form.
 const replacer = (_: string, v: unknown) => (typeof v === "bigint" ? v.toString() : v);
