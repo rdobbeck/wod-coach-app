@@ -8,8 +8,8 @@ const body = Public_Sans({ subsets: ["latin"], variable: "--font-body", display:
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
-  title: "WOD Coach - Workout Optimization Dashboard",
-  description: "Optimize every rep. Elevate every client. The complete coaching platform with VBT tracking, client management, and program design.",
+  title: "WOD Coach",
+  description: "Strength programs with video demos, logging built for the gym floor, and a coach who sees how every session went.",
   appleWebApp: { capable: true, title: "WOD", statusBarStyle: "default" },
   icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
 };
