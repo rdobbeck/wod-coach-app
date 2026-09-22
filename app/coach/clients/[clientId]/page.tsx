@@ -7,6 +7,7 @@ import DashboardHeader from "@/components/DashboardHeader"
 import ClientActions from "@/components/coach/ClientActions"
 import AddWorkoutButton from "@/components/coach/AddWorkoutButton"
 import DraftProgramBar from "@/components/coach/DraftProgramBar"
+import ProgramActions from "@/components/coach/ProgramActions"
 import HistoryView from "@/components/client/HistoryView"
 import { dayKey, getHistoryOverview } from "@/lib/training"
 
@@ -87,6 +88,27 @@ export default async function ClientDetailPage({
           </div>
         </div>
 
+        {programs.length > 0 && (
+          <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+            <h2 className="text-sm font-semibold text-gray-900">Programs</h2>
+            <ul className="mt-2 divide-y divide-gray-100 text-sm">
+              {programs.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2">
+                  <span className="min-w-0 flex-1 truncate text-gray-800">
+                    {p.name}
+                    {p.isDraft && <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-semibold text-violet-800">Draft</span>}
+                  </span>
+                  <span className="shrink-0 text-gray-500">
+                    {fmt(p.startDate, { month: "short", day: "numeric", year: "numeric" })}
+                    {p.endDate && ` – ${fmt(p.endDate, { month: "short", day: "numeric", year: "numeric" })}`}
+                  </span>
+                  {p.programType !== "COACHRX_IMPORT" && <ProgramActions programId={p.id} name={p.name} isDraft={p.isDraft} />}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <div className="mt-5 flex gap-1 rounded-lg bg-gray-200 p-1 text-sm font-semibold sm:w-fit">
           {[
             ["calendar", "Calendar"],
@@ -165,22 +187,6 @@ export default async function ClientDetailPage({
           </div>
         )}
 
-        {programs.length > 0 && (
-          <section className="mt-6 rounded-xl border border-gray-200 bg-white p-4">
-            <h2 className="text-sm font-semibold text-gray-900">Programs</h2>
-            <ul className="mt-2 divide-y divide-gray-100 text-sm">
-              {programs.map((p) => (
-                <li key={p.id} className="flex justify-between gap-3 py-2">
-                  <span className="truncate text-gray-800">{p.name}</span>
-                  <span className="shrink-0 text-gray-500">
-                    {fmt(p.startDate, { month: "short", day: "numeric", year: "numeric" })}
-                    {p.endDate && ` – ${fmt(p.endDate, { month: "short", day: "numeric", year: "numeric" })}`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
       </div>
     </div>
   )
