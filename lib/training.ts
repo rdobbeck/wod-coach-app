@@ -1,6 +1,6 @@
 import { prisma } from "./prisma"
 import { exerciseKey } from "./exercise-key"
-import { dayKey, type HistoryEntry } from "./training-format"
+import { dayKey, summarizeEntry, type HistoryEntry } from "./training-format"
 
 export { dayKey, fromDayKey, summarizeEntry, type HistoryEntry } from "./training-format"
 
@@ -113,4 +113,93 @@ export async function getHistoryOverview(clientId: string) {
     workouts: workouts.map((w) => ({ id: w.id, name: w.name, day: dayKey(w.scheduledDate), programName: w.program?.name ?? null, exerciseCount: w._count.exercises })),
     exercises: Array.from(seen.values()),
   }
+}
+
+/** Headline numbers, latest session and a trend for the coach's client page. */
+export async function getClientSnapshot(clientId: string) {
+  const now = Date.now()
+  const [scored, completedCount, latest, activeProgram, topExercise] = await Promise.all([
+    prisma.workout.findMany({
+      where: { clientId, scheduledDate: { gte: new Date(now - 90 * 86_400_000), lte: new Date(now) }, ...clientVisible },
+      select: { isCompleted: true, _count: { select: { exercises: true } } },
+    }),
+    prisma.workout.count({ where: { clientId, isCompleted: true } }),
+    prisma.workout.findFirst({
+      where: { clientId, isCompleted: true },
+      orderBy: { scheduledDate: "desc" },
+      include: {
+        logs: { where: { userId: clientId }, include: { exerciseLogs: { include: { setLogs: { orderBy: { setNumber: "asc" } } } } } },
+        exercises: { select: { id: true, name: true, exercise: { select: { name: true } } } },
+      },
+    }),
+    prisma.program.findFirst({
+      where: { clientId, isDraft: false, isActive: true },
+      orderBy: { startDate: "desc" },
+      select: { name: true, startDate: true, endDate: true },
+    }),
+    // The exercise this client logs most, for the trend chart.
+    prisma.exerciseLog.groupBy({
+      by: ["exerciseId"],
+      where: { userId: clientId, exerciseId: { not: null }, setLogs: { some: { weight: { not: null } } } },
+      _count: { exerciseId: true },
+      orderBy: { _count: { exerciseId: "desc" } },
+      take: 1,
+    }),
+  ])
+
+  const rated = scored.filter((w) => w._count.exercises > 0)
+  const compliance = rated.length ? Math.round((rated.filter((w) => w.isCompleted).length / rated.length) * 100) : null
+
+  const log = latest?.logs[0]
+  const nameOf = (weId: string) => {
+    const e = latest?.exercises.find((x) => x.id === weId)
+    return e?.exercise?.name ?? e?.name ?? "Exercise"
+  }
+  const latestSession = latest
+    ? {
+        id: latest.id,
+        name: latest.name,
+        day: dayKey(latest.scheduledDate),
+        note: log?.notes ?? null,
+        lines: (log?.exerciseLogs ?? []).slice(0, 6).map((x) => ({
+          name: nameOf(x.workoutExerciseId),
+          summary: summarizeEntry(
+            { resultText: x.resultText, rpe: x.rpe, sets: x.setLogs.map((s) => ({ setNumber: s.setNumber, reps: s.reps, weight: s.weight, rpe: s.rpe })) },
+            "lb"
+          ),
+        })),
+      }
+    : null
+
+  let trend: { name: string; points: { day: string; weight: number }[] } | null = null
+  const exerciseId = topExercise[0]?.exerciseId
+  if (exerciseId) {
+    const [exercise, logs] = await Promise.all([
+      prisma.exerciseLibrary.findUnique({ where: { id: exerciseId }, select: { name: true } }),
+      prisma.exerciseLog.findMany({
+        where: { userId: clientId, exerciseId },
+        orderBy: { performedAt: "desc" },
+        take: 6,
+        include: { setLogs: { select: { weight: true } } },
+      }),
+    ])
+    const points = logs
+      .map((l) => ({ day: dayKey(l.performedAt), weight: Math.max(...l.setLogs.map((s) => s.weight ?? 0), 0) }))
+      .filter((p) => p.weight > 0)
+      .reverse()
+    if (exercise && points.length >= 2) trend = { name: exercise.name, points }
+  }
+
+  const programWeek =
+    activeProgram && activeProgram.startDate.getTime() <= now
+      ? {
+          name: activeProgram.name.trim(),
+          week: Math.floor((now - activeProgram.startDate.getTime()) / (7 * 86_400_000)) + 1,
+          total: activeProgram.endDate
+            ? Math.max(Math.round((activeProgram.endDate.getTime() - activeProgram.startDate.getTime()) / (7 * 86_400_000)), 1)
+            : null,
+        }
+      : null
+
+  return { compliance, completedCount, latestSession, trend, programWeek }
 }

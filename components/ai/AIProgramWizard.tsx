@@ -441,8 +441,8 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
               </label>
             </div>
 
-            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-800">
+            <div className="mt-6 bg-[#faf8f4] border border-[#e4dfd5] rounded-lg p-4">
+              <p className="text-sm text-[#4a443c]">
                 <strong>Note:</strong> AI will create a complete periodized program with mesocycles, microcycles, and specific workouts.
                 {coach.aiProvider === "PAY_PER_PROGRAM" && " This will use 1 credit."}
                 {coach.aiProvider === "GEMINI_FREE" && freeLeft !== null && ` You have ${freeLeft} free generations left.`}

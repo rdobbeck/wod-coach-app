@@ -125,9 +125,9 @@ export default async function HelpPage() {
             </div>
           </div>
 
-          <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-semibold mb-2 text-blue-900">💡 Pro Tips</h4>
-            <ul className="space-y-2 text-sm text-blue-800">
+          <div className="mt-6 bg-[#faf8f4] border border-[#e4dfd5] rounded-lg p-4">
+            <h4 className="font-semibold mb-2 text-[#16181d]">💡 Pro Tips</h4>
+            <ul className="space-y-2 text-sm text-[#4a443c]">
               <li>• Be specific with goals - "increase bench press" is better than "get stronger"</li>
               <li>• Mention injuries or limitations - AI will program around them</li>
               <li>• Longer programs (12+ weeks) get proper periodization with deload weeks</li>

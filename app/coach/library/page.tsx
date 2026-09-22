@@ -270,7 +270,7 @@ export default async function LibraryPage({
                       {row.muscleGroups.slice(0, 2).map((g) => (
                         <span
                           key={g}
-                          className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded"
+                          className="text-xs px-2 py-0.5 bg-[#faf8f4] text-[#4a443c] rounded"
                         >
                           {g}
                         </span>

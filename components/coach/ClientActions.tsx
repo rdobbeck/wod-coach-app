@@ -39,7 +39,7 @@ export default function ClientActions({ clientId, canMoveWorkouts, hasPassword }
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
-        <button onClick={invite} disabled={busy} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+        <button onClick={invite} disabled={busy} className="rounded-lg bg-[#16181d] px-4 py-2 text-sm font-semibold text-[#f4f1ea] disabled:opacity-60">
           {hasPassword ? "New sign-in link" : "Invite to app"}
         </button>
         <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -49,9 +49,9 @@ export default function ClientActions({ clientId, canMoveWorkouts, hasPassword }
         {!hasPassword && <span className="text-xs text-gray-500">Not signed up yet</span>}
       </div>
       {url && (
-        <div className="flex items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 p-2">
+        <div className="flex items-center gap-2 rounded-lg border border-[#e4dfd5] bg-[#faf8f4] p-2">
           <input readOnly value={url} onFocus={(e) => e.target.select()} className="min-w-0 flex-1 bg-transparent text-sm text-gray-800" />
-          <button onClick={copy} className="rounded-md bg-white px-3 py-1 text-sm font-semibold text-primary-700">Copy</button>
+          <button onClick={copy} className="rounded-md border border-[#ddd7cc] bg-white px-3 py-1 text-sm font-semibold text-[#c1272d]">Copy</button>
         </div>
       )}
     </div>

@@ -131,8 +131,8 @@ export default function AISettingsForm({ coach }: AISettingsFormProps) {
       )}
 
       {coach.aiProvider === "GEMINI_FREE" && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-800">
+        <div className="bg-[#faf8f4] border border-[#e4dfd5] rounded-lg p-4">
+          <p className="text-sm text-[#4a443c]">
             <strong>Free Plan:</strong> You can generate up to 5 programs per month using Google's Gemini 2.0 Flash model.
             Upgrade to pay-per-program for unlimited access with Claude Sonnet 4, or bring your own API key for full control.
           </p>

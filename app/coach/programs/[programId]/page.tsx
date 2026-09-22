@@ -110,9 +110,9 @@ export default async function ProgramDetailPage({
           )}
 
           {program.aiRationale && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-semibold text-blue-900 mb-2">Program Rationale</h3>
-              <p className="text-sm text-blue-800">{program.aiRationale}</p>
+            <div className="bg-[#faf8f4] border border-[#e4dfd5] rounded-lg p-4">
+              <h3 className="font-semibold text-[#16181d] mb-2">Program Rationale</h3>
+              <p className="text-sm text-[#4a443c]">{program.aiRationale}</p>
             </div>
           )}
         </div>

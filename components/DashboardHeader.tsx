@@ -2,37 +2,45 @@
 
 import { signOut } from "next-auth/react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 interface DashboardHeaderProps {
   userName: string
   role: "COACH" | "CLIENT"
 }
 
-export default function DashboardHeader({ userName, role }: DashboardHeaderProps) {
-  return (
-    <header className="bg-white border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center">
-            <Link href={role === "COACH" ? "/coach" : "/client"} className="text-2xl font-black text-gray-900">
-              WOD
-            </Link>
-            <span className="ml-2 text-sm text-gray-500 uppercase tracking-wider">
-              {role === "COACH" ? "Coach" : "Client"}
-            </span>
-          </div>
+const coachNav = [
+  { href: "/coach", label: "Dashboard", exact: true },
+  { href: "/coach/clients", label: "Clients" },
+  { href: "/coach/programs", label: "Programs" },
+  { href: "/coach/library", label: "Library" },
+]
 
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-700">
-              {userName}
-            </span>
-            <button
-              onClick={() => signOut({ callbackUrl: "/" })}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition"
-            >
-              Sign Out
-            </button>
-          </div>
+export default function DashboardHeader({ userName, role }: DashboardHeaderProps) {
+  const pathname = usePathname()
+  return (
+    <header className="bg-[#0e0f12] text-[#f4f1ea]">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8">
+        <Link href={role === "COACH" ? "/coach" : "/client"} className="font-display text-2xl font-bold tracking-wide">
+          WOD<span className="text-[#c1272d]">.</span>COACH
+        </Link>
+        {role === "COACH" && (
+          <nav className="hidden items-center gap-5 sm:flex">
+            {coachNav.map((n) => {
+              const active = n.exact ? pathname === n.href : pathname.startsWith(n.href)
+              return (
+                <Link key={n.href} href={n.href} className={`text-sm ${active ? "font-semibold text-[#f4f1ea]" : "font-medium text-[#9a9287] hover:text-[#f4f1ea]"}`}>
+                  {n.label}
+                </Link>
+              )
+            })}
+          </nav>
+        )}
+        <div className="ml-auto flex items-center gap-4">
+          <span className="text-sm text-[#9a9287]">{userName}</span>
+          <button onClick={() => signOut({ callbackUrl: "/" })} className="rounded-md px-3 py-1.5 text-sm font-medium text-[#9a9287] transition hover:bg-white/10 hover:text-[#f4f1ea]">
+            Sign out
+          </button>
         </div>
       </div>
     </header>
