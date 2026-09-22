@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { withAlert } from "@/lib/alert"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
@@ -10,7 +11,7 @@ import { canAccessClient, dayKey, fromDayKey } from "@/lib/training"
  * coach allows it, and only to today or later (`today` is the client's local
  * date, so timezones don't block moving to "today"). Coaches can move freely.
  */
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+async function handlePOST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -63,3 +64,5 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   })
   return NextResponse.json({ ok: true, date: dayKey(updated.scheduledDate) })
 }
+
+export const POST = withAlert("workouts/move", handlePOST)

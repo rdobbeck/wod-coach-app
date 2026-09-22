@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { withAlert } from "@/lib/alert"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
@@ -22,7 +23,7 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : n
  * (in-person sessions). Entries with no result, RPE or sets are removed so
  * exercise history only shows real attempts.
  */
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+async function handlePUT(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -99,3 +100,5 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
   return NextResponse.json({ ok: true })
 }
+
+export const PUT = withAlert("workouts/log", handlePUT)

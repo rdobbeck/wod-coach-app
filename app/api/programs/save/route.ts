@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { reportServerError } from "@/lib/alert"
 import { coachOf } from "@/lib/coach-access"
 import { saveProgramToCalendar, type ProgramData } from "@/lib/save-program"
 
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     const saved = await saveProgramToCalendar({ programData, clientId, coachUserId: session.user.id, startDate })
     return NextResponse.json({ success: true, ...saved })
   } catch (error: any) {
-    console.error("Save program error:", error)
+    await reportServerError("programs/save", error)
     return NextResponse.json({ error: error.message || "Failed to save program" }, { status: 500 })
   }
 }

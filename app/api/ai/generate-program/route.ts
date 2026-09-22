@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { reportServerError } from "@/lib/alert"
 import { generateProgram } from "@/lib/ai/openrouter"
 import { prisma } from "@/lib/prisma"
 import { coachOf } from "@/lib/coach-access"
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ...result, ...saved })
   } catch (error: any) {
-    console.error("AI program generation error:", error)
+    await reportServerError("ai/generate-program", error)
     return NextResponse.json(
       { error: error.message || "Failed to generate program" },
       { status: 500 }

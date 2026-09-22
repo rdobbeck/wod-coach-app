@@ -26,6 +26,7 @@ loadDotenv({ path: resolve(process.cwd(), ".env.local"), override: true });
 
 import { findCoachRxTab, executeScript, navigateTab } from "./lib/opentabs";
 import { getSupabase } from "./lib/supabase";
+import { alertRyan } from "../lib/alert";
 
 const API_FILTER = "/api/v1/exercises.json";
 const UPSERT_CHUNK = 200;
@@ -574,6 +575,7 @@ async function main(): Promise<number> {
   } catch (e) {
     const message = (e as Error).message;
     console.error(`[sync] ERROR: ${message}`);
+    await alertRyan("WOD Coach: CoachRx sync failed", message);
     await logRunFinish(logId, {
       status: "error",
       rowsSeen: 0,

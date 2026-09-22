@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
+import { withAlert } from "@/lib/alert"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 
 /** Redeem an invite: { token, password } -> sets the client's password, burns the token. */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { token, password } = (await req.json()) as { token?: string; password?: string }
   if (!token || !password || password.length < 8) {
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 })
@@ -20,3 +21,5 @@ export async function POST(req: Request) {
   await prisma.verificationToken.deleteMany({ where: { identifier: invite.identifier } })
   return NextResponse.json({ email: user.email })
 }
+
+export const POST = withAlert("auth/invite", handlePOST)

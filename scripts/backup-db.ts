@@ -13,6 +13,7 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
 import { PrismaClient } from "@prisma/client";
+import { alertRyan } from "../lib/alert";
 
 loadDotenv({ path: resolve(process.cwd(), ".env.local"), override: true });
 
@@ -52,6 +53,7 @@ main()
   .then(() => prisma.$disconnect())
   .catch(async (e) => {
     console.error(`[backup] FAILED ${new Date().toISOString()}: ${(e as Error).message}`);
+    await alertRyan("WOD Coach: nightly backup failed", (e as Error).message);
     await prisma.$disconnect();
     process.exit(1);
   });
