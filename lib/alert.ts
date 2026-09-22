@@ -1,19 +1,19 @@
 /**
- * Push an alert to Ryan's phone (Push by Techulus). No-op without PUSH_API_KEY,
+ * Push an alert to Ryan's phone (notifi.it). No-op without PUSH_API_KEY, and
  * never throws: alerting must not turn a handled error into a second failure.
  */
 export async function alertRyan(title: string, body: string) {
   const key = process.env.PUSH_API_KEY
   if (!key) return
   try {
-    await fetch(`https://push.techulus.com/api/v1/notify/${key}`, {
+    await fetch("https://notifi.it/send", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.slice(0, 120), body: body.slice(0, 900) }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ key, title: title.slice(0, 120), message: body.slice(0, 900) }),
       signal: AbortSignal.timeout(4000),
     })
   } catch (e) {
-    console.warn("[alert] push failed:", (e as Error).message)
+    console.warn("[alert] notification failed:", (e as Error).message)
   }
 }
 
