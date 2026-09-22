@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import DashboardHeader from "@/components/DashboardHeader"
 import AIProgramWizard from "@/components/ai/AIProgramWizard"
+import { FREE_PROGRAM_LIMIT } from "@/lib/ai/openrouter"
 
 export default async function AIBuilderPage() {
   const session = await getServerSession(authOptions)
@@ -47,7 +48,7 @@ export default async function AIBuilderPage() {
           </p>
         </div>
 
-        <AIProgramWizard coach={coach} clients={clients} />
+        <AIProgramWizard coach={coach} clients={clients} freeLimit={FREE_PROGRAM_LIMIT} />
       </div>
     </div>
   )

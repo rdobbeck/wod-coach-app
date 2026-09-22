@@ -27,6 +27,7 @@ interface AIProgramWizardProps {
     totalProgramsGenerated: number
   }
   clients: Client[]
+  freeLimit: number | null // null = unlimited free generations
 }
 
 const EQUIPMENT_OPTIONS = [
@@ -47,7 +48,8 @@ const EXPERIENCE_LEVELS = [
   { value: "ADVANCED", label: "Advanced", description: "3+ years training" },
 ]
 
-export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps) {
+export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgramWizardProps) {
+  const freeLeft = freeLimit === null ? null : Math.max(freeLimit - coach.totalProgramsGenerated, 0)
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [generating, setGenerating] = useState(false)
@@ -90,7 +92,7 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
     if (!selectedClient) return
 
     // Check if coach has access
-    if (coach.aiProvider === "GEMINI_FREE" && coach.totalProgramsGenerated >= 5) {
+    if (coach.aiProvider === "GEMINI_FREE" && freeLeft === 0) {
       toast.error("Free tier limit reached. Upgrade to continue generating programs.")
       router.push("/coach/settings/ai")
       return
@@ -198,7 +200,7 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-medium text-gray-700">Step {step} of 5</span>
           <span className="text-sm text-gray-500">
-            {coach.aiProvider === "GEMINI_FREE" && `${5 - coach.totalProgramsGenerated} free programs left`}
+            {coach.aiProvider === "GEMINI_FREE" && freeLeft !== null && `${freeLeft} free programs left`}
             {coach.aiProvider === "PAY_PER_PROGRAM" && `${coach.aiCredits} credits remaining`}
           </span>
         </div>
@@ -443,7 +445,7 @@ export default function AIProgramWizard({ coach, clients }: AIProgramWizardProps
               <p className="text-sm text-blue-800">
                 <strong>Note:</strong> AI will create a complete periodized program with mesocycles, microcycles, and specific workouts.
                 {coach.aiProvider === "PAY_PER_PROGRAM" && " This will use 1 credit."}
-                {coach.aiProvider === "GEMINI_FREE" && ` You have ${5 - coach.totalProgramsGenerated} free generations left this month.`}
+                {coach.aiProvider === "GEMINI_FREE" && freeLeft !== null && ` You have ${freeLeft} free generations left.`}
               </p>
             </div>
           </div>

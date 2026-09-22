@@ -9,6 +9,10 @@ const VENICE_BASE_URL = "https://api.venice.ai/api/v1"
 // Sep 2026: the free Llama/Gemini models were withdrawn by OpenRouter.
 export const PROGRAM_MODEL = process.env.AI_PROGRAM_MODEL || "anthropic/claude-fable-5.1"
 
+// Free-tier generations per coach (lifetime). Unset = unlimited: only Ryan coaches
+// today, and the OpenRouter key's own spending cap is the cost guard.
+export const FREE_PROGRAM_LIMIT = process.env.AI_FREE_PROGRAM_LIMIT ? Number(process.env.AI_FREE_PROGRAM_LIMIT) : null
+
 // Venice.ai models (privacy-focused, no data retention, ~25 prompts/day free)
 export const VENICE_MODELS = {
   LLAMA_70B: "llama-3.3-70b",
@@ -55,7 +59,7 @@ export async function generateProgram(params: ProgramGenerationParams) {
       model = PROGRAM_MODEL
 
       // Check monthly limit (5 free programs)
-      if (coach.totalProgramsGenerated >= 5) {
+      if (FREE_PROGRAM_LIMIT !== null && coach.totalProgramsGenerated >= FREE_PROGRAM_LIMIT) {
         throw new Error("Free tier limit reached. Upgrade to pay-per-program or add your own API key.")
       }
       break
