@@ -7,6 +7,8 @@ import { toast } from "sonner"
 import ExerciseHistorySheet from "@/components/ExerciseHistorySheet"
 import { summarizeEntry, type HistoryEntry } from "@/lib/training-format"
 import MoveWorkoutButton from "./MoveWorkoutButton"
+import VideoPlayer, { type PlayerItem } from "@/components/VideoPlayer"
+import VideoThumb from "@/components/VideoThumb"
 
 type SetRow = { reps: number | null; weight: number | null; rpe: number | null }
 export type PlayerExercise = {
@@ -40,12 +42,6 @@ type PlayerWorkout = {
 const fmtDay = (d: string, opts: Intl.DateTimeFormatOptions = { weekday: "long", month: "short", day: "numeric" }) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" })
 
-/** YouTube links -> embeddable URL; anything else is opened in a new tab. */
-function youtubeEmbed(url: string) {
-  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{11})/)
-  return m ? `https://www.youtube.com/embed/${m[1]}?playsinline=1` : null
-}
-
 function TextBlock({ title, text }: { title: string; text: string | null }) {
   if (!text) return null
   return (
@@ -75,7 +71,12 @@ export default function WorkoutPlayer({
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
   const [finishing, setFinishing] = useState(false)
   const [historyFor, setHistoryFor] = useState<PlayerExercise | null>(null)
-  const [videoFor, setVideoFor] = useState<string | null>(null)
+  const [videoIndex, setVideoIndex] = useState<number | null>(null)
+  // Every exercise with a demo, in workout order, so the player can flip through them.
+  const videos: PlayerItem[] = exercises
+    .filter((e) => e.videoUrl)
+    .map((e) => ({ key: e.id, title: e.name, subtitle: e.prescription, url: e.videoUrl! }))
+  const playVideo = (exerciseId: string) => setVideoIndex(Math.max(videos.findIndex((v) => v.key === exerciseId), 0))
   const [showSets, setShowSets] = useState<Record<string, boolean>>(
     Object.fromEntries(initial.map((e) => [e.id, e.sets.length > 0]))
   )
@@ -172,6 +173,12 @@ export default function WorkoutPlayer({
         </div>
       </header>
 
+      {videos.length > 0 && (
+        <button onClick={() => setVideoIndex(0)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 py-3 text-sm font-semibold text-white">
+          ▶ Watch all demos <span className="text-white/60">({videos.length})</span>
+        </button>
+      )}
+
       <TextBlock title="Coach notes" text={workout.coachNotes} />
       <TextBlock title="Notes" text={workout.description} />
       <TextBlock title="Warm-up" text={workout.warmup} />
@@ -184,21 +191,8 @@ export default function WorkoutPlayer({
                 <span className="text-xs font-semibold text-gray-400">{e.isCircuit ? "Circuit" : `#${idx + 1}`}</span>
                 <p className="text-base font-bold text-gray-900">{e.name}</p>
               </button>
-              {e.videoUrl && (
-                <button
-                  onClick={() => (youtubeEmbed(e.videoUrl!) ? setVideoFor(videoFor === e.id ? null : e.id) : window.open(e.videoUrl!, "_blank"))}
-                  className="shrink-0 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700"
-                >
-                  {videoFor === e.id ? "Hide video" : "▶ Video"}
-                </button>
-              )}
+              {e.videoUrl && <VideoThumb compact url={e.videoUrl} title={e.name} onPlay={() => playVideo(e.id)} className="w-28 shrink-0" />}
             </div>
-
-            {videoFor === e.id && e.videoUrl && youtubeEmbed(e.videoUrl) && (
-              <div className="mt-3 aspect-video overflow-hidden rounded-xl bg-black">
-                <iframe src={youtubeEmbed(e.videoUrl)!} className="h-full w-full" allow="encrypted-media; picture-in-picture" allowFullScreen />
-              </div>
-            )}
 
             {e.prescription && <p className="mt-2 whitespace-pre-line text-sm text-gray-700">{e.prescription}</p>}
             {e.notes && <p className="mt-1 whitespace-pre-line text-xs text-gray-500">{e.notes}</p>}
@@ -305,6 +299,8 @@ export default function WorkoutPlayer({
           </button>
         </section>
       )}
+
+      {videoIndex !== null && <VideoPlayer items={videos} startIndex={videoIndex} onClose={() => setVideoIndex(null)} />}
 
       {historyFor && (
         <ExerciseHistorySheet exerciseId={historyFor.exerciseId} name={historyFor.name} units={units} onClose={() => setHistoryFor(null)} />

@@ -13,6 +13,8 @@ const ALIASES: Record<string, string> = {
   "standing overhead press": "strict press",
   "rdl": "romanian deadlift",
   "db": "dumbbell",
+  "negative": "eccentric", // "Handstand Push-Up Negative" -> "Eccentric Handstand Push-Up"
+  "negatives": "eccentric",
 }
 
 // The only words a fuzzy match may add: ones that don't change the movement.

@@ -65,6 +65,7 @@ export default async function CoachWorkoutPage({
               name: e.name ?? e.exercise?.name ?? "Exercise",
               linked: !!e.exerciseId,
               hasVideo: !!e.exercise?.videoUrl,
+              videoUrl: e.exercise?.videoUrl ?? null,
               prescription: e.prescription ?? "",
               supersetGroup: e.supersetGroup ?? "",
               lastTime: lastTimes[e.id],

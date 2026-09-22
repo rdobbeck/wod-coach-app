@@ -10,6 +10,9 @@ export default async function ClientLayout({ children }: { children: React.React
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Warm up connections so demo videos and thumbnails open fast. */}
+      <link rel="preconnect" href="https://www.youtube-nocookie.com" />
+      <link rel="preconnect" href="https://i.ytimg.com" />
       <main className="mx-auto max-w-md px-4 pt-4 pb-24">{children}</main>
       <BottomNav />
     </div>
