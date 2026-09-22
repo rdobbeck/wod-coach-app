@@ -48,10 +48,10 @@ export default function HistoryView({
 
   return (
     <div className="space-y-4">
-      {title && <h1 className="text-2xl font-bold text-gray-900">{title}</h1>}
-      <div className="grid grid-cols-2 rounded-xl bg-gray-200 p-1 text-sm font-semibold">
+      {title && <h1 className="font-display text-4xl font-bold">{title}</h1>}
+      <div className="grid grid-cols-2 rounded-xl bg-app-surface2 p-1 text-sm font-semibold">
         {(["workouts", "exercises"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`rounded-lg py-2 capitalize ${tab === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>
+          <button key={t} onClick={() => setTab(t)} className={`rounded-lg py-2 capitalize ${tab === t ? "bg-app-surface text-app-text shadow-sm" : "text-app-muted"}`}>
             {t}
           </button>
         ))}
@@ -61,20 +61,20 @@ export default function HistoryView({
         (workouts.length ? (
           months.map((m) => (
             <section key={m.label} className="space-y-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{m.label}</h2>
+              <h2 className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">{m.label}</h2>
               {m.items.map((w) => (
-                <Link key={w.id} href={`${workoutBase}${w.id}`} className="block rounded-2xl border border-gray-200 bg-white px-4 py-3">
+                <Link key={w.id} href={`${workoutBase}${w.id}`} className="block rounded-2xl border border-app-border bg-app-surface px-4 py-3">
                   <div className="flex items-baseline justify-between gap-3">
-                    <p className="truncate font-semibold text-gray-900">{w.name}</p>
-                    <span className="shrink-0 text-xs text-gray-500">{fmt(w.day, { weekday: "short", month: "short", day: "numeric" })}</span>
+                    <p className="truncate font-display text-xl font-semibold">{w.name}</p>
+                    <span className="shrink-0 text-xs text-app-muted">{fmt(w.day, { weekday: "short", month: "short", day: "numeric" })}</span>
                   </div>
-                  <p className="text-xs text-gray-500">{[w.programName, `${w.exerciseCount} exercises`].filter(Boolean).join(" · ")}</p>
+                  <p className="text-xs text-app-muted">{[w.programName, `${w.exerciseCount} exercises`].filter(Boolean).join(" · ")}</p>
                 </Link>
               ))}
             </section>
           ))
         ) : (
-          <p className="text-sm text-gray-500">No completed workouts yet.</p>
+          <p className="text-sm text-app-muted">No completed workouts yet.</p>
         ))}
 
       {tab === "exercises" && (
@@ -83,18 +83,18 @@ export default function HistoryView({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search exercises"
-            className="block w-full rounded-xl border border-gray-300 px-3 py-2 text-base"
+            className="block w-full rounded-xl border border-app-border bg-app-surface px-3 py-2 text-base text-app-text placeholder:text-app-muted/70"
           />
           {shown.length ? (
             <ul className="space-y-2">
               {shown.map((x) => (
                 <li key={x.exerciseId ?? x.name}>
-                  <button onClick={() => setOpen(x)} className="block w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-left">
+                  <button onClick={() => setOpen(x)} className="block w-full rounded-2xl border border-app-border bg-app-surface px-4 py-3 text-left">
                     <div className="flex items-baseline justify-between gap-3">
-                      <p className="truncate font-semibold text-gray-900">{x.name}</p>
-                      <span className="shrink-0 text-xs text-gray-500">{x.count}×</span>
+                      <p className="truncate font-display text-xl font-semibold">{x.name}</p>
+                      <span className="shrink-0 text-xs text-app-muted">{x.count}×</span>
                     </div>
-                    <p className="truncate text-xs text-gray-600">
+                    <p className="truncate text-xs text-app-muted">
                       {fmt(x.lastDay, { month: "short", day: "numeric" })} · {summarizeEntry(x.last, units) || "done"}
                     </p>
                   </button>
@@ -102,7 +102,7 @@ export default function HistoryView({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-gray-500">{exercises.length ? "No matches." : "Nothing logged yet."}</p>
+            <p className="text-sm text-app-muted">{exercises.length ? "No matches." : "Nothing logged yet."}</p>
           )}
         </>
       )}

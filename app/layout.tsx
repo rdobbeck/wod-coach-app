@@ -1,5 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { Barlow_Condensed, Public_Sans } from "next/font/google";
 import "./globals.css";
+
+// Condensed headlines over a plain body face: the client app's type pairing.
+const display = Barlow_Condensed({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-display", display: "swap" });
+const body = Public_Sans({ subsets: ["latin"], variable: "--font-body", display: "swap" });
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
@@ -22,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${display.variable} ${body.variable}`}>
       <body className="antialiased">
         {children}
         <Toaster position="top-right" />

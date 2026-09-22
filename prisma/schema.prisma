@@ -144,6 +144,7 @@ model ClientProfile {
   preferredWorkoutDays String[]
   canMoveWorkouts      Boolean   @default(true) // client may reschedule their own workouts
   units                String    @default("lb") // "lb" | "kg"
+  theme                String    @default("dark") // client app look: "dark" (Gym Floor) | "light" (Chalk)
   phone                String?
   coachrxSlug          String?   @unique
   createdAt            DateTime  @default(now())

@@ -8,7 +8,24 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ['var(--font-display)', 'ui-sans-serif', 'system-ui'],
+        sans: ['var(--font-body)', 'ui-sans-serif', 'system-ui'],
+      },
       colors: {
+        // Client-app tokens; values come from [data-app-theme] in globals.css.
+        app: {
+          bg: 'var(--app-bg)',
+          surface: 'var(--app-surface)',
+          surface2: 'var(--app-surface-2)',
+          border: 'var(--app-border)',
+          text: 'var(--app-text)',
+          muted: 'var(--app-muted)',
+          accent: 'var(--app-accent)',
+          'accent-text': 'var(--app-accent-text)',
+          good: 'var(--app-good)',
+          warn: 'var(--app-warn)',
+        },
         primary: {
           50: '#f0f9ff',
           100: '#e0f2fe',

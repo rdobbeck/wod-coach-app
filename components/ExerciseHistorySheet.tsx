@@ -32,33 +32,34 @@ export default function ExerciseHistorySheet({ clientId, exerciseId, name, units
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40" onClick={onClose}>
       <div
-        className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+        data-app-theme
+        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-t-2xl border-t border-app-border bg-app-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] font-sans text-app-text"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">History</p>
-            <h2 className="text-lg font-bold text-gray-900">{name}</h2>
+            <p className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-app-muted">History</p>
+            <h2 className="font-display text-2xl font-bold">{name}</h2>
           </div>
-          <button onClick={onClose} className="rounded-full px-3 py-1 text-sm font-medium text-gray-600 hover:bg-gray-100">
+          <button onClick={onClose} className="rounded-full px-3 py-1 text-sm font-medium text-app-muted">
             Close
           </button>
         </div>
 
         {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-        {!history && !error && <p className="mt-4 text-sm text-gray-500">Loading…</p>}
-        {history && history.length === 0 && <p className="mt-4 text-sm text-gray-500">No history yet for this exercise.</p>}
+        {!history && !error && <p className="mt-4 text-sm text-app-muted">Loading…</p>}
+        {history && history.length === 0 && <p className="mt-4 text-sm text-app-muted">No history yet for this exercise.</p>}
 
         {history && history.length > 0 && (
-          <ul className="mt-4 divide-y divide-gray-100">
+          <ul className="mt-4 divide-y divide-app-border">
             {history.map((h) => (
               <li key={h.id} className="py-3">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-sm font-semibold text-gray-900">{fmtDate(h.date)}</span>
-                  <span className="truncate text-xs text-gray-500">{h.workoutName}</span>
+                  <span className="text-sm font-semibold">{fmtDate(h.date)}</span>
+                  <span className="truncate text-xs text-app-muted">{h.workoutName}</span>
                 </div>
                 {h.sets.length > 0 ? (
-                  <ul className="mt-1 text-sm text-gray-800">
+                  <ul className="mt-1 text-sm">
                     {h.sets.map((s) => (
                       <li key={s.setNumber}>
                         Set {s.setNumber}: {s.weight !== null ? `${s.weight} ${units}` : "—"}
@@ -69,11 +70,11 @@ export default function ExerciseHistorySheet({ clientId, exerciseId, name, units
                   </ul>
                 ) : null}
                 {(h.resultText || (h.sets.length === 0 && h.rpe !== null)) && (
-                  <p className="mt-1 text-sm text-gray-800 whitespace-pre-line">
+                  <p className="mt-1 whitespace-pre-line text-sm">
                     {summarizeEntry({ ...h, sets: [] }, units)}
                   </p>
                 )}
-                {h.sets.length > 0 && h.rpe !== null && <p className="text-xs text-gray-500">Overall RPE {h.rpe}</p>}
+                {h.sets.length > 0 && h.rpe !== null && <p className="text-xs text-app-muted">Overall RPE {h.rpe}</p>}
               </li>
             ))}
           </ul>

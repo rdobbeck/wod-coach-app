@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { canAccessClient } from "@/lib/training"
 import { exerciseKey } from "@/lib/exercise-key"
 
-type SetInput = { reps?: number | null; weight?: number | null; rpe?: number | null }
+type SetInput = { reps?: number | null; weight?: number | null; rpe?: number | null; done?: boolean }
 type ExerciseInput = {
   workoutExerciseId: string
   resultText?: string | null
@@ -56,7 +56,7 @@ async function handlePUT(req: Request, { params }: { params: { id: string } }) {
       const we = byId.get(input.workoutExerciseId)
       if (!we) continue
       const sets = (input.sets ?? [])
-        .map((s) => ({ reps: num(s.reps), weight: num(s.weight), rpe: num(s.rpe) }))
+        .map((s) => ({ reps: num(s.reps), weight: num(s.weight), rpe: num(s.rpe), isCompleted: s.done !== false }))
         .filter((s) => s.reps !== null || s.weight !== null || s.rpe !== null)
       const resultText = input.resultText?.trim() || null
       const rpe = num(input.rpe)

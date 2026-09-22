@@ -2,18 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 255, 255, 255;
-  --background-end-rgb: 255, 255, 255;
+/*
+ * Two looks for the client app, chosen per client in Profile → Appearance:
+ *   dark  = "Gym Floor" (near-black, bone text, signal red)
+ *   light = "Chalk"     (warm paper, ink text, same red)
+ * Coach screens stay on the plain light UI.
+ */
+[data-app-theme] {
+  --app-bg: #0e0f12;
+  --app-surface: #15171c;
+  --app-surface-2: #23262c;
+  --app-border: #2e3138;
+  --app-text: #f4f1ea;
+  --app-muted: #8c8478;
+  --app-accent: #c1272d;
+  --app-accent-text: #ffffff;
+  --app-good: #3e8e5a;
+  --app-warn: #c88c3c;
+}
+
+[data-app-theme='light'] {
+  --app-bg: #f4f2ed;
+  --app-surface: #ffffff;
+  --app-surface-2: #efece6;
+  --app-border: #e0dad0;
+  --app-text: #16181d;
+  --app-muted: #6b6257;
+  --app-accent: #c1272d;
+  --app-accent-text: #ffffff;
+  --app-good: #2f6b45;
+  --app-warn: #9a6a1c;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  color: #111827;
+  background: #ffffff;
 }

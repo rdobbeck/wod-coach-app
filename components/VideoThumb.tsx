@@ -6,7 +6,7 @@ import { parseVideo, youtubeThumb } from "@/lib/video"
 export default function VideoThumb({ url, title, onPlay, className = "", compact = false }: { url: string; title: string; onPlay: () => void; className?: string; compact?: boolean }) {
   const v = parseVideo(url)
   return (
-    <button onClick={onPlay} className={`group relative block aspect-video w-full overflow-hidden rounded-xl bg-gray-900 ${className}`} aria-label={`Play ${title} video`}>
+    <button onClick={onPlay} className={`group relative block aspect-video overflow-hidden rounded-xl bg-gray-900 ${className || "w-full"}`} aria-label={`Play ${title} video`}>
       {v?.kind === "youtube" && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={youtubeThumb(v.id)} alt="" loading="lazy" className="h-full w-full object-cover opacity-90 transition group-active:scale-[0.99]" />

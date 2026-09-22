@@ -9,45 +9,58 @@ export type DayWorkout = {
   day: string
   name: string
   programName: string | null
+  programWeek: number | null
   isCompleted: boolean
   isRest: boolean
   exerciseNames: string[]
   movedFrom: string | null
 }
+type Note = { author: string; body: string; workoutId: string; day: string }
 
 const shortDate = (key: string) =>
   new Date(`${key}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
 
-function WorkoutCard({ w, canMove, highlight }: { w: DayWorkout; canMove: boolean; highlight?: boolean }) {
+function SessionCard({ w, canMove, primary }: { w: DayWorkout; canMove: boolean; primary?: boolean }) {
   if (w.isRest) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-5">
-        <p className="text-lg font-bold text-gray-900">Rest day</p>
-        <p className="mt-1 text-sm text-gray-500">Recover well. See you next session.</p>
+      <div className="rounded-2xl border border-app-border bg-app-surface p-5">
+        <p className="font-display text-2xl font-bold">Rest day</p>
+        <p className="mt-1 text-sm text-app-muted">Recover well. See you next session.</p>
       </div>
     )
   }
   return (
-    <div className={`rounded-2xl border bg-white p-5 ${highlight ? "border-primary-200 shadow-sm" : "border-gray-200"}`}>
-      {w.programName && <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{w.programName}</p>}
-      <p className="mt-1 text-xl font-bold text-gray-900">{w.name}</p>
-      {w.movedFrom && <p className="mt-1 text-xs text-gray-500">Moved from {shortDate(w.movedFrom)}</p>}
-      <ul className="mt-3 space-y-1 text-sm text-gray-700">
-        {w.exerciseNames.slice(0, 4).map((n, i) => (
-          <li key={i} className="truncate">• {n}</li>
-        ))}
-        {w.exerciseNames.length > 4 && <li className="text-gray-500">+ {w.exerciseNames.length - 4} more</li>}
-      </ul>
-      <div className="mt-4 flex items-center gap-3">
-        <Link
-          href={`/client/workouts/${w.id}`}
-          className={`flex-1 rounded-xl py-3 text-center text-base font-bold ${
-            w.isCompleted ? "bg-green-50 text-green-700" : "bg-primary-600 text-white"
-          }`}
-        >
-          {w.isCompleted ? "Done ✓ View" : "Start"}
-        </Link>
-        {canMove && !w.isCompleted && <MoveWorkoutButton workoutId={w.id} currentDay={w.day} className="px-3 py-3 text-sm font-semibold text-primary-600" />}
+    <div className={`overflow-hidden rounded-2xl border bg-app-surface ${primary ? "border-app-accent/60" : "border-app-border"}`}>
+      <div className="flex flex-col gap-3 p-5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          {w.programName && <span className="font-display font-semibold uppercase tracking-[0.16em] text-app-accent">{w.programName}</span>}
+          {w.programWeek && <span className="text-app-muted">· Week {w.programWeek}</span>}
+          {w.movedFrom && <span className="text-app-muted">· moved from {shortDate(w.movedFrom)}</span>}
+        </div>
+        <h3 className="font-display text-3xl font-bold leading-none">{w.name}</h3>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-app-surface2 px-2.5 py-1 text-xs font-semibold text-app-text/80">{w.exerciseNames.length} exercises</span>
+          {w.exerciseNames.slice(0, 2).map((n, i) => (
+            <span key={i} className="max-w-[9rem] truncate rounded-full bg-app-surface2 px-2.5 py-1 text-xs font-semibold text-app-text/80">{n}</span>
+          ))}
+        </div>
+        <div className="mt-1 flex items-center gap-3">
+          <Link
+            href={`/client/workouts/${w.id}`}
+            className={`flex h-14 flex-1 items-center justify-center rounded-xl font-display text-xl font-bold uppercase tracking-[0.06em] ${
+              w.isCompleted ? "bg-app-good text-white" : "bg-app-accent text-app-accent-text"
+            }`}
+          >
+            {w.isCompleted ? "Done ✓ View" : "Start session"}
+          </Link>
+          {canMove && !w.isCompleted && (
+            <MoveWorkoutButton
+              workoutId={w.id}
+              currentDay={w.day}
+              className="h-14 rounded-xl border border-app-border px-4 text-sm font-semibold text-app-text"
+            />
+          )}
+        </div>
       </div>
     </div>
   )
@@ -57,12 +70,16 @@ export default function TodayView({
   firstName,
   coachName,
   canMove,
+  compliance,
   workouts,
+  latestNote,
 }: {
   firstName: string
   coachName: string | null
   canMove: boolean
+  compliance: number | null
   workouts: DayWorkout[]
+  latestNote: Note | null
 }) {
   // "Today" is the client's local day, so it's computed in the browser.
   const [today, setToday] = useState<string | null>(null)
@@ -74,7 +91,6 @@ export default function TodayView({
   const weekAgo = localDayKey(new Date(Date.now() - 7 * 86_400_000))
   const missed = workouts.filter((w) => w.day < today && w.day >= weekAgo && !w.isCompleted && !w.isRest)
 
-  // Mon-Sun strip for the current week
   const monday = new Date(`${today}T12:00:00`)
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
   const week = Array.from({ length: 7 }, (_, i) => {
@@ -85,53 +101,73 @@ export default function TodayView({
     const status = !ws.length ? "none" : ws.every((w) => w.isCompleted) ? "done" : key < today ? "missed" : "planned"
     return { key, letter: d.toLocaleDateString("en-US", { weekday: "narrow" }), date: d.getDate(), status }
   })
+  const bar = { done: "bg-app-good", missed: "bg-app-warn", planned: "bg-app-muted/50", none: "bg-transparent" }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <p className="text-sm text-gray-500">
-          {new Date(`${today}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-        </p>
-        <h1 className="text-2xl font-bold text-gray-900">Hi {firstName}</h1>
-        {coachName && <p className="text-sm text-gray-500">Coach: {coachName}</p>}
+    <div className="space-y-5">
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm text-app-muted">
+            {new Date(`${today}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          </p>
+          <h1 className="font-display text-4xl font-bold leading-none">Hi {firstName}</h1>
+          {coachName && <p className="mt-1 text-sm text-app-muted">Coach: {coachName}</p>}
+        </div>
+        {compliance !== null && (
+          <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full border-2 border-app-accent">
+            <span className="font-display text-xl font-bold leading-none">{compliance}%</span>
+            <span className="text-[9px] uppercase tracking-[0.08em] text-app-muted">90 days</span>
+          </div>
+        )}
       </header>
 
-      <div className="grid grid-cols-7 gap-1 rounded-2xl bg-white p-2 border border-gray-200">
+      <div className="flex gap-1.5">
         {week.map((d) => (
-          <div key={d.key} className={`flex flex-col items-center rounded-xl py-2 ${d.key === today ? "bg-primary-50" : ""}`}>
-            <span className="text-[11px] font-semibold text-gray-500">{d.letter}</span>
-            <span className={`text-sm font-bold ${d.key === today ? "text-primary-700" : "text-gray-900"}`}>{d.date}</span>
-            <span
-              className={`mt-1 h-2 w-2 rounded-full ${
-                d.status === "done" ? "bg-green-500" : d.status === "missed" ? "bg-red-400" : d.status === "planned" ? "bg-primary-400" : "bg-transparent"
-              }`}
-            />
+          <div
+            key={d.key}
+            className={`flex flex-1 flex-col items-center gap-1.5 rounded-xl py-2 ${d.key === today ? "bg-app-accent text-app-accent-text" : "bg-app-surface"}`}
+          >
+            <span className={`text-[11px] font-semibold ${d.key === today ? "text-app-accent-text/80" : "text-app-muted"}`}>{d.letter}</span>
+            <span className="font-display text-lg font-semibold leading-none">{d.date}</span>
+            <span className={`h-[3px] w-4 rounded-full ${d.key === today ? "bg-app-accent-text" : bar[d.status as keyof typeof bar]}`} />
           </div>
         ))}
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Today</h2>
+        <h2 className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-app-muted">Today</h2>
         {todays.length ? (
-          todays.map((w) => <WorkoutCard key={w.id} w={w} canMove={canMove} highlight />)
+          todays.map((w) => <SessionCard key={w.id} w={w} canMove={canMove} primary />)
         ) : (
-          <div className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-600">
+          <div className="rounded-2xl border border-dashed border-app-border p-5 text-sm text-app-muted">
             Nothing scheduled today.
-            {upcoming && <> Next up: <span className="font-semibold">{upcoming.name}</span> on {shortDate(upcoming.day)}.</>}
+            {upcoming && (
+              <>
+                {" "}Next: <span className="font-semibold text-app-text">{upcoming.name}</span> on {shortDate(upcoming.day)}.
+              </>
+            )}
           </div>
         )}
       </section>
 
       {missed.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Missed this week</h2>
+          <h2 className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-app-muted">Missed this week</h2>
           {missed.map((w) => (
-            <div key={w.id} className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3">
+            <div key={w.id} className="flex items-center justify-between gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3">
               <Link href={`/client/workouts/${w.id}`} className="min-w-0">
-                <p className="truncate font-semibold text-gray-900">{w.name}</p>
-                <p className="text-xs text-gray-500">{shortDate(w.day)}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-app-warn">{shortDate(w.day)}</p>
+                <p className="truncate font-display text-xl font-semibold leading-tight">{w.name}</p>
               </Link>
-              {canMove && <MoveWorkoutButton workoutId={w.id} currentDay={w.day} />}
+              {canMove && (
+                <MoveWorkoutButton
+                  workoutId={w.id}
+                  currentDay={w.day}
+                  className="h-11 shrink-0 rounded-xl border border-app-border px-4 text-sm font-semibold text-app-text"
+                  label="Do today"
+                  quickTo={today}
+                />
+              )}
             </div>
           ))}
         </section>
@@ -139,9 +175,25 @@ export default function TodayView({
 
       {!todays.length && upcoming && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Up next · {shortDate(upcoming.day)}</h2>
-          <WorkoutCard w={upcoming} canMove={canMove} />
+          <h2 className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-app-muted">Up next · {shortDate(upcoming.day)}</h2>
+          <SessionCard w={upcoming} canMove={canMove} />
         </section>
+      )}
+
+      {latestNote && (
+        <Link
+          href={`/client/workouts/${latestNote.workoutId}`}
+          className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-app-surface2 font-display text-sm font-bold">
+            {latestNote.author.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">{latestNote.author} left a note</span>
+            <span className="block truncate text-sm text-app-muted">{latestNote.body}</span>
+          </span>
+          <span className="h-2 w-2 shrink-0 rounded-full bg-app-accent" />
+        </Link>
       )}
     </div>
   )

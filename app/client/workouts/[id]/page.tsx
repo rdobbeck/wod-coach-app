@@ -63,7 +63,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
           lastTime: lastTimes[e.id],
           resultText: x?.resultText ?? "",
           rpe: x?.rpe ?? null,
-          sets: x?.setLogs.map((s) => ({ reps: s.reps, weight: s.weight, rpe: s.rpe })) ?? [],
+          sets: x?.setLogs.map((s) => ({ reps: s.reps, weight: s.weight, rpe: s.rpe, done: s.isCompleted })) ?? [],
         }
       })}
       units={profile?.units ?? "lb"}

@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import AppearanceSetting from "@/components/client/AppearanceSetting"
 import SignOutButton from "@/components/client/SignOutButton"
 
 export default async function ClientProfilePage() {
@@ -17,23 +18,26 @@ export default async function ClientProfilePage() {
     ["Name", user?.name],
     ["Email", user?.email],
     ["Coach", user?.coaches.map((c) => c.coach.name ?? c.coach.email).join(", ") || null],
-    ["Units", p?.units === "kg" ? "Kilograms" : "Pounds"],
     ["Goals", p?.goals.length ? p.goals.join(", ") : null],
     ["Injuries / notes", p?.injuries],
   ]
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-      <dl className="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white">
+    <div className="space-y-6">
+      <h1 className="font-display text-4xl font-bold">Profile</h1>
+
+      <dl className="divide-y divide-app-border rounded-2xl border border-app-border bg-app-surface">
         {rows.map(([k, v]) => (
           <div key={k} className="flex justify-between gap-4 px-4 py-3">
-            <dt className="text-sm text-gray-500">{k}</dt>
-            <dd className="text-right text-sm font-medium text-gray-900">{v || "—"}</dd>
+            <dt className="text-sm text-app-muted">{k}</dt>
+            <dd className="text-right text-sm font-medium">{v || "—"}</dd>
           </div>
         ))}
       </dl>
-      <p className="text-xs text-gray-500">Need to change something? Message your coach.</p>
+
+      <AppearanceSetting current={p?.theme ?? "dark"} units={p?.units ?? "lb"} />
+
+      <p className="text-xs text-app-muted">Need something changed? Message your coach.</p>
       <SignOutButton />
     </div>
   )
