@@ -38,7 +38,7 @@ type PlayerWorkout = {
   description: string | null
   isCompleted: boolean
   notes: string
-  comments: { id: string; author: string; body: string; at: string }[]
+  comments: { id: string; author: string; body: string; at: string; mine?: boolean }[]
 }
 
 const fmtDay = (d: string, opts: Intl.DateTimeFormatOptions = { weekday: "long", month: "short", day: "numeric" }) =>

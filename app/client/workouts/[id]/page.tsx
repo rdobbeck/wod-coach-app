@@ -56,7 +56,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
         description: workout.description,
         isCompleted: workout.isCompleted,
         notes: log?.notes ?? "",
-        comments: workout.comments.map((c) => ({ id: c.id, author: c.authorName, body: c.body, at: c.createdAt.toISOString() })),
+        comments: workout.comments.map((c) => ({ id: c.id, author: c.authorName, body: c.body, at: c.createdAt.toISOString(), mine: c.authorId === session.user.id })),
       }}
       exercises={workout.exercises.map((e) => {
         const x = byExercise.get(e.id)

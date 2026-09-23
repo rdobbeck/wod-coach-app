@@ -58,7 +58,7 @@ export default async function CoachWorkoutPage({
             cooldown: workout.cooldown ?? "",
             description: workout.description,
             clientNotes: log?.notes ?? null,
-            comments: workout.comments.map((c) => ({ id: c.id, author: c.authorName, body: c.body, at: c.createdAt.toISOString() })),
+            comments: workout.comments.map((c) => ({ id: c.id, author: c.authorName, body: c.body, at: c.createdAt.toISOString(), mine: c.authorId === session.user.id })),
           }}
           exercises={workout.exercises.map((e) => {
             const x = logged.get(e.id)

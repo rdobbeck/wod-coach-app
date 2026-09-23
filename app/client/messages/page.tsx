@@ -16,7 +16,7 @@ export default async function ClientMessages() {
   })
 
   return (
-    <div className="flex min-h-[calc(100vh-10rem)] flex-col gap-4">
+    <div className="flex min-h-[calc(100dvh-6rem)] flex-col gap-4">
       <header>
         <h1 className="font-display text-4xl font-bold leading-none">Messages</h1>
         <p className="mt-1 text-sm text-app-muted">with {thread.otherName}</p>
