@@ -80,6 +80,7 @@ model User {
   pushSubscriptions     PushSubscription[]
   callsBooked           CallBooking[]      @relation("ClientCalls")
   callsCoached          CallBooking[]      @relation("CoachCalls")
+  Attachment            Attachment[]
 }
 
 model VerificationToken {
@@ -181,6 +182,24 @@ model ClientProfile {
 }
 
 // A device that agreed to receive push notifications (one row per browser/phone).
+// A photo or video a client or coach attached to a comment on a session. The
+// file lives in the private `client-uploads` Supabase bucket; only the path is
+// stored here, and viewing goes through a short-lived signed URL.
+model Attachment {
+  id         String   @id @default(cuid())
+  commentId  String
+  uploaderId String?
+  path       String   @unique
+  mime       String
+  sizeBytes  Int
+  createdAt  DateTime @default(now())
+
+  comment  WorkoutComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  uploader User?          @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+
+  @@index([commentId])
+}
+
 // A video call a client booked with their coach, mirrored from the booking
 // provider's webhook. Monthly credits are counted from these rows rather than
 // stored as a balance, so a month rolls over on its own and a cancellation
@@ -482,8 +501,9 @@ model WorkoutComment {
   coachrxId  String?  @unique
   createdAt  DateTime @default(now())
 
-  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  author  User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  workout     Workout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  author      User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  attachments Attachment[]
 
   @@index([workoutId, createdAt])
 }

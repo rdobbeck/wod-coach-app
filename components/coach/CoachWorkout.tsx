@@ -33,7 +33,7 @@ type W = {
   cooldown: string
   description: string | null
   clientNotes: string | null
-  comments: { id: string; author: string; body: string; at?: string; mine?: boolean }[]
+  comments: { id: string; author: string; body: string; at?: string; mine?: boolean; attachments?: { id: string; mime: string; url: string | null }[] }[]
 }
 
 const fmt = (d: string, o: Intl.DateTimeFormatOptions = { weekday: "long", month: "short", day: "numeric" }) =>

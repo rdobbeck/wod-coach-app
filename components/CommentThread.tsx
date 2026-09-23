@@ -1,9 +1,21 @@
 'use client'
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { toast } from "sonner"
+import AttachmentView, { type Attached } from "@/components/AttachmentView"
+import { ALLOWED_MIME, MAX_BYTES } from "@/lib/uploads-shared"
 
-export type Comment = { id: string; author: string; body: string; at?: string; mine?: boolean }
+export type Comment = {
+  id: string
+  author: string
+  body: string
+  at?: string
+  mine?: boolean
+  attachments?: Attached[]
+}
+
+/** A file chosen but not sent yet. */
+type Pending = { file: File; preview: string }
 
 const when = (iso?: string) =>
   iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""
@@ -26,6 +38,54 @@ export default function CommentThread({
   const [comments, setComments] = useState(initial)
   const [body, setBody] = useState("")
   const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<Pending[]>([])
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  const pick = (list: FileList | null) => {
+    const chosen = Array.from(list ?? []).slice(0, 4 - pending.length)
+    const good: Pending[] = []
+    for (const file of chosen) {
+      if (!(ALLOWED_MIME as readonly string[]).includes(file.type)) {
+        toast.error(`${file.name}: that file type isn't supported`)
+        continue
+      }
+      if (file.size > MAX_BYTES) {
+        toast.error(`${file.name}: files need to be under 50MB`)
+        continue
+      }
+      good.push({ file, preview: URL.createObjectURL(file) })
+    }
+    setPending((p) => [...p, ...good])
+    if (fileInput.current) fileInput.current.value = ""
+  }
+
+  const drop = (i: number) =>
+    setPending((p) => {
+      URL.revokeObjectURL(p[i].preview)
+      return p.filter((_, j) => j !== i)
+    })
+
+  /** Straight to storage with a one-shot token; the file never hits our server. */
+  const uploadAll = async () => {
+    const done: { path: string; mime: string; size: number }[] = []
+    for (const { file } of pending) {
+      const signed = await fetch("/api/uploads/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mime: file.type, size: file.size }),
+      })
+      if (!signed.ok) throw new Error((await signed.json().catch(() => ({}))).error ?? "Upload failed")
+      const { path, signedUrl } = (await signed.json()) as { path: string; signedUrl: string }
+      const put = await fetch(signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      })
+      if (!put.ok) throw new Error(`Couldn't upload ${file.name}`)
+      done.push({ path, mime: file.type, size: file.size })
+    }
+    return done
+  }
 
   const s =
     tone === "client"
@@ -52,18 +112,26 @@ export default function CommentThread({
 
   const send = async () => {
     const text = body.trim()
-    if (!text) return
+    if (!text && !pending.length) return
     setBusy(true)
-    const res = await fetch(`/api/workouts/${workoutId}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: text }),
-    })
-    setBusy(false)
-    if (!res.ok) return toast.error((await res.json().catch(() => ({}))).error ?? "Couldn't post that")
-    const { comment } = (await res.json()) as { comment: Comment }
-    setComments((c) => [...c, { ...comment, mine: true }])
-    setBody("")
+    try {
+      const attachments = await uploadAll()
+      const res = await fetch(`/api/workouts/${workoutId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: text, attachments }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Couldn't post that")
+      const { comment } = (await res.json()) as { comment: Comment }
+      setComments((c) => [...c, { ...comment, mine: true }])
+      setBody("")
+      pending.forEach((p) => URL.revokeObjectURL(p.preview))
+      setPending([])
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -77,12 +145,55 @@ export default function CommentThread({
                 <span className={c.mine ? s.authorMine : s.author}>{c.mine ? "You" : c.author}</span>
                 <span className={s.meta}>{when(c.at)}</span>
               </div>
-              <p className="mt-0.5 whitespace-pre-wrap text-sm">{c.body}</p>
+              {c.body && <p className="mt-0.5 whitespace-pre-wrap text-sm">{c.body}</p>}
+              {c.attachments?.length ? <AttachmentView items={c.attachments} /> : null}
             </li>
           ))}
         </ul>
       )}
+      {pending.length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {pending.map((p, i) => (
+            <li key={i} className="relative">
+              <span className="block h-16 w-16 overflow-hidden rounded-lg bg-black/40">
+                {p.file.type.startsWith("video/") ? (
+                  <video src={p.preview} className="h-full w-full object-cover" muted playsInline />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.preview} alt="" className="h-full w-full object-cover" />
+                )}
+              </span>
+              <button
+                onClick={() => drop(i)}
+                aria-label="Remove"
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/80 text-xs text-white"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="mt-3 flex items-end gap-2">
+        <input
+          ref={fileInput}
+          type="file"
+          accept={ALLOWED_MIME.join(",")}
+          multiple
+          className="hidden"
+          onChange={(e) => pick(e.target.files)}
+        />
+        <button
+          onClick={() => fileInput.current?.click()}
+          disabled={busy || pending.length >= 4}
+          aria-label="Attach a photo or video"
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-lg disabled:opacity-40 ${
+            tone === "client" ? "border-app-border text-app-text" : "border-gray-300 text-gray-700"
+          }`}
+        >
+          +
+        </button>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
@@ -93,8 +204,8 @@ export default function CommentThread({
           placeholder={placeholder}
           className={s.input}
         />
-        <button onClick={send} disabled={busy || !body.trim()} className={s.send}>
-          Send
+        <button onClick={send} disabled={busy || (!body.trim() && !pending.length)} className={s.send}>
+          {busy ? "Sending" : "Send"}
         </button>
       </div>
     </section>

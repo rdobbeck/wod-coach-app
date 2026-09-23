@@ -7,6 +7,7 @@ import DashboardHeader from "@/components/DashboardHeader"
 import CoachWorkout from "@/components/coach/CoachWorkout"
 import { coachOf } from "@/lib/coach-access"
 import { dayKey, getLastTimes } from "@/lib/training"
+import { signDownloads } from "@/lib/uploads"
 
 // Comments change outside this render, so never serve a cached copy.
 export const dynamic = "force-dynamic"
@@ -28,13 +29,14 @@ export default async function CoachWorkoutPage({
       client: { select: { name: true, clientProfile: { select: { units: true } } } },
       exercises: { orderBy: { order: "asc" }, include: { exercise: { select: { name: true, videoUrl: true } } } },
       logs: { include: { exerciseLogs: { include: { setLogs: { orderBy: { setNumber: "asc" } } } } } },
-      comments: { orderBy: { createdAt: "asc" } },
+      comments: { orderBy: { createdAt: "asc" }, include: { attachments: true } },
     },
   })
   if (!workout) notFound()
 
   const refs = workout.exercises.map((e) => ({ id: e.id, exerciseId: e.exerciseId, name: e.name ?? e.exercise?.name ?? "Exercise" }))
   const lastTimes = await getLastTimes(params.clientId, workout.id, refs)
+  const signed = await signDownloads(workout.comments.flatMap((c) => c.attachments.map((a) => a.path)))
   const log = workout.logs[0]
   const logged = new Map(log?.exerciseLogs.map((x) => [x.workoutExerciseId, x]) ?? [])
 
@@ -58,7 +60,7 @@ export default async function CoachWorkoutPage({
             cooldown: workout.cooldown ?? "",
             description: workout.description,
             clientNotes: log?.notes ?? null,
-            comments: workout.comments.map((c) => ({ id: c.id, author: c.authorName, body: c.body, at: c.createdAt.toISOString(), mine: c.authorId === session.user.id })),
+            comments: workout.comments.map((c) => ({ id: c.id, author: c.authorName, body: c.body, at: c.createdAt.toISOString(), mine: c.authorId === session.user.id, attachments: c.attachments.map((a) => ({ id: a.id, mime: a.mime, url: signed[a.path] ?? null })) })),
           }}
           exercises={workout.exercises.map((e) => {
             const x = logged.get(e.id)

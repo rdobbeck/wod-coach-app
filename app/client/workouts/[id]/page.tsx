@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { dayKey, getLastTimes } from "@/lib/training"
+import { signDownloads } from "@/lib/uploads"
 import WorkoutPlayer from "@/components/client/WorkoutPlayer"
 
 // Comments change outside this render, so never serve a cached copy.
@@ -22,7 +23,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
         where: { userId: session.user.id },
         include: { exerciseLogs: { include: { setLogs: { orderBy: { setNumber: "asc" } } } } },
       },
-      comments: { orderBy: { createdAt: "asc" } },
+      comments: { orderBy: { createdAt: "asc" }, include: { attachments: true } },
     },
   })
   if (!workout || workout.clientId !== session.user.id || workout.program?.isDraft) notFound()
@@ -40,6 +41,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
     name: e.name ?? e.exercise?.name ?? "Exercise",
   }))
   const lastTimes = await getLastTimes(session.user.id, workout.id, exercises)
+  const signed = await signDownloads(workout.comments.flatMap((c) => c.attachments.map((a) => a.path)))
   const log = workout.logs[0]
   const byExercise = new Map(log?.exerciseLogs.map((x) => [x.workoutExerciseId, x]) ?? [])
 
@@ -56,7 +58,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
         description: workout.description,
         isCompleted: workout.isCompleted,
         notes: log?.notes ?? "",
-        comments: workout.comments.map((c) => ({ id: c.id, author: c.authorName, body: c.body, at: c.createdAt.toISOString(), mine: c.authorId === session.user.id })),
+        comments: workout.comments.map((c) => ({ id: c.id, author: c.authorName, body: c.body, at: c.createdAt.toISOString(), mine: c.authorId === session.user.id, attachments: c.attachments.map((a) => ({ id: a.id, mime: a.mime, url: signed[a.path] ?? null })) })),
       }}
       exercises={workout.exercises.map((e) => {
         const x = byExercise.get(e.id)
