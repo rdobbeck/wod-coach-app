@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { brandDomainLive, coachLinkUrl } from "@/lib/coach-link"
 
 const INVITE_DAYS = 7
 
@@ -28,6 +29,8 @@ export async function POST(req: Request, { params }: { params: { clientId: strin
       data: { identifier, token, expires: new Date(Date.now() + INVITE_DAYS * 86_400_000) },
     }),
   ])
-  const origin = process.env.NEXTAUTH_URL ?? new URL(req.url).origin
+  // Once wod.coach is live, the link carries the coach's own subdomain; it redirects to the main domain.
+  const coach = await prisma.coachProfile.findUnique({ where: { userId: session.user.id }, select: { slug: true } })
+  const origin = coach?.slug && brandDomainLive() ? coachLinkUrl(coach.slug) : process.env.NEXTAUTH_URL ?? new URL(req.url).origin
   return NextResponse.json({ url: `${origin}/auth/invite/${token}`, expiresInDays: INVITE_DAYS })
 }

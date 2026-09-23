@@ -56,7 +56,7 @@ export default async function Home() {
             Sign in
           </Link>
           <Link
-            href="/auth/signup"
+            href="/auth/signup?role=coach"
             className="flex h-14 items-center justify-center rounded-xl border border-[#3a3d45] px-8 font-display text-xl font-semibold uppercase tracking-[0.06em] text-[#f4f1ea]"
           >
             Create a coach account

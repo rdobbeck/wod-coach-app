@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { signIn } from "next-auth/react"
+import { BRAND_DOMAIN, normalizeSlug, suggestSlug } from "@/lib/coach-link"
 
 export default function SignUp() {
   const router = useRouter()
@@ -16,6 +17,28 @@ export default function SignUp() {
   })
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  // Coach link (<slug>.wod.coach): follows their first name until they edit it.
+  const [slug, setSlug] = useState("")
+  const [slugEdited, setSlugEdited] = useState(false)
+  const [slugStatus, setSlugStatus] = useState<{ ok: boolean; error?: string } | null>(null)
+
+  // Landing page links here with ?role=coach
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("role") === "coach") setFormData((f) => ({ ...f, role: "COACH" }))
+  }, [])
+
+  useEffect(() => {
+    if (!slugEdited) setSlug(suggestSlug(formData.name))
+  }, [formData.name, slugEdited])
+
+  useEffect(() => {
+    if (formData.role !== "COACH" || !slug) return setSlugStatus(null)
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/coach/slug?slug=${encodeURIComponent(slug)}`).catch(() => null)
+      if (res?.ok) setSlugStatus(await res.json())
+    }, 350)
+    return () => clearTimeout(t)
+  }, [slug, formData.role])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,6 +47,12 @@ export default function SignUp() {
 
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match")
+      setLoading(false)
+      return
+    }
+
+    if (formData.role === "COACH" && slugStatus && !slugStatus.ok) {
+      setError(`Your link: ${slugStatus.error}`)
       setLoading(false)
       return
     }
@@ -45,6 +74,7 @@ export default function SignUp() {
           email: formData.email,
           password: formData.password,
           role: formData.role,
+          ...(formData.role === "COACH" && slug ? { slug } : {}),
         }),
       })
 
@@ -191,6 +221,37 @@ export default function SignUp() {
                 </button>
               </div>
             </div>
+
+            {formData.role === "COACH" && (
+              <div>
+                <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-1">
+                  Your link
+                </label>
+                <div className="flex items-center rounded-md border border-gray-300 focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
+                  <input
+                    id="slug"
+                    name="slug"
+                    type="text"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={slug}
+                    onChange={(e) => {
+                      setSlugEdited(true)
+                      setSlug(normalizeSlug(e.target.value.replace(/\s/g, "-")).slice(0, 30))
+                    }}
+                    className="min-w-0 flex-1 rounded-l-md px-3 py-2 text-right text-gray-900 focus:outline-none sm:text-sm"
+                    placeholder="yourname"
+                  />
+                  <span className="pr-3 text-sm text-gray-500">.{BRAND_DOMAIN}</span>
+                </div>
+                <p className={"mt-1 text-xs " + (slugStatus && !slugStatus.ok ? "text-red-600" : "text-gray-500")}>
+                  {slugStatus && !slugStatus.ok
+                    ? slugStatus.error
+                    : "Your clients sign in from your own page. You can change it later in Settings."}
+                </p>
+              </div>
+            )}
           </div>
 
           <div>

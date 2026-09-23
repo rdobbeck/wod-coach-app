@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
+import { checkSlug } from "@/lib/coach-slug-db"
+import { suggestSlug } from "@/lib/coach-link"
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { name, email, password, role } = body
+    const { name, email, password, role, slug: requestedSlug } = body
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -34,6 +36,22 @@ export async function POST(req: Request) {
       )
     }
 
+    // Coaches get <slug>.wod.coach. Use what they picked; otherwise their first name, numbered if taken.
+    let slug: string | null = null
+    if (role === "COACH") {
+      if (requestedSlug) {
+        const r = await checkSlug(String(requestedSlug))
+        if (!r.ok) return NextResponse.json({ error: `Your link: ${r.error}` }, { status: 400 })
+        slug = r.slug
+      } else {
+        const base = suggestSlug(name).padEnd(3, "0")
+        for (let i = 0; i < 20 && !slug; i++) {
+          const r = await checkSlug(i ? `${base}${i + 1}` : base)
+          if (r.ok) slug = r.slug
+        }
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, 12)
 
     const user = await prisma.user.create({
@@ -49,6 +67,7 @@ export async function POST(req: Request) {
       await prisma.coachProfile.create({
         data: {
           userId: user.id,
+          slug,
         },
       })
     } else {
