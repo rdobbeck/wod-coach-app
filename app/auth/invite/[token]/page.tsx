@@ -7,14 +7,16 @@ export default async function InvitePage({ params }: { params: { token: string }
   const user = valid
     ? await prisma.user.findUnique({
         where: { id: invite!.identifier.slice("invite:".length) },
-        select: { name: true, email: true, coaches: { include: { coach: { select: { name: true } } } } },
+        select: { name: true, email: true, coaches: { include: { coach: { select: { name: true, coachProfile: { select: { brandName: true } } } } } } },
       })
     : null
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-12">
       <div className="mx-auto max-w-sm">
-        <h1 className="text-center text-3xl font-black text-gray-900">WOD</h1>
+        <h1 className="text-center text-3xl font-black text-gray-900">
+          {user?.coaches[0]?.coach.coachProfile?.brandName ?? "WOD.COACH"}
+        </h1>
         {!user ? (
           <p className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 text-center text-gray-700">
             This invite link has expired or was already used. Ask your coach for a new one.

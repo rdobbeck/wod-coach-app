@@ -118,6 +118,10 @@ model CoachProfile {
   defaultRestSeconds     Int     @default(90)
   defaultCanMoveWorkouts Boolean @default(true)
 
+  // Coach's own link: <slug>.wod.coach, picked at signup (lib/coach-link.ts)
+  slug      String? @unique
+  brandName String? // e.g. "Dobbeck Training", shown on their link page
+
   hasCompletedOnboarding Boolean   @default(false)
   onboardingCompletedAt  DateTime?
 

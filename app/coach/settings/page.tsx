@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma"
 import DashboardHeader from "@/components/DashboardHeader"
 import AccountSettings from "@/components/AccountSettings"
 import CoachDefaults from "@/components/coach/CoachDefaults"
+import CoachLink from "@/components/coach/CoachLink"
+import { brandDomainLive } from "@/lib/coach-link"
 import SignOutButton from "@/components/client/SignOutButton"
 
 export default async function CoachSettingsPage() {
@@ -29,6 +31,8 @@ export default async function CoachSettingsPage() {
 
         <div className="mt-6 space-y-4">
           <AccountSettings name={user?.name ?? ""} email={user?.email ?? ""} hasPassword={!!user?.hashedPassword} />
+
+          <CoachLink slug={coach?.slug ?? null} brandName={coach?.brandName ?? null} live={brandDomainLive()} />
 
           <CoachDefaults
             units={coach?.defaultUnits ?? "lb"}
