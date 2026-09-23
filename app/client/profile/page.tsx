@@ -1,11 +1,13 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { bookingFor } from "@/lib/booking"
 import AccountSettings from "@/components/AccountSettings"
 import PushToggle from "@/components/PushToggle"
 import AppearanceSetting from "@/components/client/AppearanceSetting"
 import FastingSettings from "@/components/client/FastingSettings"
 import SignOutButton from "@/components/client/SignOutButton"
+import { ReplayTourButton } from "@/components/client/Tour"
 
 export default async function ClientProfilePage() {
   const session = (await getServerSession(authOptions))!
@@ -13,10 +15,14 @@ export default async function ClientProfilePage() {
     where: { id: session.user.id },
     include: {
       clientProfile: true,
-      coaches: { where: { status: "ACTIVE" }, include: { coach: { select: { name: true, email: true } } } },
+      coaches: {
+        where: { status: "ACTIVE" },
+        include: { coach: { select: { name: true, email: true, coachProfile: { select: { bookingUrl: true } } } } },
+      },
     },
   })
   const p = user?.clientProfile
+  const canBook = user?.coaches.some((c) => !!bookingFor(c.coach.coachProfile?.bookingUrl)) ?? false
   const rows: [string, string | null | undefined][] = [
     ["Coach", user?.coaches.map((c) => c.coach.name ?? c.coach.email).join(", ") || null],
     ["Goals", p?.goals.length ? p.goals.join(", ") : null],
@@ -50,6 +56,8 @@ export default async function ClientProfilePage() {
           windowEnd={p.eatingWindowEnd}
         />
       )}
+
+      <ReplayTourButton canBook={canBook} canMove={p?.canMoveWorkouts ?? true} />
 
       <p className="text-xs text-app-muted">Need something changed? Message your coach.</p>
       <SignOutButton />

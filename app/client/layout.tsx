@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { resolveTheme } from "@/lib/themes"
 import BottomNav from "@/components/client/BottomNav"
 
 /** Mobile shell for everything under /client: narrow column, bottom tabs, client's theme. */
@@ -14,7 +15,7 @@ export default async function ClientLayout({ children }: { children: React.React
   ])
 
   return (
-    <div data-app-theme={profile?.theme === "light" ? "light" : "dark"} className="min-h-screen bg-app-bg font-sans text-app-text">
+    <div data-app-theme={resolveTheme(profile?.theme)} className="min-h-screen bg-app-bg font-sans text-app-text">
       {/* Warm up connections so demo videos and thumbnails open fast. */}
       <link rel="preconnect" href="https://www.youtube-nocookie.com" />
       <link rel="preconnect" href="https://i.ytimg.com" />

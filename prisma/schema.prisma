@@ -165,6 +165,9 @@ model ClientProfile {
   theme                String    @default("dark") // client app look: "dark" (Gym Floor) | "light" (Chalk)
   phone                String?
   coachrxSlug          String?   @unique
+  // When they finished the first-run walkthrough. Null means they have not
+  // seen it, so Today opens it for them; clearing it replays the tour.
+  tourSeenAt           DateTime?
 
   // Intermittent fasting: the coach switches it on, the client can adjust the window.
   // The coach offers the fasting timer; the client can switch it off for

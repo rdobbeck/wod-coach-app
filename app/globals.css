@@ -3,12 +3,15 @@
 @tailwind utilities;
 
 /*
- * Two looks for the client app, chosen per client in Profile → Appearance:
- *   dark  = "Gym Floor" (near-black, bone text, signal red)
- *   light = "Chalk"     (warm paper, ink text, same red)
- * Coach screens stay on the plain light UI.
+ * Looks for the client app, chosen per client in Settings -> Appearance and
+ * applied as data-app-theme on the client shell. The default set sits on :root
+ * so shared pieces that render outside that shell (the coach's copy of the
+ * history sheet, for one) still have somewhere to read its colours from.
+ *
+ * --app-accent-rgb exists so the pulse ring below can tint itself to whichever
+ * accent is in play rather than always being red.
  */
-[data-app-theme] {
+:root {
   --app-bg: #0e0f12;
   --app-surface: #15171c;
   --app-surface-2: #23262c;
@@ -16,11 +19,13 @@
   --app-text: #f4f1ea;
   --app-muted: #8c8478;
   --app-accent: #c1272d;
+  --app-accent-rgb: 193, 39, 45;
   --app-accent-text: #ffffff;
   --app-good: #3e8e5a;
   --app-warn: #c88c3c;
 }
 
+/* Chalk: warm paper, ink text, same signal red. */
 [data-app-theme='light'] {
   --app-bg: #f4f2ed;
   --app-surface: #ffffff;
@@ -29,6 +34,67 @@
   --app-text: #16181d;
   --app-muted: #6b6257;
   --app-accent: #c1272d;
+  --app-accent-rgb: 193, 39, 45;
+  --app-accent-text: #ffffff;
+  --app-good: #2f6b45;
+  --app-warn: #9a6a1c;
+}
+
+/* Blackout: true black for OLED screens and dark gyms. */
+[data-app-theme='blackout'] {
+  --app-bg: #000000;
+  --app-surface: #0b0b0c;
+  --app-surface-2: #17181a;
+  --app-border: #26272a;
+  --app-text: #f2f2f2;
+  --app-muted: #85858c;
+  --app-accent: #e0343b;
+  --app-accent-rgb: 224, 52, 59;
+  --app-accent-text: #ffffff;
+  --app-good: #34a05f;
+  --app-warn: #d39a3f;
+}
+
+/* Midnight: navy with an ice blue accent. */
+[data-app-theme='midnight'] {
+  --app-bg: #0b1220;
+  --app-surface: #131c2e;
+  --app-surface-2: #1e2940;
+  --app-border: #2a3852;
+  --app-text: #e8eefc;
+  --app-muted: #8294b4;
+  --app-accent: #3f8cff;
+  --app-accent-rgb: 63, 140, 255;
+  --app-accent-text: #06101f;
+  --app-good: #2fa37a;
+  --app-warn: #d1a23c;
+}
+
+/* Platform: wood and bumper plates, amber accent. */
+[data-app-theme='platform'] {
+  --app-bg: #14110d;
+  --app-surface: #1d1913;
+  --app-surface-2: #2a241b;
+  --app-border: #3a3226;
+  --app-text: #f3ece0;
+  --app-muted: #a2937d;
+  --app-accent: #d98324;
+  --app-accent-rgb: 217, 131, 36;
+  --app-accent-text: #1a1408;
+  --app-good: #6f9e4a;
+  --app-warn: #c9a227;
+}
+
+/* Sunrise: light and warm, burnt orange accent. */
+[data-app-theme='sunrise'] {
+  --app-bg: #fdf6ef;
+  --app-surface: #ffffff;
+  --app-surface-2: #f6ece1;
+  --app-border: #e8d9c8;
+  --app-text: #241a12;
+  --app-muted: #7a6552;
+  --app-accent: #c1472d;
+  --app-accent-rgb: 193, 71, 45;
   --app-accent-text: #ffffff;
   --app-good: #2f6b45;
   --app-warn: #9a6a1c;
@@ -43,8 +109,8 @@ body {
  * Affordance for "this is the next thing to do".
  *
  * Two treatments, used consistently:
- *   - accent (red) button  = move on to the next step
- *   - .pulse-cta           = act here, inside what you are already doing
+ *   - accent button  = move on to the next step
+ *   - .pulse-cta     = act here, inside what you are already doing
  *
  * The pulse is a slow ring rather than a scale, so it reads as an invitation
  * and never shifts the layout. It stops for anyone who asked for less motion.
@@ -52,10 +118,10 @@ body {
 @keyframes pulse-cta {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(193, 39, 45, 0);
+    box-shadow: 0 0 0 0 rgba(var(--app-accent-rgb), 0);
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(193, 39, 45, 0.28);
+    box-shadow: 0 0 0 4px rgba(var(--app-accent-rgb), 0.28);
   }
 }
 
@@ -66,6 +132,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .pulse-cta {
     animation: none;
-    box-shadow: 0 0 0 2px rgba(193, 39, 45, 0.35);
+    box-shadow: 0 0 0 2px rgba(var(--app-accent-rgb), 0.35);
   }
 }

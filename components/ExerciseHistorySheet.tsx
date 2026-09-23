@@ -9,13 +9,18 @@ type Props = {
   name: string
   units: string
   onClose: () => void
+  /**
+   * Fill today's set rows from a past day. Only passed when the sheet is open
+   * from inside a session, since there is nothing to fill anywhere else.
+   */
+  onUse?: (entry: HistoryEntry) => void
 }
 
 const fmtDate = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
 
 /** Bottom sheet listing every previous time the client did this exercise, newest first. */
-export default function ExerciseHistorySheet({ clientId, exerciseId, name, units, onClose }: Props) {
+export default function ExerciseHistorySheet({ clientId, exerciseId, name, units, onClose, onUse }: Props) {
   const [history, setHistory] = useState<HistoryEntry[] | null>(null)
   const [error, setError] = useState("")
 
@@ -32,7 +37,6 @@ export default function ExerciseHistorySheet({ clientId, exerciseId, name, units
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40" onClick={onClose}>
       <div
-        data-app-theme
         className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-t-2xl border-t border-app-border bg-app-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] font-sans text-app-text"
         onClick={(e) => e.stopPropagation()}
       >
@@ -75,6 +79,14 @@ export default function ExerciseHistorySheet({ clientId, exerciseId, name, units
                   </p>
                 )}
                 {h.sets.length > 0 && h.rpe !== null && <p className="text-xs text-app-muted">Overall RPE {h.rpe}</p>}
+                {onUse && h.sets.length > 0 && (
+                  <button
+                    onClick={() => onUse(h)}
+                    className="mt-2 rounded-lg border border-app-accent px-3 py-1.5 text-xs font-semibold text-app-accent"
+                  >
+                    Use these numbers
+                  </button>
+                )}
               </li>
             ))}
           </ul>

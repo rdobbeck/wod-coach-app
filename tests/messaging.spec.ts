@@ -29,7 +29,9 @@ test.beforeAll(async () => {
       name: "Playwright Client",
       role: "CLIENT",
       hashedPassword: await bcrypt.hash(CLIENT_PASSWORD, 10),
-      clientProfile: { create: {} },
+      // Seen, so the first-run tour never covers Today in the other specs.
+      // tour.spec.ts clears it for itself and puts it back.
+      clientProfile: { create: { tourSeenAt: new Date() } },
     },
   })
   clientId = client.id

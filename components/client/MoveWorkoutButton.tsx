@@ -65,7 +65,6 @@ export default function MoveWorkoutButton({
       {open && (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40" onClick={() => setOpen(false)}>
           <div
-            data-app-theme
             className="w-full max-w-md rounded-t-2xl border-t border-app-border bg-app-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] font-sans text-app-text"
             onClick={(e) => e.stopPropagation()}
           >

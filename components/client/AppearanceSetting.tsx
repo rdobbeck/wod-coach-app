@@ -3,11 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
-
-const OPTIONS = [
-  { id: "dark", name: "Gym Floor", hint: "Dark", bg: "#0e0f12", fg: "#f4f1ea" },
-  { id: "light", name: "Chalk", hint: "Light", bg: "#f4f2ed", fg: "#16181d" },
-]
+import { THEMES } from "@/lib/themes"
 
 /** Client picks the app's look; saved to their profile so it follows their devices. */
 export default function AppearanceSetting({ current, units }: { current: string; units: string }) {
@@ -38,7 +34,7 @@ export default function AppearanceSetting({ current, units }: { current: string;
       <div>
         <p className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-app-muted">Appearance</p>
         <div className="mt-2 grid grid-cols-2 gap-3">
-          {OPTIONS.map((o) => (
+          {THEMES.map((o) => (
             <button
               key={o.id}
               disabled={busy}
@@ -49,11 +45,18 @@ export default function AppearanceSetting({ current, units }: { current: string;
               aria-pressed={theme === o.id}
               className={`rounded-2xl border p-3 text-left ${theme === o.id ? "border-app-accent" : "border-app-border"}`}
             >
-              <span className="flex h-14 items-center justify-center rounded-xl" style={{ background: o.bg, color: o.fg }}>
+              <span
+                className="flex h-14 items-center justify-center gap-2 rounded-xl border border-black/10"
+                style={{ background: o.bg, color: o.fg }}
+              >
                 <span className="font-display text-lg font-bold">Aa</span>
+                <span className="h-3 w-3 rounded-full" style={{ background: o.accent }} />
               </span>
-              <span className="mt-2 block font-display text-lg font-semibold leading-tight">{o.name}</span>
-              <span className="block text-xs text-app-muted">{o.hint}</span>
+              <span className="mt-2 flex items-baseline gap-1.5">
+                <span className="truncate font-display text-lg font-semibold leading-tight">{o.name}</span>
+                {theme === o.id && <span className="shrink-0 text-xs font-bold text-app-accent">✓</span>}
+              </span>
+              <span className="block truncate text-xs text-app-muted">{o.hint}</span>
             </button>
           ))}
         </div>

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withAlert } from "@/lib/alert"
 import { PROTOCOLS } from "@/lib/fasting"
+import { isTheme } from "@/lib/themes"
 
 /** A client's own preferences: theme, units, and their fasting window. */
 async function handlePATCH(req: Request) {
@@ -16,6 +17,7 @@ async function handlePATCH(req: Request) {
     fastingProtocol?: string
     eatingWindowStart?: string
     eatingWindowEnd?: string
+    tourSeen?: boolean
   }
   const clock = (v?: string) => (v && /^\d{2}:\d{2}$/.test(v) ? v : undefined)
 
@@ -31,12 +33,14 @@ async function handlePATCH(req: Request) {
   }
   const protocol = body.fastingProtocol && PROTOCOLS[body.fastingProtocol] ? body.fastingProtocol : undefined
   const data = {
-    ...(body.theme === "dark" || body.theme === "light" ? { theme: body.theme } : {}),
+    ...(isTheme(body.theme) ? { theme: body.theme } : {}),
     ...(body.units === "lb" || body.units === "kg" ? { units: body.units } : {}),
     ...(fastingEnabled === undefined ? {} : { fastingEnabled }),
     ...(protocol ? { fastingProtocol: protocol, fastingTargetHours: PROTOCOLS[protocol].fastHours } : {}),
     ...(clock(body.eatingWindowStart) ? { eatingWindowStart: body.eatingWindowStart } : {}),
     ...(clock(body.eatingWindowEnd) ? { eatingWindowEnd: body.eatingWindowEnd } : {}),
+    // false replays the walkthrough next time they open Today.
+    ...(typeof body.tourSeen === "boolean" ? { tourSeenAt: body.tourSeen ? new Date() : null } : {}),
   }
   if (!Object.keys(data).length) return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
   await prisma.clientProfile.upsert({

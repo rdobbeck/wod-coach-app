@@ -5,6 +5,7 @@ import { clientVisible, dayKey } from "@/lib/training"
 import { bookingFor } from "@/lib/booking"
 import { callCreditsFor } from "@/lib/call-credits"
 import TodayView, { type DayWorkout } from "@/components/client/TodayView"
+import Tour from "@/components/client/Tour"
 
 const DAY = 86_400_000
 
@@ -69,30 +70,40 @@ export default async function ClientToday() {
     movedFrom: w.originalDate ? dayKey(w.originalDate) : null,
   }))
 
+  const canMove = profile?.canMoveWorkouts ?? true
+
   return (
-    <TodayView
-      firstName={session.user.name?.split(" ")[0] ?? "there"}
-      coachName={coachLink?.coach.name ?? null}
-      canMove={profile?.canMoveWorkouts ?? true}
-      compliance={percent}
-      canBook={canBook}
-      callsLeft={callsLeft}
-      workouts={days}
-      fasting={
-        profile?.fastingEnabled
-          ? {
-              protocol: profile.fastingProtocol,
-              targetHours: profile.fastingTargetHours,
-              windowStart: profile.eatingWindowStart,
-              windowEnd: profile.eatingWindowEnd,
-              openFast: fastEntries.find((f) => !f.endedAt) ?? null,
-              recent: fastEntries,
-            }
-          : null
-      }
-      latestNote={
-        note ? { author: note.authorName, body: note.body, workoutId: note.workout.id, day: dayKey(note.workout.scheduledDate) } : null
-      }
-    />
+    <>
+      <TodayView
+        firstName={session.user.name?.split(" ")[0] ?? "there"}
+        coachName={coachLink?.coach.name ?? null}
+        canMove={canMove}
+        compliance={percent}
+        canBook={canBook}
+        callsLeft={callsLeft}
+        workouts={days}
+        fasting={
+          profile?.fastingEnabled
+            ? {
+                protocol: profile.fastingProtocol,
+                targetHours: profile.fastingTargetHours,
+                windowStart: profile.eatingWindowStart,
+                windowEnd: profile.eatingWindowEnd,
+                openFast: fastEntries.find((f) => !f.endedAt) ?? null,
+                recent: fastEntries,
+              }
+            : null
+        }
+        latestNote={
+          note ? { author: note.authorName, body: note.body, workoutId: note.workout.id, day: dayKey(note.workout.scheduledDate) } : null
+        }
+      />
+      <Tour
+        seen={!!profile?.tourSeenAt}
+        coachName={coachLink?.coach.name ?? ""}
+        canBook={canBook}
+        canMove={canMove}
+      />
+    </>
   )
 }

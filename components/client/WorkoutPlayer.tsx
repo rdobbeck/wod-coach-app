@@ -189,6 +189,19 @@ export default function WorkoutPlayer({
     }))
   }
 
+  /**
+   * Take one past day's numbers as today's starting point. The set rows are
+   * replaced with exactly what was done that day, unticked so the client still
+   * confirms each one as they go.
+   */
+  const useHistory = (e: PlayerExercise, h: HistoryEntry) => {
+    const src = [...h.sets].sort((a, b) => a.setNumber - b.setNumber).slice(0, 12)
+    if (!src.length) return
+    update(e.id, { sets: src.map((s) => ({ weight: s.weight, reps: s.reps, rpe: null, done: false })) })
+    setHistoryFor(null)
+    toast.success(`Filled from ${fmtDay(h.date, { month: "short", day: "numeric" })}`)
+  }
+
   const tickSet = (e: PlayerExercise, i: number) => {
     const set = e.sets[i]
     const next = !set.done
@@ -454,7 +467,15 @@ export default function WorkoutPlayer({
       )}
 
       {videoIndex !== null && <VideoPlayer items={videos} startIndex={videoIndex} onClose={() => setVideoIndex(null)} />}
-      {historyFor && <ExerciseHistorySheet exerciseId={historyFor.exerciseId} name={historyFor.name} units={units} onClose={() => setHistoryFor(null)} />}
+      {historyFor && (
+        <ExerciseHistorySheet
+          exerciseId={historyFor.exerciseId}
+          name={historyFor.name}
+          units={units}
+          onClose={() => setHistoryFor(null)}
+          onUse={(h) => useHistory(historyFor, h)}
+        />
+      )}
     </div>
   )
 }
