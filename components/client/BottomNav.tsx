@@ -23,7 +23,7 @@ const tabs = [
   },
   {
     href: "/client/profile",
-    label: "Profile",
+    label: "Settings",
     match: (p: string) => p.startsWith("/client/profile"),
     icon: (
       <>

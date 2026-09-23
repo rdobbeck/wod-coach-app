@@ -62,7 +62,7 @@ export default function ExerciseHistorySheet({ clientId, exerciseId, name, units
                   <ul className="mt-1 text-sm">
                     {h.sets.map((s) => (
                       <li key={s.setNumber}>
-                        Set {s.setNumber}: {s.weight !== null ? `${s.weight} ${units}` : "—"}
+                        Set {s.setNumber}: {s.weight !== null ? `${s.weight} ${units}` : "-"}
                         {s.reps !== null ? ` × ${s.reps}` : ""}
                         {s.rpe !== null ? ` @ RPE ${s.rpe}` : ""}
                       </li>

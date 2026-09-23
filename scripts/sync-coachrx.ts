@@ -27,6 +27,7 @@ loadDotenv({ path: resolve(process.cwd(), ".env.local"), override: true });
 import { findCoachRxTab, executeScript, navigateTab } from "./lib/opentabs";
 import { getSupabase } from "./lib/supabase";
 import { alertRyan } from "../lib/alert";
+import { noLongDashes } from "../lib/text";
 
 const API_FILTER = "/api/v1/exercises.json";
 const UPSERT_CHUNK = 200;
@@ -106,7 +107,7 @@ function toMirrorRow(row: RawRow, fetchedAt: string): MirrorRow {
     coachId === null || coachId === undefined ? null : String(coachId);
   return {
     id: row.id,
-    name: a.exercise_name,
+    name: noLongDashes(a.exercise_name),
     description: a.description ?? null,
     url: a.url ?? null,
     patterns: a.patterns ?? [],

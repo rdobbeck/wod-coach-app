@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       name: name.trim(),
       videoUrl: videoUrl?.trim() || null,
       category: "Custom",
-      difficulty: "—",
+      difficulty: "Any",
       muscleGroups: [],
       equipment: [],
       isCustom: true,

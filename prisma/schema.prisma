@@ -112,6 +112,11 @@ model CoachProfile {
   totalProgramsGenerated Int        @default(0)
 
   // Onboarding
+  // Defaults applied to new clients and to workouts without an explicit rest.
+  defaultUnits           String  @default("lb") // "lb" | "kg"
+  defaultRestSeconds     Int     @default(90)
+  defaultCanMoveWorkouts Boolean @default(true)
+
   hasCompletedOnboarding Boolean   @default(false)
   onboardingCompletedAt  DateTime?
 

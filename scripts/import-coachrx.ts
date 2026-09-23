@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { exerciseKey } from "../lib/exercise-key";
 import { buildExerciseMatcher } from "../lib/exercise-match";
+import { noLongDashes } from "../lib/text";
 
 // Imports into production (public schema) regardless of DB_SCHEMA.
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.POSTGRES_PRISMA_URL } } });
@@ -94,7 +95,8 @@ type CrxProfile = {
 };
 
 // ---------- helpers ----------
-const clean = (s: string | null | undefined) => (s && s.trim() ? s.trim() : null);
+// Trim, and drop em/en dashes: Ryan's copy never uses them.
+const clean = (s: string | null | undefined) => (s && s.trim() ? noLongDashes(s.trim()) : null);
 
 
 // CoachRx dates are calendar days; store at noon UTC so no timezone shifts the day.
@@ -248,7 +250,7 @@ async function importClient(slug: string, coachId: string | null, match: (n: str
       const eData = {
         workoutId: workout.id,
         exerciseId: match(it.name),
-        name: it.name.trim(),
+        name: noLongDashes(it.name.trim()),
         prescription: clean(it.description),
         supersetGroup: it.is_circuit ? "circuit" : null,
         order: it.position ?? idx + 1,
@@ -361,7 +363,7 @@ async function scheduleProgram(slug: string, coachId: string | null, match: (n: 
       const eData = {
         workoutId: workout.id,
         exerciseId: exerciseFor(it),
-        name: it.name.trim(),
+        name: noLongDashes(it.name.trim()),
         prescription: clean(it.description),
         supersetGroup: it.is_circuit ? "circuit" : null,
         order: it.position ?? i + 1,

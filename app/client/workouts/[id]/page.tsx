@@ -24,7 +24,13 @@ export default async function ClientWorkout({ params }: { params: { id: string }
   })
   if (!workout || workout.clientId !== session.user.id || workout.program?.isDraft) notFound()
 
-  const profile = await prisma.clientProfile.findUnique({ where: { userId: session.user.id } })
+  const [profile, coachLink] = await Promise.all([
+    prisma.clientProfile.findUnique({ where: { userId: session.user.id } }),
+    prisma.clientCoach.findFirst({
+      where: { clientId: session.user.id, status: "ACTIVE" },
+      select: { coach: { select: { coachProfile: { select: { defaultRestSeconds: true } } } } },
+    }),
+  ])
   const exercises = workout.exercises.map((e) => ({
     id: e.id,
     exerciseId: e.exerciseId,
@@ -67,6 +73,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
         }
       })}
       units={profile?.units ?? "lb"}
+      defaultRestSeconds={coachLink?.coach.coachProfile?.defaultRestSeconds ?? 90}
       canMove={profile?.canMoveWorkouts ?? true}
     />
   )

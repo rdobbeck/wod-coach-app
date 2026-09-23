@@ -63,7 +63,7 @@ export default async function Home() {
           </Link>
         </div>
         <p className="mt-4 text-sm text-[#8c8478]">
-          Training with a coach here? They&rsquo;ll text you an invite link — no account to create.
+          Training with a coach here? They&rsquo;ll text you an invite link, no account to create.
         </p>
       </section>
 
@@ -79,7 +79,7 @@ export default async function Home() {
       </section>
 
       <footer className="mx-auto flex max-w-5xl flex-col gap-2 px-6 py-10 text-sm text-[#6f6a62] sm:flex-row sm:items-center sm:justify-between">
-        <span>WOD.COACH — built by Dobbeck Training Systems</span>
+        <span>WOD.COACH · built by Dobbeck Training Systems</span>
         <Link href="/auth/signin" className="font-semibold text-[#c9c2b7] hover:text-[#f4f1ea]">
           Sign in
         </Link>

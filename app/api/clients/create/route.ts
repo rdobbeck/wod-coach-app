@@ -40,13 +40,16 @@ export async function POST(req: Request) {
         },
       })
 
-      // Create client profile
+      // Create client profile, seeded from the coach's defaults
+      const defaults = await tx.coachProfile.findUnique({ where: { userId: coachId }, select: { defaultUnits: true, defaultCanMoveWorkouts: true } })
       await tx.clientProfile.create({
         data: {
           userId: user.id,
           goals: goals || [],
           equipment: equipment || [],
           injuries: injuries || null,
+          units: defaults?.defaultUnits ?? "lb",
+          canMoveWorkouts: defaults?.defaultCanMoveWorkouts ?? true,
         },
       })
 

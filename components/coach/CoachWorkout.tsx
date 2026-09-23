@@ -261,7 +261,7 @@ export default function CoachWorkout({
                 <div className="mt-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
                   <span className="font-semibold">Logged:</span>{" "}
                   {r.logged.sets.length
-                    ? r.logged.sets.map((s) => `${s.weight ?? "—"}${s.weight !== null ? ` ${units}` : ""} × ${s.reps ?? "—"}${s.rpe !== null ? ` @${s.rpe}` : ""}`).join(" · ")
+                    ? r.logged.sets.map((s) => `${s.weight ?? "-"}${s.weight !== null ? ` ${units}` : ""} × ${s.reps ?? "-"}${s.rpe !== null ? ` @${s.rpe}` : ""}`).join(" · ")
                     : null}
                   {r.logged.resultText && <span className="whitespace-pre-line"> {r.logged.resultText}</span>}
                   {r.logged.rpe !== null && <span> · RPE {r.logged.rpe}</span>}

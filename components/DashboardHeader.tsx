@@ -14,6 +14,7 @@ const coachNav = [
   { href: "/coach/clients", label: "Clients" },
   { href: "/coach/programs", label: "Programs" },
   { href: "/coach/library", label: "Library" },
+  { href: "/coach/settings", label: "Settings" },
 ]
 
 export default function DashboardHeader({ userName, role }: DashboardHeaderProps) {

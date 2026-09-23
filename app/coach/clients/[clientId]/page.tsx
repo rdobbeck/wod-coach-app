@@ -92,7 +92,7 @@ export default async function ClientDetailPage({
   const trendMax = Math.max(...trendWeights, 1)
   const trendFloor = trendWeights.length ? Math.min(...trendWeights) * 0.92 : 0
   const stats: [string, string][] = [
-    ["Compliance 90d", snapshot.compliance === null ? "—" : `${snapshot.compliance}%`],
+    ["Compliance 90d", snapshot.compliance === null ? "-" : `${snapshot.compliance}%`],
     ["Sessions logged", String(snapshot.completedCount)],
     [
       "Last session",
@@ -100,9 +100,9 @@ export default async function ClientDetailPage({
         ? snapshot.latestSession.day === todayKey
           ? "Today"
           : fmt(new Date(`${snapshot.latestSession.day}T12:00:00Z`), { month: "short", day: "numeric" })
-        : "—",
+        : "-",
     ],
-    ["Program week", snapshot.programWeek ? `${snapshot.programWeek.week}${snapshot.programWeek.total ? ` of ${snapshot.programWeek.total}` : ""}` : "—"],
+    ["Program week", snapshot.programWeek ? `${snapshot.programWeek.week}${snapshot.programWeek.total ? ` of ${snapshot.programWeek.total}` : ""}` : "-"],
   ]
 
   return (
@@ -200,7 +200,7 @@ export default async function ClientDetailPage({
                     key={p.id}
                     programId={p.id}
                     name={p.name}
-                    range={`${fmt(p.startDate, { month: "short", day: "numeric" })}${p.endDate ? ` – ${fmt(p.endDate, { month: "short", day: "numeric" })}` : ""}`}
+                    range={`${fmt(p.startDate, { month: "short", day: "numeric" })}${p.endDate ? ` to ${fmt(p.endDate, { month: "short", day: "numeric" })}` : ""}`}
                   />
                 ))}
             </div>
@@ -218,7 +218,7 @@ export default async function ClientDetailPage({
                     </span>
                     <span className="shrink-0 text-[#857c70]">
                       {fmt(p.startDate, { month: "short", day: "numeric", year: "numeric" })}
-                      {p.endDate && ` – ${fmt(p.endDate, { month: "short", day: "numeric", year: "numeric" })}`}
+                      {p.endDate && ` to ${fmt(p.endDate, { month: "short", day: "numeric", year: "numeric" })}`}
                     </span>
                     {p.programType !== "COACHRX_IMPORT" && <ProgramActions programId={p.id} name={p.name} isDraft={p.isDraft} />}
                   </li>

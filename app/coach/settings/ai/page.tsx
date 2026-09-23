@@ -59,7 +59,7 @@ export default async function AISettingsPage() {
             <div className="border-2 border-gray-200 rounded-lg p-4">
               <div className="text-sm text-gray-500">Credits Remaining</div>
               <div className="text-lg font-semibold mt-1">
-                {coach.aiProvider === "PAY_PER_PROGRAM" ? coach.aiCredits : "—"}
+                {coach.aiProvider === "PAY_PER_PROGRAM" ? coach.aiCredits : "-"}
               </div>
             </div>
 

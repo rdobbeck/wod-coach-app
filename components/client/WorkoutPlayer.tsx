@@ -82,11 +82,14 @@ export default function WorkoutPlayer({
   exercises: initial,
   units,
   canMove,
+  defaultRestSeconds = 90,
 }: {
   workout: PlayerWorkout
   exercises: PlayerExercise[]
   units: string
   canMove: boolean
+  /** Used when the prescription doesn't mention rest; set by the coach. */
+  defaultRestSeconds?: number
 }) {
   const router = useRouter()
   const [exercises, setExercises] = useState(initial)
@@ -190,7 +193,7 @@ export default function WorkoutPlayer({
     const next = !set.done
     updateSet(e, i, { done: next, ...(next && set.reps === null ? { reps: e.lastTime?.sets[i]?.reps ?? null } : {}) })
     if (next) {
-      const seconds = parseRestSeconds(e.prescription) ?? 90
+      const seconds = parseRestSeconds(e.prescription) ?? defaultRestSeconds
       setRest({ left: seconds, total: seconds })
       navigator.vibrate?.(20)
     }
@@ -333,7 +336,7 @@ export default function WorkoutPlayer({
                     </div>
                   ) : (
                     <button onClick={() => update(e.id, { sets: seedSets(e) })} className="w-full rounded-xl border border-app-border py-3 text-sm font-semibold text-app-text">
-                      {e.lastTime?.sets.length ? "Log sets — start from last time" : "Log sets (weight × reps)"}
+                      {e.lastTime?.sets.length ? "Log sets, start from last time" : "Log sets (weight × reps)"}
                     </button>
                   )}
 

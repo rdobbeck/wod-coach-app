@@ -149,7 +149,7 @@ export default async function LibraryPage({
             {total > 0 && (
               <>
                 {" "}
-                Showing {showingFrom.toLocaleString()}–{showingTo.toLocaleString()}.
+                Showing {showingFrom.toLocaleString()} to {showingTo.toLocaleString()}.
               </>
             )}
           </p>
