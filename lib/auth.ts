@@ -12,6 +12,10 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      // Sign in with Google on an account that already exists with the same
+      // email (e.g. created with a password, or invited). Safe for Google,
+      // which verifies addresses; we don't enable it for other providers.
+      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: "credentials",

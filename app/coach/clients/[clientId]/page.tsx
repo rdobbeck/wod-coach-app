@@ -233,10 +233,11 @@ export default async function ClientDetailPage({
                       {p.isDraft && <span className="ml-2 rounded bg-[#efe6f6] px-1.5 py-0.5 text-[11px] font-semibold text-[#5b3590]">Draft</span>}
                     </span>
                     <span className="shrink-0 text-[#857c70]">
-                      {fmt(p.startDate, { month: "short", day: "numeric", year: "numeric" })}
-                      {p.endDate && ` to ${fmt(p.endDate, { month: "short", day: "numeric", year: "numeric" })}`}
+                      {p.endDate ? `ends ${fmt(p.endDate, { month: "short", day: "numeric", year: "numeric" })}` : ""}
                     </span>
-                    {p.programType !== "COACHRX_IMPORT" && <ProgramActions programId={p.id} name={p.name} isDraft={p.isDraft} />}
+                    {p.programType !== "COACHRX_IMPORT" && (
+                      <ProgramActions programId={p.id} name={p.name} isDraft={p.isDraft} startDate={dayKey(p.startDate)} />
+                    )}
                   </li>
                 ))}
               </ul>

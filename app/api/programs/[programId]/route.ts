@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { coachOf } from "@/lib/coach-access"
+import { fromDayKey } from "@/lib/training"
 
 /**
  * Coach removes (unassigns) a program. Workouts the client hasn't logged are
@@ -20,13 +21,48 @@ export async function DELETE(_req: Request, { params }: { params: { programId: s
   return NextResponse.json({ ok: true, removedWorkouts: removed.count, keptLoggedWorkouts: kept.count })
 }
 
-/** Publish a draft (client sees it) or unpublish (back to draft, hidden). Body: { publish: boolean } */
+/**
+ * Publish/unpublish a draft, or move the whole program to a new start date.
+ * Body: { publish?: boolean, startDate?: "YYYY-MM-DD" }.
+ * Moving shifts every workout the client hasn't completed by the same number of
+ * days; completed sessions stay where they happened so history stays true.
+ */
 export async function PATCH(req: Request, { params }: { params: { programId: string } }) {
   const program = await prisma.program.findUnique({ where: { id: params.programId } })
   if (!program || !(await coachOf(program.clientId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
-  const { publish } = (await req.json()) as { publish?: boolean }
+  const { publish, startDate } = (await req.json()) as { publish?: boolean; startDate?: string }
   if (typeof publish === "boolean") await prisma.program.update({ where: { id: program.id }, data: { isDraft: !publish } })
-  return NextResponse.json({ ok: true })
+
+  let moved = 0
+  let kept = 0
+  if (startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    const target = fromDayKey(startDate)
+    const deltaDays = Math.round((target.getTime() - program.startDate.getTime()) / 86_400_000)
+    if (deltaDays !== 0) {
+      const workouts = await prisma.workout.findMany({
+        where: { programId: program.id },
+        select: { id: true, scheduledDate: true, isCompleted: true },
+      })
+      const shift = workouts.filter((w) => !w.isCompleted)
+      kept = workouts.length - shift.length
+      await prisma.$transaction([
+        prisma.program.update({
+          where: { id: program.id },
+          data: {
+            startDate: target,
+            ...(program.endDate ? { endDate: new Date(program.endDate.getTime() + deltaDays * 86_400_000) } : {}),
+          },
+        }),
+        ...shift.map((w) => {
+          const date = new Date(w.scheduledDate.getTime() + deltaDays * 86_400_000)
+          return prisma.workout.update({ where: { id: w.id }, data: { scheduledDate: date, dayOfWeek: date.getUTCDay() } })
+        }),
+      ])
+      moved = shift.length
+    }
+  }
+
+  return NextResponse.json({ ok: true, movedWorkouts: moved, keptCompleted: kept })
 }
