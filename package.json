@@ -26,6 +26,7 @@
     "@prisma/client": "^5.20.0",
     "@supabase/supabase-js": "^2.45.0",
     "@tanstack/react-query": "^5.56.0",
+    "@types/web-push": "^3.6.4",
     "axios": "^1.7.0",
     "bcryptjs": "^3.0.3",
     "date-fns": "^3.6.0",
@@ -40,6 +41,7 @@
     "recharts": "^2.12.0",
     "sonner": "^2.0.7",
     "stripe": "^17.2.0",
+    "web-push": "^3.6.7",
     "zod": "^3.23.0"
   },
   "devDependencies": {

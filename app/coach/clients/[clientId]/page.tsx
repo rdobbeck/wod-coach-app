@@ -68,7 +68,7 @@ export default async function ClientDetailPage({
   const nextMonth = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1, 12))
   const todayKey = dayKey(today)
 
-  const [workouts, overview, programs, snapshot] = await Promise.all([
+  const [workouts, overview, programs, snapshot, unread] = await Promise.all([
     prisma.workout.findMany({
       where: { clientId: client.id, scheduledDate: { gte: gridStart, lte: gridEnd } },
       orderBy: [{ scheduledDate: "asc" }, { order: "asc" }],
@@ -81,6 +81,7 @@ export default async function ClientDetailPage({
     tab === "calendar" ? null : getHistoryOverview(client.id),
     prisma.program.findMany({ where: { clientId: client.id }, orderBy: { startDate: "desc" }, take: 10 }),
     getClientSnapshot(client.id),
+    prisma.message.count({ where: { senderId: client.id, receiverId: session.user.id, isRead: false } }),
   ])
 
   const fastRows = profile?.fastingEnabled
@@ -244,7 +245,8 @@ export default async function ClientDetailPage({
             </section>
           )}
 
-          <div className="mt-5 flex gap-1 rounded-lg bg-[#e7e2d9] p-1 text-sm font-semibold sm:w-fit">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="flex gap-1 rounded-lg bg-[#e7e2d9] p-1 text-sm font-semibold sm:w-fit">
             {[
               ["calendar", "Calendar"],
               ["history", "History"],
@@ -257,6 +259,18 @@ export default async function ClientDetailPage({
                 {label}
               </Link>
             ))}
+          </div>
+            <Link
+              href={`/coach/clients/${client.id}/messages`}
+              className="flex items-center gap-2 rounded-lg border border-[#ddd7cc] bg-white px-4 py-2 text-sm font-semibold text-[#16181d]"
+            >
+              Messages
+              {unread > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#c1272d] px-1.5 text-xs font-bold text-white">
+                  {unread}
+                </span>
+              )}
+            </Link>
           </div>
 
           {tab === "calendar" && (

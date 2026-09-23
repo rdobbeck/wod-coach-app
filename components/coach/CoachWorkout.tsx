@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import CommentThread from "@/components/CommentThread"
 import ExerciseHistorySheet from "@/components/ExerciseHistorySheet"
 import { summarizeEntry, type HistoryEntry } from "@/lib/training-format"
 import VideoPlayer, { type PlayerItem } from "@/components/VideoPlayer"
@@ -32,7 +33,7 @@ type W = {
   cooldown: string
   description: string | null
   clientNotes: string | null
-  comments: { id: string; author: string; body: string }[]
+  comments: { id: string; author: string; body: string; at?: string }[]
 }
 
 const fmt = (d: string, o: Intl.DateTimeFormatOptions = { weekday: "long", month: "short", day: "numeric" }) =>
@@ -280,16 +281,7 @@ export default function CoachWorkout({
             <p className="whitespace-pre-line text-sm text-gray-800">{workout.cooldown}</p>
           </div>
         )}
-        {workout.comments.length > 0 && (
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <p className="text-xs font-semibold uppercase text-gray-500">Comments</p>
-            <ul className="mt-1 space-y-1 text-sm">
-              {workout.comments.map((c) => (
-                <li key={c.id}><span className="font-semibold">{c.author}:</span> {c.body}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <CommentThread workoutId={workout.id} initial={workout.comments} tone="coach" placeholder="Leave a note for your client" />
 
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
           <label className="flex items-center gap-2 text-sm text-gray-700">

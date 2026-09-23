@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma"
 import { dayKey, getLastTimes } from "@/lib/training"
 import WorkoutPlayer from "@/components/client/WorkoutPlayer"
 
+// Comments change outside this render, so never serve a cached copy.
+export const dynamic = "force-dynamic"
+
 export default async function ClientWorkout({ params }: { params: { id: string } }) {
   const session = (await getServerSession(authOptions))!
   const workout = await prisma.workout.findUnique({

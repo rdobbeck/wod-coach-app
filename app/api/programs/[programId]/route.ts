@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { coachOf } from "@/lib/coach-access"
 import { fromDayKey } from "@/lib/training"
+import { notifyUser } from "@/lib/notify"
 
 /**
  * Coach removes (unassigns) a program. Workouts the client hasn't logged are
@@ -33,7 +34,18 @@ export async function PATCH(req: Request, { params }: { params: { programId: str
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
   const { publish, startDate } = (await req.json()) as { publish?: boolean; startDate?: string }
-  if (typeof publish === "boolean") await prisma.program.update({ where: { id: program.id }, data: { isDraft: !publish } })
+  if (typeof publish === "boolean") {
+    await prisma.program.update({ where: { id: program.id }, data: { isDraft: !publish } })
+    // Only a draft going live is news to the client.
+    if (publish && program.isDraft) {
+      await notifyUser(program.clientId, {
+        title: "New program",
+        body: `${program.name} is on your calendar.`,
+        url: "/client",
+        tag: `program-${program.id}`,
+      })
+    }
+  }
 
   let moved = 0
   let kept = 0

@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import AccountSettings from "@/components/AccountSettings"
+import PushToggle from "@/components/PushToggle"
 import AppearanceSetting from "@/components/client/AppearanceSetting"
 import FastingSettings from "@/components/client/FastingSettings"
 import SignOutButton from "@/components/client/SignOutButton"
@@ -34,6 +35,8 @@ export default async function ClientProfilePage() {
           </div>
         ))}
       </dl>
+
+      <PushToggle />
 
       <AccountSettings name={user?.name ?? ""} email={user?.email ?? ""} hasPassword={!!user?.hashedPassword} tone="client" />
 

@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import DashboardHeader from "@/components/DashboardHeader"
 import AccountSettings from "@/components/AccountSettings"
+import PushToggle from "@/components/PushToggle"
 import CoachDefaults from "@/components/coach/CoachDefaults"
 import SignOutButton from "@/components/client/SignOutButton"
 
@@ -28,6 +29,8 @@ export default async function CoachSettingsPage() {
         </p>
 
         <div className="mt-6 space-y-4">
+          <PushToggle tone="coach" />
+
           <AccountSettings name={user?.name ?? ""} email={user?.email ?? ""} hasPassword={!!user?.hashedPassword} />
 
           <CoachDefaults

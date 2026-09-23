@@ -63,20 +63,21 @@ model User {
 
   // Client relationships
   clientProfile         ClientProfile?
-  coaches               ClientCoach[]    @relation("ClientCoaches")
-  clientPrograms        Program[]        @relation("ClientPrograms")
+  coaches               ClientCoach[]      @relation("ClientCoaches")
+  clientPrograms        Program[]          @relation("ClientPrograms")
   workoutLogs           WorkoutLog[]
   assessments           Assessment[]
   habits                HabitLog[]
   wearablesData         WearablesData[]
-  messagesReceived      Message[]        @relation("ReceivedMessages")
-  videoMessagesReceived VideoMessage[]   @relation("ReceivedVideoMessages")
+  messagesReceived      Message[]          @relation("ReceivedMessages")
+  videoMessagesReceived VideoMessage[]     @relation("ReceivedVideoMessages")
   vbtSubscription       VBTSubscription?
-  workouts              Workout[]        @relation("ClientWorkouts")
-  workoutsMoved         Workout[]        @relation("MovedWorkouts")
+  workouts              Workout[]          @relation("ClientWorkouts")
+  workoutsMoved         Workout[]          @relation("MovedWorkouts")
   exerciseLogs          ExerciseLog[]
   workoutComments       WorkoutComment[]
   fasts                 FastLog[]
+  pushSubscriptions     PushSubscription[]
 }
 
 model VerificationToken {
@@ -164,6 +165,22 @@ model ClientProfile {
   updatedAt          DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// A device that agreed to receive push notifications (one row per browser/phone).
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // One fast: starts when the client stops eating, ends when they eat again.
@@ -449,6 +466,9 @@ model Message {
 
   sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, isRead])
 }
 
 // Loom Video Messages for Coach-Client Communication

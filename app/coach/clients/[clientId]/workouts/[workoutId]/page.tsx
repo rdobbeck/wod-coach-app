@@ -8,6 +8,9 @@ import CoachWorkout from "@/components/coach/CoachWorkout"
 import { coachOf } from "@/lib/coach-access"
 import { dayKey, getLastTimes } from "@/lib/training"
 
+// Comments change outside this render, so never serve a cached copy.
+export const dynamic = "force-dynamic"
+
 export default async function CoachWorkoutPage({
   params,
   searchParams,
@@ -55,7 +58,7 @@ export default async function CoachWorkoutPage({
             cooldown: workout.cooldown ?? "",
             description: workout.description,
             clientNotes: log?.notes ?? null,
-            comments: workout.comments.map((c) => ({ id: c.id, author: c.authorName, body: c.body })),
+            comments: workout.comments.map((c) => ({ id: c.id, author: c.authorName, body: c.body, at: c.createdAt.toISOString() })),
           }}
           exercises={workout.exercises.map((e) => {
             const x = logged.get(e.id)

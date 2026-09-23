@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import CommentThread from "@/components/CommentThread"
 import ExerciseHistorySheet from "@/components/ExerciseHistorySheet"
 import VideoPlayer, { type PlayerItem } from "@/components/VideoPlayer"
 import VideoThumb from "@/components/VideoThumb"
@@ -380,18 +381,11 @@ export default function WorkoutPlayer({
 
       <TextBlock title="Cool-down" text={workout.cooldown} />
 
-      {workout.comments.length > 0 && (
-        <section className="rounded-2xl border border-app-border bg-app-surface p-4">
-          <h2 className="font-display text-sm font-semibold uppercase tracking-[0.14em] text-app-muted">Comments</h2>
-          <ul className="mt-2 space-y-2">
-            {workout.comments.map((c) => (
-              <li key={c.id} className="text-sm">
-                <span className="font-semibold">{c.author}:</span> <span className="text-app-text/80">{c.body}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <CommentThread
+        workoutId={workout.id}
+        initial={workout.comments}
+        placeholder="Ask your coach about this session"
+      />
 
       {exercises.length > 0 && (
         <textarea

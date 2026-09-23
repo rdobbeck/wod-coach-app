@@ -51,3 +51,6 @@ playwright-report/
 test-walkthrough/
 backups/
 .env*
+
+# Local launchd job output
+logs/

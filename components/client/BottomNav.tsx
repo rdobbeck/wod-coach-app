@@ -22,6 +22,12 @@ const tabs = [
     ),
   },
   {
+    href: "/client/messages",
+    label: "Messages",
+    match: (p: string) => p.startsWith("/client/messages"),
+    icon: <path d="M4 5h16v11H8l-4 4z" />,
+  },
+  {
     href: "/client/profile",
     label: "Settings",
     match: (p: string) => p.startsWith("/client/profile"),
@@ -34,11 +40,11 @@ const tabs = [
   },
 ]
 
-export default function BottomNav() {
+export default function BottomNav({ unread = 0 }: { unread?: number }) {
   const pathname = usePathname()
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-app-border bg-app-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-      <div className="mx-auto grid max-w-md grid-cols-3">
+      <div className="mx-auto grid max-w-md grid-cols-4">
         {tabs.map((t) => {
           const active = t.match(pathname)
           return (
@@ -48,9 +54,16 @@ export default function BottomNav() {
               aria-current={active ? "page" : undefined}
               className={`flex flex-col items-center gap-1 py-3 text-[11px] font-semibold ${active ? "text-app-accent" : "text-app-muted"}`}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                {t.icon}
-              </svg>
+              <span className="relative">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  {t.icon}
+                </svg>
+                {t.href === "/client/messages" && unread > 0 && (
+                  <span className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-app-accent px-1 text-[10px] font-bold text-app-accent-text">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </span>
               {t.label}
             </Link>
           )
