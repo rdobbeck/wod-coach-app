@@ -9,13 +9,16 @@ export default function CoachDefaults({
   units,
   restSeconds,
   canMove,
+  bookingUrl,
 }: {
   units: string
   restSeconds: number
   canMove: boolean
+  bookingUrl: string
 }) {
   const router = useRouter()
   const [rest, setRest] = useState(String(restSeconds))
+  const [booking, setBooking] = useState(bookingUrl)
   const [busy, setBusy] = useState(false)
 
   const save = async (body: Record<string, unknown>, done: string) => {
@@ -80,6 +83,36 @@ export default function CoachDefaults({
           </div>
           <p className="mt-1 text-xs text-[#857c70]">
             Prescriptions like &ldquo;rest 2-3 min&rdquo; always win; this is the fallback. 15 to 600 seconds.
+          </p>
+        </div>
+
+        <div>
+          <p className="text-sm text-[#6b6257]">Video call booking link</p>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="url"
+              inputMode="url"
+              placeholder="https://cal.com/you/check-in"
+              value={booking}
+              onChange={(e) => setBooking(e.target.value)}
+              className="min-w-0 flex-1 rounded-xl border border-[#ddd7cc] px-3 py-2 text-base text-[#16181d]"
+            />
+            <button
+              onClick={() =>
+                save(
+                  { bookingUrl: booking },
+                  booking.trim() ? "Clients can book a call" : "Booking hidden from clients"
+                )
+              }
+              disabled={busy || booking.trim() === bookingUrl}
+              className="shrink-0 rounded-xl bg-[#16181d] px-4 py-2 text-sm font-semibold text-[#f4f1ea] disabled:opacity-40"
+            >
+              Save
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-[#857c70]">
+            Clients get a &ldquo;Book a call&rdquo; card on Today that opens this inside the app. Cal.com and Calendly
+            links embed; anything else opens in a new tab. Leave it empty to hide booking.
           </p>
         </div>
       </div>

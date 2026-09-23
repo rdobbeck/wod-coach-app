@@ -37,6 +37,7 @@ export default async function CoachSettingsPage() {
             units={coach?.defaultUnits ?? "lb"}
             restSeconds={coach?.defaultRestSeconds ?? 90}
             canMove={coach?.defaultCanMoveWorkouts ?? true}
+            bookingUrl={coach?.bookingUrl ?? ""}
           />
 
           <div className="rounded-2xl border border-[#e4dfd5] bg-white p-4">

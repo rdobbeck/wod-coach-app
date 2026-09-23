@@ -76,6 +76,27 @@ function SessionCard({ w, canMove, primary }: { w: DayWorkout; canMove: boolean;
   )
 }
 
+/** Book a video call with the coach. Only rendered when they have a booking link. */
+function BookCallCard({ coachName }: { coachName: string | null }) {
+  return (
+    <Link href="/client/book" className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3.5">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-app-surface2">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M3 10h18M8 3v4M16 3v4" />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-xl font-bold leading-tight">Book a call</span>
+        <span className="block text-sm text-app-muted">Pick a time with {coachName ?? "your coach"}</span>
+      </span>
+      <span className="shrink-0 text-app-muted" aria-hidden="true">
+        &rarr;
+      </span>
+    </Link>
+  )
+}
+
 /** Link out to breathWOD, Ryan's breathwork trainer, which lives at its own app. */
 function BreathwodCard() {
   return (
@@ -109,6 +130,7 @@ export default function TodayView({
   workouts,
   latestNote,
   fasting,
+  canBook,
 }: {
   firstName: string
   coachName: string | null
@@ -117,6 +139,7 @@ export default function TodayView({
   workouts: DayWorkout[]
   latestNote: Note | null
   fasting: Fasting | null
+  canBook: boolean
 }) {
   // "Today" is the client's local day, so it's computed in the browser.
   const [today, setToday] = useState<string | null>(null)
@@ -197,6 +220,8 @@ export default function TodayView({
           </div>
         )}
       </section>
+
+      {canBook && <BookCallCard coachName={coachName} />}
 
       <BreathwodCard />
 

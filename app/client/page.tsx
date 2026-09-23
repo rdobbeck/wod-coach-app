@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { clientVisible, dayKey } from "@/lib/training"
+import { bookingFor } from "@/lib/booking"
 import TodayView, { type DayWorkout } from "@/components/client/TodayView"
 
 const DAY = 86_400_000
@@ -25,7 +26,7 @@ export default async function ClientToday() {
     prisma.clientProfile.findUnique({ where: { userId: session.user.id } }),
     prisma.clientCoach.findFirst({
       where: { clientId: session.user.id, status: "ACTIVE" },
-      include: { coach: { select: { name: true } } },
+      include: { coach: { select: { name: true, coachProfile: { select: { bookingUrl: true } } } } },
     }),
     // Most recent coach comment on any of this client's workouts.
     prisma.workoutComment.findFirst({
@@ -68,6 +69,7 @@ export default async function ClientToday() {
       coachName={coachLink?.coach.name ?? null}
       canMove={profile?.canMoveWorkouts ?? true}
       compliance={percent}
+      canBook={!!bookingFor(coachLink?.coach.coachProfile?.bookingUrl)}
       workouts={days}
       fasting={
         profile?.fastingEnabled
