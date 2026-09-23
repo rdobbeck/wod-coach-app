@@ -1,48 +1,44 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { PrismaClient } from "@prisma/client"
+import { dbUrl } from "../../lib/db-url"
 
-let cached: SupabaseClient | null = null
+/**
+ * Test helpers for the exercise library.
+ *
+ * These go through Prisma rather than Supabase's REST API on purpose: REST only
+ * exposes schemas listed in the project's API settings, so it cannot see the
+ * `preview` schema that local and preview runs use. Prisma talks to Postgres
+ * directly and honours DB_SCHEMA, so a lock written here is a lock the app
+ * under test actually reads.
+ */
+let cached: PrismaClient | null = null
 
-export function getAdmin(): SupabaseClient {
+export function getAdmin(): PrismaClient {
   if (cached) return cached
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) {
-    throw new Error(
-      "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in .env.local"
-    )
-  }
-  cached = createClient(url, key, {
-    auth: { persistSession: false },
-    db: { schema: "public" },
-  })
+  cached = new PrismaClient({ datasources: { db: { url: dbUrl() } } })
   return cached
 }
 
+async function setLocked(coachrxId: string, locked: boolean, label: string) {
+  const { count } = await getAdmin().exerciseLibrary.updateMany({
+    where: { coachrxId },
+    data: { locked },
+  })
+  if (!count) throw new Error(`${label}(${coachrxId}): no ExerciseLibrary row with that coachrx_id`)
+}
+
 export async function lockRowByCoachrxId(coachrxId: string): Promise<void> {
-  const supa = getAdmin()
-  const { error } = await supa
-    .from("ExerciseLibrary")
-    .update({ locked: true })
-    .eq("coachrx_id", coachrxId)
-  if (error) throw new Error(`lockRowByCoachrxId(${coachrxId}): ${error.message}`)
+  await setLocked(coachrxId, true, "lockRowByCoachrxId")
 }
 
 export async function unlockRowByCoachrxId(coachrxId: string): Promise<void> {
-  const supa = getAdmin()
-  const { error } = await supa
-    .from("ExerciseLibrary")
-    .update({ locked: false })
-    .eq("coachrx_id", coachrxId)
-  if (error) throw new Error(`unlockRowByCoachrxId(${coachrxId}): ${error.message}`)
+  await setLocked(coachrxId, false, "unlockRowByCoachrxId")
 }
 
 export async function getNameForCoachrxId(coachrxId: string): Promise<string | null> {
-  const supa = getAdmin()
-  const { data, error } = await supa
-    .from("ExerciseLibrary")
-    .select("name")
-    .eq("coachrx_id", coachrxId)
-    .single()
-  if (error) throw new Error(`getNameForCoachrxId(${coachrxId}): ${error.message}`)
-  return (data?.name as string) ?? null
+  const row = await getAdmin().exerciseLibrary.findFirst({
+    where: { coachrxId },
+    select: { name: true },
+  })
+  if (!row) throw new Error(`getNameForCoachrxId(${coachrxId}): no row with that coachrx_id`)
+  return row.name
 }

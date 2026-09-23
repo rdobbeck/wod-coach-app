@@ -38,6 +38,8 @@ async function signInAsClient(page: Page) {
 }
 
 test("a client can switch their fasting timer off and back on", async ({ browser, page }) => {
+  // Two contexts and several cold route compiles, so the default 30s is tight.
+  test.setTimeout(90_000)
   const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const clientPage = await ctx.newPage()
   await signInAsClient(clientPage)

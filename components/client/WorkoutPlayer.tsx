@@ -192,7 +192,21 @@ export default function WorkoutPlayer({
   const tickSet = (e: PlayerExercise, i: number) => {
     const set = e.sets[i]
     const next = !set.done
-    updateSet(e, i, { done: next, ...(next && set.reps === null ? { reps: e.lastTime?.sets[i]?.reps ?? null } : {}) })
+    const reps = set.reps ?? (next ? e.lastTime?.sets[i]?.reps ?? null : null)
+
+    // Ticking a set carries its numbers down to the next row, on the
+    // assumption the next set is the same until the client says otherwise.
+    // Only blanks are filled, so anything they typed is never overwritten,
+    // and the steppers make going up from there one tap.
+    const sets = e.sets.map((s, j) => {
+      if (j === i) return { ...s, done: next, reps }
+      if (j === i + 1 && next && !s.done) {
+        return { ...s, weight: s.weight ?? set.weight ?? null, reps: s.reps ?? reps }
+      }
+      return s
+    })
+    update(e.id, { sets })
+
     if (next) {
       const seconds = parseRestSeconds(e.prescription) ?? defaultRestSeconds
       setRest({ left: seconds, total: seconds })
@@ -315,7 +329,7 @@ export default function WorkoutPlayer({
                             aria-pressed={!!s.done}
                             className={`flex h-12 items-center justify-center rounded-xl border text-base ${
                               s.done ? "border-app-good bg-app-good text-white" : "border-app-border text-app-muted"
-                            }`}
+                            } ${i === e.sets.findIndex((x) => !x.done) ? "pulse-cta" : ""}`}
                           >
                             ✓
                           </button>
@@ -336,7 +350,12 @@ export default function WorkoutPlayer({
                       </div>
                     </div>
                   ) : (
-                    <button onClick={() => update(e.id, { sets: seedSets(e) })} className="w-full rounded-xl border border-app-border py-3 text-sm font-semibold text-app-text">
+                    <button
+                      onClick={() => update(e.id, { sets: seedSets(e) })}
+                      className={`w-full rounded-xl border border-app-border py-3 text-sm font-semibold text-app-text ${
+                        isLogged(e) ? "" : "pulse-cta"
+                      }`}
+                    >
                       {e.lastTime?.sets.length ? "Log sets, start from last time" : "Log sets (weight × reps)"}
                     </button>
                   )}
@@ -367,7 +386,7 @@ export default function WorkoutPlayer({
                   {idx < exercises.length - 1 && (
                     <button
                       onClick={() => setOpenId(exercises[idx + 1].id)}
-                      className="w-full truncate rounded-xl bg-app-surface2 px-3 py-3 font-display text-sm font-semibold uppercase tracking-[0.14em]"
+                      className="w-full truncate rounded-xl bg-app-accent px-3 py-3 font-display text-sm font-semibold uppercase tracking-[0.14em] text-app-accent-text"
                     >
                       Next: {exercises[idx + 1].name}
                     </button>
@@ -424,7 +443,9 @@ export default function WorkoutPlayer({
             <button
               onClick={finish}
               disabled={finishing}
-              className="h-14 flex-1 rounded-xl bg-app-accent font-display text-xl font-bold uppercase tracking-[0.06em] text-app-accent-text shadow-lg disabled:opacity-60"
+              className={`h-14 flex-1 rounded-xl bg-app-accent font-display text-xl font-bold uppercase tracking-[0.06em] text-app-accent-text shadow-lg disabled:opacity-60 ${
+                doneCount === exercises.length && !workout.isCompleted ? "pulse-cta" : ""
+              }`}
             >
               {finishing ? "Saving…" : workout.isCompleted ? "Save changes" : "Finish workout"}
             </button>

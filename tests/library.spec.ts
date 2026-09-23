@@ -44,7 +44,7 @@ test.describe("Exercise Library — signed in as coach", () => {
   test("renders header with total count and ~48 cards on first page", async ({ page }) => {
     await page.goto("/coach/library")
     await expect(page.locator(HEADER_PARA)).toContainText(/exercises from CoachRx/)
-    await expect(page.locator(HEADER_PARA)).toContainText(/Showing 1[–-]/)
+    await expect(page.locator(HEADER_PARA)).toContainText(/Showing 1 to /)
     const count = await page.locator(CARD_SELECTOR).count()
     expect(count).toBeGreaterThanOrEqual(40)
     expect(count).toBeLessThanOrEqual(48)
@@ -107,7 +107,7 @@ test.describe("Exercise Library — signed in as coach", () => {
     expect(page1Names.length).toBeGreaterThan(0)
 
     await page.goto("/coach/library?page=3")
-    await expect(page.locator(HEADER_PARA)).toContainText(/Showing 97[–-]/)
+    await expect(page.locator(HEADER_PARA)).toContainText(/Showing 97 to /)
     await expect(page.getByText(/Page 3 of/)).toBeVisible()
     const page3Names = await cardNames(page)
     expect(page3Names[0]).not.toBe(page1Names[0])
