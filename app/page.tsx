@@ -80,9 +80,14 @@ export default async function Home() {
 
       <footer className="mx-auto flex max-w-5xl flex-col gap-2 px-6 py-10 text-sm text-[#6f6a62] sm:flex-row sm:items-center sm:justify-between">
         <span>WOD.COACH · built by Dobbeck Training Systems</span>
-        <Link href="/auth/signin" className="font-semibold text-[#c9c2b7] hover:text-[#f4f1ea]">
-          Sign in
-        </Link>
+        <span className="flex gap-5">
+          <Link href="/privacy" className="hover:text-[#c9c2b7]">
+            Privacy
+          </Link>
+          <Link href="/auth/signin" className="font-semibold text-[#c9c2b7] hover:text-[#f4f1ea]">
+            Sign in
+          </Link>
+        </span>
       </footer>
     </main>
   )
