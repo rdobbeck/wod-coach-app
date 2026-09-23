@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import MoveWorkoutButton, { localDayKey } from "./MoveWorkoutButton"
 import FastingCard from "./FastingCard"
+import PlanWeekButton from "./PlanWeekButton"
 import type { FastEntry } from "@/lib/fasting"
 
 export type DayWorkout = {
@@ -189,6 +190,12 @@ export default function TodayView({
           </div>
         )}
       </header>
+
+      {canMove && (
+        <div className="flex justify-end">
+          <PlanWeekButton week={week.map((d) => d.key)} className="text-sm font-semibold text-app-accent" />
+        </div>
+      )}
 
       <div className="flex gap-1.5">
         {week.map((d) => (
