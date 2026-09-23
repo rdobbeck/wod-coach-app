@@ -76,6 +76,31 @@ function SessionCard({ w, canMove, primary }: { w: DayWorkout; canMove: boolean;
   )
 }
 
+/** Link out to breathWOD, Ryan's breathwork trainer, which lives at its own app. */
+function BreathwodCard() {
+  return (
+    <a
+      href="https://breathwod.app"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3.5"
+    >
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-app-surface2">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M12 20c3.5 0 6-2.2 6-5.2 0-3.6-3.4-6-6-10.8-2.6 4.8-6 7.2-6 10.8C6 17.8 8.5 20 12 20z" />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-xl font-bold leading-tight">breathWOD</span>
+        <span className="block text-sm text-app-muted">Breathwork protocol trainer</span>
+      </span>
+      <span className="shrink-0 text-app-muted" aria-hidden="true">
+        &rarr;
+      </span>
+    </a>
+  )
+}
+
 export default function TodayView({
   firstName,
   coachName,
@@ -172,6 +197,8 @@ export default function TodayView({
           </div>
         )}
       </section>
+
+      <BreathwodCard />
 
       {missed.length > 0 && (
         <section className="space-y-3">

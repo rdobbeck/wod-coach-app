@@ -12,15 +12,28 @@ async function handlePATCH(req: Request) {
   const body = (await req.json()) as {
     theme?: string
     units?: string
+    fastingEnabled?: boolean
     fastingProtocol?: string
     eatingWindowStart?: string
     eatingWindowEnd?: string
   }
   const clock = (v?: string) => (v && /^\d{2}:\d{2}$/.test(v) ? v : undefined)
+
+  // A client can switch the fasting timer off and back on, but only within
+  // what their coach offered them.
+  let fastingEnabled: boolean | undefined
+  if (typeof body.fastingEnabled === "boolean") {
+    const offered = await prisma.clientProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { fastingOffered: true },
+    })
+    if (offered?.fastingOffered) fastingEnabled = body.fastingEnabled
+  }
   const protocol = body.fastingProtocol && PROTOCOLS[body.fastingProtocol] ? body.fastingProtocol : undefined
   const data = {
     ...(body.theme === "dark" || body.theme === "light" ? { theme: body.theme } : {}),
     ...(body.units === "lb" || body.units === "kg" ? { units: body.units } : {}),
+    ...(fastingEnabled === undefined ? {} : { fastingEnabled }),
     ...(protocol ? { fastingProtocol: protocol, fastingTargetHours: PROTOCOLS[protocol].fastHours } : {}),
     ...(clock(body.eatingWindowStart) ? { eatingWindowStart: body.eatingWindowStart } : {}),
     ...(clock(body.eatingWindowEnd) ? { eatingWindowEnd: body.eatingWindowEnd } : {}),

@@ -5,10 +5,23 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { PROTOCOLS } from "@/lib/fasting"
 
-/** Coach switches fasting on for a client and sets the starting protocol. */
-export default function FastingControl({ clientId, enabled, protocol }: { clientId: string; enabled: boolean; protocol: string }) {
+/**
+ * Coach offers fasting to a client and sets the starting protocol. The client
+ * can switch their own timer off in their settings, which shows here.
+ */
+export default function FastingControl({
+  clientId,
+  offered,
+  enabled,
+  protocol,
+}: {
+  clientId: string
+  offered: boolean
+  enabled: boolean
+  protocol: string
+}) {
   const router = useRouter()
-  const [on, setOn] = useState(enabled)
+  const [on, setOn] = useState(offered)
   const [busy, setBusy] = useState(false)
 
   const save = async (body: Record<string, unknown>, done: string) => {
@@ -20,7 +33,7 @@ export default function FastingControl({ clientId, enabled, protocol }: { client
     })
     setBusy(false)
     if (!res.ok) {
-      setOn(enabled)
+      setOn(offered)
       return toast.error("Couldn't save")
     }
     toast.success(done)
@@ -42,6 +55,7 @@ export default function FastingControl({ clientId, enabled, protocol }: { client
         />
         Fasting timer
       </label>
+      {on && !enabled && <span className="text-xs text-[#857c70]">Client switched theirs off</span>}
       {on && (
         <div className="flex gap-1">
           {Object.entries(PROTOCOLS)

@@ -196,7 +196,12 @@ export default async function ClientDetailPage({
 
           <div className="mt-4 space-y-3">
             <ClientActions clientId={client.id} canMoveWorkouts={profile?.canMoveWorkouts ?? true} hasPassword={!!client.hashedPassword} />
-            <FastingControl clientId={client.id} enabled={profile?.fastingEnabled ?? false} protocol={profile?.fastingProtocol ?? "16:8"} />
+            <FastingControl
+              clientId={client.id}
+              offered={profile?.fastingOffered ?? false}
+              enabled={profile?.fastingEnabled ?? false}
+              protocol={profile?.fastingProtocol ?? "16:8"}
+            />
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">

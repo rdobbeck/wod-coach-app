@@ -18,7 +18,11 @@ export async function PATCH(req: Request, { params }: { params: { clientId: stri
   const data = {
     ...(typeof body.canMoveWorkouts === "boolean" ? { canMoveWorkouts: body.canMoveWorkouts } : {}),
     ...(body.units === "lb" || body.units === "kg" ? { units: body.units } : {}),
-    ...(typeof body.fastingEnabled === "boolean" ? { fastingEnabled: body.fastingEnabled } : {}),
+    // The coach offering fasting also turns it on; withdrawing it removes the
+    // section from the client's settings entirely.
+    ...(typeof body.fastingEnabled === "boolean"
+      ? { fastingEnabled: body.fastingEnabled, fastingOffered: body.fastingEnabled }
+      : {}),
     ...(protocol ? { fastingProtocol: protocol, fastingTargetHours: PROTOCOLS[protocol].fastHours } : {}),
   }
   await prisma.clientProfile.upsert({

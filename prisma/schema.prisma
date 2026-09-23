@@ -156,6 +156,9 @@ model ClientProfile {
   coachrxSlug          String?   @unique
 
   // Intermittent fasting: the coach switches it on, the client can adjust the window.
+  // The coach offers the fasting timer; the client can switch it off for
+  // themselves without losing the way back on.
+  fastingOffered     Boolean  @default(false)
   fastingEnabled     Boolean  @default(false)
   fastingProtocol    String   @default("16:8") // 16:8 | 18:6 | 20:4 | OMAD | custom
   fastingTargetHours Int      @default(16)

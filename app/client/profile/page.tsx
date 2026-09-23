@@ -42,8 +42,13 @@ export default async function ClientProfilePage() {
 
       <AppearanceSetting current={p?.theme ?? "dark"} units={p?.units ?? "lb"} />
 
-      {p?.fastingEnabled && (
-        <FastingSettings protocol={p.fastingProtocol} windowStart={p.eatingWindowStart} windowEnd={p.eatingWindowEnd} />
+      {(p?.fastingOffered || p?.fastingEnabled) && (
+        <FastingSettings
+          enabled={p.fastingEnabled}
+          protocol={p.fastingProtocol}
+          windowStart={p.eatingWindowStart}
+          windowEnd={p.eatingWindowEnd}
+        />
       )}
 
       <p className="text-xs text-app-muted">Need something changed? Message your coach.</p>
