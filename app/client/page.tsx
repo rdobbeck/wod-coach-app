@@ -9,7 +9,7 @@ const DAY = 86_400_000
 export default async function ClientToday() {
   const session = (await getServerSession(authOptions))!
   const now = Date.now()
-  const [workouts, profile, coachLink, note, compliance] = await Promise.all([
+  const [workouts, profile, coachLink, note, fasts, compliance] = await Promise.all([
     prisma.workout.findMany({
       where: {
         clientId: session.user.id,
@@ -33,6 +33,7 @@ export default async function ClientToday() {
       orderBy: { createdAt: "desc" },
       include: { workout: { select: { id: true, scheduledDate: true } } },
     }),
+    prisma.fastLog.findMany({ where: { userId: session.user.id }, orderBy: { startedAt: "desc" }, take: 14 }),
     // Completed vs. missed over the last 90 days (rest days and future days excluded).
     prisma.workout.findMany({
       where: {
@@ -44,6 +45,7 @@ export default async function ClientToday() {
     }),
   ])
 
+  const fastEntries = fasts.map((f) => ({ id: f.id, startedAt: f.startedAt.toISOString(), endedAt: f.endedAt?.toISOString() ?? null, targetHours: f.targetHours }))
   const scored = compliance.filter((w) => w._count.exercises > 0)
   const percent = scored.length ? Math.round((scored.filter((w) => w.isCompleted).length / scored.length) * 100) : null
 
@@ -67,6 +69,18 @@ export default async function ClientToday() {
       canMove={profile?.canMoveWorkouts ?? true}
       compliance={percent}
       workouts={days}
+      fasting={
+        profile?.fastingEnabled
+          ? {
+              protocol: profile.fastingProtocol,
+              targetHours: profile.fastingTargetHours,
+              windowStart: profile.eatingWindowStart,
+              windowEnd: profile.eatingWindowEnd,
+              openFast: fastEntries.find((f) => !f.endedAt) ?? null,
+              recent: fastEntries,
+            }
+          : null
+      }
       latestNote={
         note ? { author: note.authorName, body: note.body, workoutId: note.workout.id, day: dayKey(note.workout.scheduledDate) } : null
       }

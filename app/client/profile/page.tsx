@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import AccountSettings from "@/components/AccountSettings"
 import AppearanceSetting from "@/components/client/AppearanceSetting"
+import FastingSettings from "@/components/client/FastingSettings"
 import SignOutButton from "@/components/client/SignOutButton"
 
 export default async function ClientProfilePage() {
@@ -37,6 +38,10 @@ export default async function ClientProfilePage() {
       <AccountSettings name={user?.name ?? ""} email={user?.email ?? ""} hasPassword={!!user?.hashedPassword} tone="client" />
 
       <AppearanceSetting current={p?.theme ?? "dark"} units={p?.units ?? "lb"} />
+
+      {p?.fastingEnabled && (
+        <FastingSettings protocol={p.fastingProtocol} windowStart={p.eatingWindowStart} windowEnd={p.eatingWindowEnd} />
+      )}
 
       <p className="text-xs text-app-muted">Need something changed? Message your coach.</p>
       <SignOutButton />

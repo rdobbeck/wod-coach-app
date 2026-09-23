@@ -3,6 +3,8 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import MoveWorkoutButton, { localDayKey } from "./MoveWorkoutButton"
+import FastingCard from "./FastingCard"
+import type { FastEntry } from "@/lib/fasting"
 
 export type DayWorkout = {
   id: string
@@ -16,6 +18,14 @@ export type DayWorkout = {
   movedFrom: string | null
 }
 type Note = { author: string; body: string; workoutId: string; day: string }
+type Fasting = {
+  protocol: string
+  targetHours: number
+  windowStart: string
+  windowEnd: string
+  openFast: FastEntry | null
+  recent: FastEntry[]
+}
 
 const shortDate = (key: string) =>
   new Date(`${key}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
@@ -73,6 +83,7 @@ export default function TodayView({
   compliance,
   workouts,
   latestNote,
+  fasting,
 }: {
   firstName: string
   coachName: string | null
@@ -80,6 +91,7 @@ export default function TodayView({
   compliance: number | null
   workouts: DayWorkout[]
   latestNote: Note | null
+  fasting: Fasting | null
 }) {
   // "Today" is the client's local day, so it's computed in the browser.
   const [today, setToday] = useState<string | null>(null)
@@ -133,6 +145,17 @@ export default function TodayView({
           </div>
         ))}
       </div>
+
+      {fasting && (
+        <FastingCard
+          protocol={fasting.protocol}
+          targetHours={fasting.targetHours}
+          windowStart={fasting.windowStart}
+          windowEnd={fasting.windowEnd}
+          openFast={fasting.openFast}
+          recent={fasting.recent}
+        />
+      )}
 
       <section className="space-y-3">
         <h2 className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-app-muted">Today</h2>

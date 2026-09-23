@@ -76,6 +76,7 @@ model User {
   workoutsMoved         Workout[]        @relation("MovedWorkouts")
   exerciseLogs          ExerciseLog[]
   workoutComments       WorkoutComment[]
+  fasts                 FastLog[]
 }
 
 model VerificationToken {
@@ -152,10 +153,33 @@ model ClientProfile {
   theme                String    @default("dark") // client app look: "dark" (Gym Floor) | "light" (Chalk)
   phone                String?
   coachrxSlug          String?   @unique
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+
+  // Intermittent fasting: the coach switches it on, the client can adjust the window.
+  fastingEnabled     Boolean  @default(false)
+  fastingProtocol    String   @default("16:8") // 16:8 | 18:6 | 20:4 | OMAD | custom
+  fastingTargetHours Int      @default(16)
+  eatingWindowStart  String   @default("12:00") // local time, HH:mm
+  eatingWindowEnd    String   @default("20:00")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// One fast: starts when the client stops eating, ends when they eat again.
+model FastLog {
+  id          String    @id @default(cuid())
+  userId      String
+  startedAt   DateTime
+  endedAt     DateTime?
+  targetHours Int
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
 }
 
 model ClientCoach {

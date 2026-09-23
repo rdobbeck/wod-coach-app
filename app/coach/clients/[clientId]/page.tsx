@@ -8,8 +8,10 @@ import ClientActions from "@/components/coach/ClientActions"
 import AddWorkoutButton from "@/components/coach/AddWorkoutButton"
 import DraftProgramBar from "@/components/coach/DraftProgramBar"
 import ProgramActions from "@/components/coach/ProgramActions"
+import FastingControl from "@/components/coach/FastingControl"
 import HistoryView from "@/components/client/HistoryView"
 import { dayKey, getClientSnapshot, getHistoryOverview } from "@/lib/training"
+import { clockLabel, fastHours, fastingStreak, type FastEntry } from "@/lib/fasting"
 
 const DAY = 86_400_000
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-US", { ...o, timeZone: "UTC" })
@@ -80,6 +82,19 @@ export default async function ClientDetailPage({
     prisma.program.findMany({ where: { clientId: client.id }, orderBy: { startDate: "desc" }, take: 10 }),
     getClientSnapshot(client.id),
   ])
+
+  const fastRows = profile?.fastingEnabled
+    ? await prisma.fastLog.findMany({ where: { userId: client.id }, orderBy: { startedAt: "desc" }, take: 14 })
+    : []
+  const fasts: FastEntry[] = fastRows.map((f) => ({
+    id: f.id,
+    startedAt: f.startedAt.toISOString(),
+    endedAt: f.endedAt?.toISOString() ?? null,
+    targetHours: f.targetHours,
+  }))
+  const openFast = fasts.find((f) => !f.endedAt) ?? null
+  const doneFasts = fasts.filter((f) => f.endedAt)
+  const avgFast = doneFasts.length ? doneFasts.reduce((n, f) => n + fastHours(f), 0) / doneFasts.length : null
 
   const weeks = Array.from({ length: 6 }, (_, w) =>
     Array.from({ length: 7 }, (_, d) => {
@@ -178,8 +193,9 @@ export default async function ClientDetailPage({
             </span>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 space-y-3">
             <ClientActions clientId={client.id} canMoveWorkouts={profile?.canMoveWorkouts ?? true} hasPassword={!!client.hashedPassword} />
+            <FastingControl clientId={client.id} enabled={profile?.fastingEnabled ?? false} protocol={profile?.fastingProtocol ?? "16:8"} />
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -330,6 +346,47 @@ export default async function ClientDetailPage({
                     </ul>
                     {snapshot.latestSession.note && (
                       <p className="mt-3 rounded-lg border border-[#f0e3c4] bg-[#fdf8ec] px-3 py-2 text-sm text-[#6b5a2e]">“{snapshot.latestSession.note}”</p>
+                    )}
+                  </section>
+                )}
+
+                {profile?.fastingEnabled && (
+                  <section className="rounded-2xl border border-[#e4dfd5] bg-white p-4">
+                    <p className="font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-[#857c70]">
+                      Fasting · {profile.fastingProtocol}
+                    </p>
+                    <p className="mt-1 font-display text-2xl font-bold leading-tight text-[#16181d]">
+                      {openFast ? `Fasting ${fastHours(openFast).toFixed(1)}h` : "Not fasting right now"}
+                    </p>
+                    <p className="text-xs text-[#857c70]">
+                      Window {clockLabel(profile.eatingWindowStart)} to {clockLabel(profile.eatingWindowEnd)}
+                    </p>
+                    <div className="mt-3 flex gap-3 text-sm text-[#4a443c]">
+                      <span>
+                        <span className="font-display text-xl font-bold text-[#16181d]">{fastingStreak(fasts)}</span> day streak
+                      </span>
+                      {avgFast !== null && (
+                        <span>
+                          <span className="font-display text-xl font-bold text-[#16181d]">{avgFast.toFixed(1)}h</span> average
+                        </span>
+                      )}
+                    </div>
+                    {doneFasts.length > 0 ? (
+                      <ul className="mt-3 space-y-1 text-sm">
+                        {doneFasts.slice(0, 7).map((f) => {
+                          const hours = fastHours(f)
+                          return (
+                            <li key={f.id} className="flex justify-between gap-3">
+                              <span className="text-[#6b6257]">
+                                {new Date(f.endedAt!).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                              </span>
+                              <span className={`font-semibold ${hours >= f.targetHours ? "text-[#2f6b45]" : "text-[#6b6257]"}`}>{hours.toFixed(1)}h</span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    ) : (
+                      <p className="mt-3 text-sm text-[#857c70]">No fasts logged yet.</p>
                     )}
                   </section>
                 )}
