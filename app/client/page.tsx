@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { clientVisible, dayKey } from "@/lib/training"
 import { bookingFor } from "@/lib/booking"
+import { callCreditsFor } from "@/lib/call-credits"
 import TodayView, { type DayWorkout } from "@/components/client/TodayView"
 
 const DAY = 86_400_000
@@ -46,6 +47,11 @@ export default async function ClientToday() {
     }),
   ])
 
+  // Booking, and how many free calls are left, if the coach offers booking.
+  const canBook = !!bookingFor(coachLink?.coach.coachProfile?.bookingUrl)
+  const credits = canBook && coachLink ? await callCreditsFor(session.user.id, coachLink.coachId) : null
+  const callsLeft = credits && !credits.unlimited ? credits.left : null
+
   const fastEntries = fasts.map((f) => ({ id: f.id, startedAt: f.startedAt.toISOString(), endedAt: f.endedAt?.toISOString() ?? null, targetHours: f.targetHours }))
   const scored = compliance.filter((w) => w._count.exercises > 0)
   const percent = scored.length ? Math.round((scored.filter((w) => w.isCompleted).length / scored.length) * 100) : null
@@ -69,7 +75,8 @@ export default async function ClientToday() {
       coachName={coachLink?.coach.name ?? null}
       canMove={profile?.canMoveWorkouts ?? true}
       compliance={percent}
-      canBook={!!bookingFor(coachLink?.coach.coachProfile?.bookingUrl)}
+      canBook={canBook}
+      callsLeft={callsLeft}
       workouts={days}
       fasting={
         profile?.fastingEnabled

@@ -42,6 +42,7 @@ export default async function CoachSettingsPage() {
             restSeconds={coach?.defaultRestSeconds ?? 90}
             canMove={coach?.defaultCanMoveWorkouts ?? true}
             bookingUrl={coach?.bookingUrl ?? ""}
+            monthlyCallCredits={coach?.monthlyCallCredits ?? 2}
           />
 
           <div className="rounded-2xl border border-[#e4dfd5] bg-white p-4">

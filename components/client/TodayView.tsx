@@ -77,7 +77,7 @@ function SessionCard({ w, canMove, primary }: { w: DayWorkout; canMove: boolean;
 }
 
 /** Book a video call with the coach. Only rendered when they have a booking link. */
-function BookCallCard({ coachName }: { coachName: string | null }) {
+function BookCallCard({ coachName, callsLeft }: { coachName: string | null; callsLeft: number | null }) {
   return (
     <Link href="/client/book" className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3.5">
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-app-surface2">
@@ -88,7 +88,13 @@ function BookCallCard({ coachName }: { coachName: string | null }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-display text-xl font-bold leading-tight">Book a call</span>
-        <span className="block text-sm text-app-muted">Pick a time with {coachName ?? "your coach"}</span>
+        <span className="block text-sm text-app-muted">
+          {callsLeft === null
+            ? `Pick a time with ${coachName ?? "your coach"}`
+            : callsLeft > 0
+              ? `${callsLeft} free ${callsLeft === 1 ? "call" : "calls"} left this month`
+              : "Free calls used this month"}
+        </span>
       </span>
       <span className="shrink-0 text-app-muted" aria-hidden="true">
         &rarr;
@@ -131,6 +137,7 @@ export default function TodayView({
   latestNote,
   fasting,
   canBook,
+  callsLeft,
 }: {
   firstName: string
   coachName: string | null
@@ -140,6 +147,8 @@ export default function TodayView({
   latestNote: Note | null
   fasting: Fasting | null
   canBook: boolean
+  /** Free calls left this month, or null when the coach has no limit. */
+  callsLeft: number | null
 }) {
   // "Today" is the client's local day, so it's computed in the browser.
   const [today, setToday] = useState<string | null>(null)
@@ -221,7 +230,7 @@ export default function TodayView({
         )}
       </section>
 
-      {canBook && <BookCallCard coachName={coachName} />}
+      {canBook && <BookCallCard coachName={coachName} callsLeft={callsLeft} />}
 
       <BreathwodCard />
 

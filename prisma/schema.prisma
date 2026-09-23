@@ -78,6 +78,8 @@ model User {
   workoutComments       WorkoutComment[]
   fasts                 FastLog[]
   pushSubscriptions     PushSubscription[]
+  callsBooked           CallBooking[]      @relation("ClientCalls")
+  callsCoached          CallBooking[]      @relation("CoachCalls")
 }
 
 model VerificationToken {
@@ -119,6 +121,8 @@ model CoachProfile {
   defaultRestSeconds     Int     @default(90)
   // Where clients book a video call. Empty hides booking from the client app.
   bookingUrl             String?
+  // Free calls each client gets per calendar month. 0 means unlimited.
+  monthlyCallCredits     Int     @default(2)
   defaultCanMoveWorkouts Boolean @default(true)
 
   // Coach's own link: <slug>.wod.coach, picked at signup (lib/coach-link.ts)
@@ -177,6 +181,30 @@ model ClientProfile {
 }
 
 // A device that agreed to receive push notifications (one row per browser/phone).
+// A video call a client booked with their coach, mirrored from the booking
+// provider's webhook. Monthly credits are counted from these rows rather than
+// stored as a balance, so a month rolls over on its own and a cancellation
+// gives the credit straight back.
+model CallBooking {
+  id         String    @id @default(cuid())
+  clientId   String
+  coachId    String
+  externalId String    @unique // the provider's booking uid
+  title      String?
+  startsAt   DateTime
+  endsAt     DateTime?
+  cancelled  Boolean   @default(false)
+  attendee   String? // email the booking came in under, for support
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  client User @relation("ClientCalls", fields: [clientId], references: [id], onDelete: Cascade)
+  coach  User @relation("CoachCalls", fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, startsAt])
+  @@index([coachId, startsAt])
+}
+
 model PushSubscription {
   id         String    @id @default(cuid())
   userId     String

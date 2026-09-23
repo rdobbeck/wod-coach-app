@@ -16,6 +16,7 @@ async function handlePATCH(req: Request) {
     defaultCanMoveWorkouts?: boolean
     bio?: string
     bookingUrl?: string
+    monthlyCallCredits?: number
     slug?: string
     brandName?: string
   }
@@ -37,6 +38,9 @@ async function handlePATCH(req: Request) {
     // string clears it and hides booking from clients.
     ...(typeof body.bookingUrl === "string"
       ? { bookingUrl: body.bookingUrl.trim() ? (bookingFor(body.bookingUrl)?.url ?? null) : null }
+      : {}),
+    ...(Number.isInteger(body.monthlyCallCredits) && body.monthlyCallCredits! >= 0 && body.monthlyCallCredits! <= 30
+      ? { monthlyCallCredits: body.monthlyCallCredits }
       : {}),
     ...(slug ? { slug } : {}),
     ...(typeof body.brandName === "string" ? { brandName: body.brandName.trim().slice(0, 60) || null } : {}),

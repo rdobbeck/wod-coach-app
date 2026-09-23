@@ -10,15 +10,18 @@ export default function CoachDefaults({
   restSeconds,
   canMove,
   bookingUrl,
+  monthlyCallCredits,
 }: {
   units: string
   restSeconds: number
   canMove: boolean
   bookingUrl: string
+  monthlyCallCredits: number
 }) {
   const router = useRouter()
   const [rest, setRest] = useState(String(restSeconds))
   const [booking, setBooking] = useState(bookingUrl)
+  const [credits, setCredits] = useState(String(monthlyCallCredits))
   const [busy, setBusy] = useState(false)
 
   const save = async (body: Record<string, unknown>, done: string) => {
@@ -113,6 +116,29 @@ export default function CoachDefaults({
           <p className="mt-1 text-xs text-[#857c70]">
             Clients get a &ldquo;Book a call&rdquo; card on Today that opens this inside the app. Cal.com and Calendly
             links embed; anything else opens in a new tab. Leave it empty to hide booking.
+          </p>
+        </div>
+
+        <div>
+          <p className="text-sm text-[#6b6257]">Free calls per client, per month</p>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              inputMode="numeric"
+              value={credits}
+              onChange={(e) => setCredits(e.target.value.replace(/[^0-9]/g, ""))}
+              className="w-20 rounded-xl border border-[#ddd7cc] px-3 py-2 text-base text-[#16181d]"
+            />
+            <button
+              onClick={() => save({ monthlyCallCredits: Number(credits) }, `Clients get ${credits} free calls a month`)}
+              disabled={busy || credits === "" || Number(credits) > 30 || Number(credits) === monthlyCallCredits}
+              className="rounded-xl bg-[#16181d] px-4 py-2 text-sm font-semibold text-[#f4f1ea] disabled:opacity-40"
+            >
+              Save
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-[#857c70]">
+            Counted from bookings in the month the call falls in, so it resets on the 1st and a cancellation gives the
+            call back. 0 means no limit, and clients can always book past the limit.
           </p>
         </div>
       </div>
