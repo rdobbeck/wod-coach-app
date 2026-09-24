@@ -758,3 +758,36 @@ model coachrx_sync_log {
   rows_skipped_locked Int?
   error               String?
 }
+
+// ============================================
+// AI ASSISTANT
+// ============================================
+
+// One row per model call, so the monthly spend cap is a sum, not a guess.
+model AiUsage {
+  id        String   @id @default(cuid())
+  coachId   String
+  clientId  String?
+  kind      String // "assist" | "generate"
+  model     String
+  tokensIn  Int      @default(0)
+  tokensOut Int      @default(0)
+  costUsd   Float    @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([coachId, createdAt])
+}
+
+// One row per batch of AI edits the coach applied. Keeps what each row looked
+// like before, so the whole batch can be undone.
+model AiChangeSet {
+  id        String    @id @default(cuid())
+  coachId   String
+  clientId  String
+  request   String    @db.Text
+  applied   Json // [{ action, workoutId, exerciseId?, before?, after? }]
+  createdAt DateTime  @default(now())
+  undoneAt  DateTime?
+
+  @@index([clientId, createdAt])
+}

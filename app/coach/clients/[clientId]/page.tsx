@@ -10,6 +10,8 @@ import DraftProgramBar from "@/components/coach/DraftProgramBar"
 import ProgramActions from "@/components/coach/ProgramActions"
 import FastingControl from "@/components/coach/FastingControl"
 import HistoryView from "@/components/client/HistoryView"
+import AiAssistant from "@/components/coach/AiAssistant"
+import { spendMeter } from "@/lib/ai/spend"
 import { dayKey, getClientSnapshot, getHistoryOverview } from "@/lib/training"
 import { clockLabel, fastHours, fastingStreak, type FastEntry } from "@/lib/fasting"
 
@@ -68,7 +70,7 @@ export default async function ClientDetailPage({
   const nextMonth = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1, 12))
   const todayKey = dayKey(today)
 
-  const [workouts, overview, programs, snapshot, unread] = await Promise.all([
+  const [workouts, overview, programs, snapshot, unread, aiMeter] = await Promise.all([
     prisma.workout.findMany({
       where: { clientId: client.id, scheduledDate: { gte: gridStart, lte: gridEnd } },
       orderBy: [{ scheduledDate: "asc" }, { order: "asc" }],
@@ -82,6 +84,7 @@ export default async function ClientDetailPage({
     prisma.program.findMany({ where: { clientId: client.id }, orderBy: { startDate: "desc" }, take: 50 }),
     getClientSnapshot(client.id),
     prisma.message.count({ where: { senderId: client.id, receiverId: session.user.id, isRead: false } }),
+    spendMeter(session.user.id),
   ])
 
   const fastRows = profile?.fastingEnabled
@@ -428,6 +431,7 @@ export default async function ClientDetailPage({
           )}
         </div>
       </div>
+      <AiAssistant clientId={client.id} clientName={client.name ?? ""} meter={aiMeter} />
     </div>
   )
 }
