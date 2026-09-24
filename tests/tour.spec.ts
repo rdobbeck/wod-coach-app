@@ -50,9 +50,9 @@ test("a new client is walked through the app once, then left alone", async ({ br
     if (!(await next.isVisible())) break
     await next.click()
   }
-  expect(titles).toContain("Log a set without typing")
-  expect(titles).toContain("The rest timer runs itself")
-  expect(titles).toContain("Film a set and get it looked at")
+  // The tour is short now: where things live, then notifications. Logging, the
+  // rest timer and the rest are taught by in-place hints as they come up.
+  expect(titles[0]).toBe("Here is where everything lives")
   expect(titles).toContain("One last thing")
 
   // Back really does go back.

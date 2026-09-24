@@ -127,7 +127,7 @@ test("comments on a workout are two-way", async ({ page, browser }) => {
   await clientPage.goto(`/client/workouts/${workoutId}`)
   await expect(bubble(clientPage, "Belt on for the top set.")).toBeVisible()
 
-  await compose(clientPage, "Ask your coach about this session", "Belt is in the car, got it.")
+  await compose(clientPage, "Ask your coach, or attach a video of a set", "Belt is in the car, got it.")
   await expect(bubble(clientPage, "Belt is in the car, got it.")).toBeVisible()
 
   // Reload proves it persisted rather than only living in React state.

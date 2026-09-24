@@ -38,7 +38,8 @@ setup("authenticate as coach", async ({ page, request, baseURL }) => {
   // The signin page sends users to "/", which redirects signed-in coaches to
   // /coach (a COACH-only page), so landing there proves the session is real.
   await page.waitForURL(/\/coach$/, { timeout: 10_000 })
-  await expect(page.locator("h1")).toContainText(/coach dashboard/i)
+  // The dashboard greets the coach by name (Good morning, Playwright).
+  await expect(page.locator("h1")).toContainText(/good (morning|afternoon|evening), playwright/i)
 
   await page.context().storageState({ path: STORAGE_STATE })
 })

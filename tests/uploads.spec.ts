@@ -57,7 +57,7 @@ test("a client attaches a video and the coach can watch it", async ({ browser, p
   await signInAsClient(clientPage)
   await clientPage.goto(`/client/workouts/${workoutId}`)
 
-  await clientPage.getByPlaceholder("Ask your coach about this session").fill("Third rep felt off, can you look?")
+  await clientPage.getByPlaceholder("Ask your coach, or attach a video of a set").fill("Third rep felt off, can you look?")
   await clientPage.setInputFiles('input[type="file"]', {
     name: "snatch.mp4",
     mimeType: "video/mp4",
