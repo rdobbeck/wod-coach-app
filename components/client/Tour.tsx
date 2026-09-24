@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 /**
  * First-run walkthrough. It runs once, the first time a client opens Today,
  * and can be replayed from Settings. What it covers is deliberately the set of
- * things nobody finds on their own: the affordances, the set carry-forward,
+ * things nobody finds on their own: the tabs, the set carry-forward,
  * filling from a past day, the rest timer, video form checks, and the monthly
  * calls.
  */
@@ -40,10 +40,6 @@ function buildSteps({ coachName, canBook, canMove }: { coachName: string; canBoo
               </li>
             ))}
           </ul>
-          <p className="mt-3">
-            Two rules worth knowing: anything <span className="font-semibold text-app-accent">red</span> is the next thing to do, and
-            anything that gently pulses is asking for a tap right where it is.
-          </p>
         </>
       ),
     },
