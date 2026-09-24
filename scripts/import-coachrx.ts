@@ -137,7 +137,7 @@ function load<T>(file: string): T {
 async function importClient(slug: string, coachId: string | null, match: (n: string) => string | null) {
   const profile = load<CrxProfile>(`clients/${slug}.profile.json`).client;
   const workouts = load<{ workouts: CrxWorkout[] }>(`clients/${slug}.workouts.json`).workouts;
-  const listed = load<{ clients: { slug: string; can_move_workouts: boolean }[] }>("clients.json").clients.find(
+  const listed = load<{ clients: { slug: string; can_move_workouts: boolean; state?: string }[] }>("clients.json").clients.find(
     (c) => c.slug === slug
   );
 
@@ -197,7 +197,10 @@ async function importClient(slug: string, coachId: string | null, match: (n: str
   await prisma.clientCoach.upsert({
     where: { clientId_coachId: { clientId: user.id, coachId } },
     update: {},
-    create: { clientId: user.id, coachId },
+    // Archived in CoachRx means a past client: keep their history, but off the
+    // active roster. An existing link is left alone so a re-run never demotes
+    // someone the coach has since reactivated.
+    create: { clientId: user.id, coachId, status: listed?.state === "archived" ? "INACTIVE" : "ACTIVE" },
   });
 
   // Programs (one per CoachRx program the client was assigned)
