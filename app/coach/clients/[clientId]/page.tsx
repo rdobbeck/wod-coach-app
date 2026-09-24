@@ -79,7 +79,7 @@ export default async function ClientDetailPage({
       },
     }),
     tab === "calendar" ? null : getHistoryOverview(client.id),
-    prisma.program.findMany({ where: { clientId: client.id }, orderBy: { startDate: "desc" }, take: 10 }),
+    prisma.program.findMany({ where: { clientId: client.id }, orderBy: { startDate: "desc" }, take: 50 }),
     getClientSnapshot(client.id),
     prisma.message.count({ where: { senderId: client.id, receiverId: session.user.id, isRead: false } }),
   ])
@@ -257,9 +257,14 @@ export default async function ClientDetailPage({
                     <span className="shrink-0 text-[#857c70]">
                       {p.endDate ? `ends ${fmt(p.endDate, { month: "short", day: "numeric", year: "numeric" })}` : ""}
                     </span>
-                    {p.programType !== "COACHRX_IMPORT" && (
-                      <ProgramActions programId={p.id} name={p.name} isDraft={p.isDraft} startDate={dayKey(p.startDate)} />
-                    )}
+                    <ProgramActions
+                      programId={p.id}
+                      name={p.name}
+                      isDraft={p.isDraft}
+                      startDate={dayKey(p.startDate)}
+                      clientId={client.id}
+                      clients={roster.map((r) => ({ id: r.clientId, name: r.client.name ?? r.client.email ?? "Client" }))}
+                    />
                   </li>
                 ))}
               </ul>
