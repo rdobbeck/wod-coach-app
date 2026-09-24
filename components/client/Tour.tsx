@@ -20,7 +20,7 @@ const Icon = ({ children }: { children: React.ReactNode }) => (
 
 const TABS = [
   ["Today", "Your session, and every week ahead. Swipe the days to look forward"],
-  ["History", "Everything you have done, and every lift you have logged"],
+  ["History", "Everything you've done, and every lift you've logged"],
   ["Messages", "Talk to your coach, any time"],
   ["Settings", "Make it look and work how you want"],
 ]
@@ -29,7 +29,7 @@ function buildSteps(_: { coachName: string; canBook: boolean; canMove: boolean }
   const steps: Step[] = [
     {
       id: "tabs",
-      title: "Here is where everything lives",
+      title: "Here's where everything lives",
       icon: <Icon><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" /></Icon>,
       body: (
         <>
@@ -54,7 +54,7 @@ function buildSteps(_: { coachName: string; canBook: boolean; canMove: boolean }
       <>
         <p>
           Turn on notifications in <span className="font-semibold text-app-text">Settings</span> so you know when a new program lands or
-          a note comes back. On an iPhone, add the app to your Home Screen first, or Apple will not let it send anything.
+          a note comes back. On an iPhone, add the app to your Home Screen first, or Apple won't let it send anything.
         </p>
         <p className="mt-3">Settings is also where you change the colours, switch between lb and kg, and run this tour again.</p>
       </>

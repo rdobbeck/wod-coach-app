@@ -47,7 +47,7 @@ export default function SignUp() {
     setError("")
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match")
+      setError("Passwords don't match")
       setLoading(false)
       return
     }
