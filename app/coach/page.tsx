@@ -1,237 +1,371 @@
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { prisma } from "@/lib/prisma"
 import Link from "next/link"
+import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { clientVisible, dayKey, fromDayKey } from "@/lib/training"
+import { brandDomainLive, coachLinkUrl, coachLinkHost } from "@/lib/coach-link"
 import DashboardHeader from "@/components/DashboardHeader"
+import CopyLinkButton from "@/components/coach/CopyLinkButton"
+
+/**
+ * Coach home: what needs you today, not totals. Everything here is computed
+ * from the coach's active clients over a small window (last 7 days, next 14).
+ */
+
+// Calendar "today" for the coach. Workouts are stored as calendar days (noon
+// UTC), so the only timezone question is which day it is right now.
+const TZ = process.env.COACH_TZ || "America/Chicago"
+const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date())
+const addDays = (key: string, n: number) => dayKey(new Date(fromDayKey(key).getTime() + n * 86_400_000))
+const shortDay = (key: string) =>
+  fromDayKey(key).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })
+const ago = (d: Date) => {
+  const h = Math.round((Date.now() - d.getTime()) / 3_600_000)
+  if (h < 1) return "just now"
+  if (h < 24) return `${h}h ago`
+  const days = Math.round(h / 24)
+  return days === 1 ? "yesterday" : `${days} days ago`
+}
+const firstName = (n: string | null) => (n ?? "Client").split(" ")[0]
+
+const card = "rounded-2xl border border-[#e4dfd5] bg-white"
+const label = "font-display text-xs font-semibold uppercase tracking-[0.14em] text-[#857c70]"
+
+type Attention = { key: string; tone: "red" | "amber" | "ink"; title: string; detail: string; href: string; cta: string }
 
 export default async function CoachDashboard() {
   const session = await getServerSession(authOptions)
+  if (!session || session.user.role !== "COACH") redirect("/")
+  const coachId = session.user.id
 
-  if (!session || session.user.role !== "COACH") {
-    redirect("/")
-  }
+  const [links, profile] = await Promise.all([
+    prisma.clientCoach.findMany({
+      where: { coachId, status: "ACTIVE" },
+      select: { client: { select: { id: true, name: true } } },
+    }),
+    prisma.coachProfile.findUnique({ where: { userId: coachId }, select: { slug: true } }),
+  ])
+  const clients = links.map((l) => l.client)
+  const ids = clients.map((c) => c.id)
+  const nameOf = new Map(clients.map((c) => [c.id, c.name ?? "Client"]))
 
-  const clients = await prisma.clientCoach.findMany({
-    where: {
-      coachId: session.user.id,
-      status: "ACTIVE"
-    },
-    include: {
-      client: {
-        include: {
-          clientProfile: true
-        }
+  const today = todayKey()
+  const weekAgo = addDays(today, -7)
+  const horizon = addDays(today, 14)
+
+  const [workouts, lastLogs, recent, unread, drafts, comments] = await Promise.all([
+    prisma.workout.findMany({
+      where: { clientId: { in: ids }, scheduledDate: { gte: fromDayKey(weekAgo), lte: fromDayKey(horizon) }, ...clientVisible },
+      select: { id: true, clientId: true, name: true, scheduledDate: true, isCompleted: true, program: { select: { name: true } } },
+      orderBy: { scheduledDate: "asc" },
+    }),
+    prisma.workoutLog.groupBy({ by: ["userId"], where: { userId: { in: ids }, workout: { isCompleted: true } }, _max: { completedAt: true } }),
+    prisma.workoutLog.findMany({
+      where: { userId: { in: ids }, workout: { isCompleted: true } },
+      orderBy: { completedAt: "desc" },
+      take: 8,
+      select: { completedAt: true, userId: true, workout: { select: { id: true, name: true } } },
+    }),
+    prisma.message.groupBy({ by: ["senderId"], where: { receiverId: coachId, isRead: false }, _count: true }),
+    prisma.program.findMany({ where: { coachId, isDraft: true }, select: { id: true, name: true, clientId: true } }),
+    prisma.workoutComment.findMany({
+      where: { authorId: { in: ids }, createdAt: { gte: new Date(Date.now() - 3 * 86_400_000) } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, body: true, authorId: true, createdAt: true, workout: { select: { id: true, name: true } } },
+    }),
+  ])
+
+  // ---- per-client rollups -------------------------------------------------
+  const byClient = new Map<string, typeof workouts>()
+  for (const w of workouts) byClient.set(w.clientId!, [...(byClient.get(w.clientId!) ?? []), w])
+  const lastTrained = new Map(lastLogs.map((l) => [l.userId, l._max.completedAt]))
+
+  const monday = (() => {
+    const d = fromDayKey(today)
+    return addDays(today, -((d.getUTCDay() + 6) % 7))
+  })()
+
+  const roster = clients
+    .map((c) => {
+      const ws = byClient.get(c.id) ?? []
+      const missed = ws.filter((w) => dayKey(w.scheduledDate) < today && !w.isCompleted)
+      const next = ws.find((w) => dayKey(w.scheduledDate) >= today && !w.isCompleted)
+      const thisWeek = ws.filter((w) => dayKey(w.scheduledDate) >= monday && dayKey(w.scheduledDate) < addDays(monday, 7))
+      return {
+        id: c.id,
+        name: c.name ?? "Client",
+        missed,
+        next,
+        weekDone: thisWeek.filter((w) => w.isCompleted).length,
+        weekTotal: thisWeek.length,
+        last: lastTrained.get(c.id) ?? null,
+        runsOut: !ws.some((w) => dayKey(w.scheduledDate) >= today),
       }
-    },
-    orderBy: {
-      createdAt: "desc"
-    }
-  })
+    })
+    .sort((a, b) => (b.last?.getTime() ?? 0) - (a.last?.getTime() ?? 0))
 
-  const programs = await prisma.program.findMany({
-    where: {
-      coachId: session.user.id,
-      isActive: true
-    },
-    include: {
-      mesocycles: true
-    },
-    orderBy: {
-      createdAt: "desc"
-    },
-    take: 5
-  })
+  const todays = workouts.filter((w) => dayKey(w.scheduledDate) === today)
+  const doneToday = todays.filter((w) => w.isCompleted).length
+  const missedWeek = roster.reduce((n, r) => n + r.missed.length, 0)
+  const unreadTotal = unread.reduce((n, u) => n + u._count, 0)
+
+  // ---- what needs the coach, most urgent first ----------------------------
+  const attention: Attention[] = [
+    ...drafts.map((p) => ({
+      key: `draft-${p.id}`,
+      tone: "ink" as const,
+      title: `${p.name} is waiting for you`,
+      detail: `AI draft for ${nameOf.get(p.clientId) ?? "a client"}. Review and publish it.`,
+      href: `/coach/clients/${p.clientId}`,
+      cta: "Review",
+    })),
+    ...unread
+      .filter((u) => nameOf.has(u.senderId))
+      .map((u) => ({
+        key: `msg-${u.senderId}`,
+        tone: "red" as const,
+        title: `${nameOf.get(u.senderId)} messaged you`,
+        detail: `${u._count} unread`,
+        href: `/coach/clients/${u.senderId}/messages`,
+        cta: "Reply",
+      })),
+    ...comments
+      .filter((c) => c.authorId)
+      .map((c) => ({
+        key: `c-${c.id}`,
+        tone: "red" as const,
+        title: `${nameOf.get(c.authorId!)} commented on ${c.workout.name}`,
+        detail: `"${c.body.slice(0, 90)}${c.body.length > 90 ? "…" : ""}" · ${ago(c.createdAt)}`,
+        href: `/coach/clients/${c.authorId}/workouts/${c.workout.id}`,
+        cta: "Open",
+      })),
+    ...roster
+      .filter((r) => r.missed.length >= 2)
+      .map((r) => ({
+        key: `miss-${r.id}`,
+        tone: "amber" as const,
+        title: `${r.name} missed ${r.missed.length} sessions this week`,
+        detail: `Last trained ${r.last ? ago(r.last) : "not yet"}. Worth a check-in.`,
+        href: `/coach/clients/${r.id}/messages`,
+        cta: "Message",
+      })),
+    ...roster
+      .filter((r) => r.runsOut)
+      .map((r) => ({
+        key: `out-${r.id}`,
+        tone: "amber" as const,
+        title: `${r.name} has nothing scheduled`,
+        detail: "No sessions in the next two weeks. Time for a new block.",
+        href: `/coach/programs/ai-builder`,
+        cta: "Build",
+      })),
+  ]
+  const tones = { red: "bg-[#c1272d]", amber: "bg-[#c98a2b]", ink: "bg-[#16181d]" }
+
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", hourCycle: "h23" }).format(new Date()))
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+  const live = brandDomainLive() && profile?.slug
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f4f2ed]">
       <DashboardHeader userName={session.user.name || "Coach"} role="COACH" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Coach Dashboard</h1>
-          <p className="mt-2 text-gray-600">Welcome back, {session.user.name}</p>
-        </div>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm text-[#6b6257]">{shortDay(today)}</p>
+            <h1 className="font-display text-4xl font-bold text-[#16181d]">
+              {greeting}, {firstName(session.user.name ?? null)}
+            </h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {live && (
+              <span className="flex items-center gap-2 rounded-xl border border-[#e4dfd5] bg-white px-3 py-2 text-sm">
+                <a href={coachLinkUrl(profile!.slug!)} target="_blank" rel="noreferrer" className="font-semibold text-[#c1272d]">
+                  {coachLinkHost(profile!.slug!)}
+                </a>
+                <CopyLinkButton url={coachLinkUrl(profile!.slug!)} />
+              </span>
+            )}
+            <Link href="/coach/clients/new" className="rounded-xl border border-[#ddd7cc] bg-white px-4 py-2 text-sm font-semibold text-[#16181d]">
+              Add client
+            </Link>
+            <Link href="/coach/programs/ai-builder" className="rounded-xl bg-[#16181d] px-4 py-2 text-sm font-semibold text-[#f4f1ea]">
+              Build a program
+            </Link>
+          </div>
+        </header>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Active Clients</div>
-            <div className="mt-2 text-3xl font-semibold text-gray-900">{clients.length}</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Active Programs</div>
-            <div className="mt-2 text-3xl font-semibold text-gray-900">{programs.length}</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Messages</div>
-            <div className="mt-2 text-3xl font-semibold text-gray-900">0</div>
-          </div>
-        </div>
-
-        {/* AI Program Builder Highlight */}
-        <div className="mb-8 bg-gradient-to-r from-primary-600 to-primary-700 rounded-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold mb-2">🤖 AI Program Builder</h3>
-              <p className="text-primary-100">Generate complete periodized programs in 60 seconds with AI</p>
+        <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            ["Active clients", String(clients.length), null],
+            ["Done today", todays.length ? `${doneToday}/${todays.length}` : "0", todays.length ? "sessions" : "nothing scheduled"],
+            ["Missed this week", String(missedWeek), missedWeek ? "sessions" : "all caught up"],
+            ["Unread", String(unreadTotal), unreadTotal ? "messages" : "inbox clear"],
+          ].map(([k, v, sub]) => (
+            <div key={k} className={`${card} p-4`}>
+              <p className={label}>{k}</p>
+              <p className="mt-1 font-display text-3xl font-bold text-[#16181d]">{v}</p>
+              {sub && <p className="text-xs text-[#857c70]">{sub}</p>}
             </div>
-            <Link
-              href="/coach/programs/ai-builder"
-              className="bg-white text-primary-600 px-8 py-3 rounded-lg font-bold hover:bg-gray-100 transition shadow-lg"
-            >
-              Try It Now →
-            </Link>
-          </div>
+          ))}
         </div>
 
-        {/* Quick Actions */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <Link
-              href="/coach/clients/new"
-              className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
-            >
-              Add Client
-            </Link>
-            <Link
-              href="/coach/programs/ai-builder"
-              className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
-            >
-              🤖 Create with AI
-            </Link>
-            <Link
-              href="/coach/library"
-              className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
-            >
-              📚 Exercise Library
-            </Link>
-            <Link
-              href="/coach/settings/ai"
-              className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
-            >
-              AI Settings
-            </Link>
-            <Link
-              href="/coach/help"
-              className="bg-white border-2 border-gray-300 rounded-lg px-4 py-3 text-center hover:border-primary-600 transition"
-            >
-              📚 Help & Docs
-            </Link>
-          </div>
-        </div>
-
-        {/* Clients List */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Active Clients</h2>
-            <Link href="/coach/clients" className="text-primary-600 hover:text-primary-700">
-              View All →
-            </Link>
-          </div>
-          {clients.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <p className="text-gray-500">No active clients yet. Add your first client to get started!</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Client
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Goals
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Start Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {clients.map((clientCoach) => (
-                    <tr key={clientCoach.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
-                            <span className="text-primary-600 font-medium">
-                              {clientCoach.client.name?.[0] || "?"}
-                            </span>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
-                              {clientCoach.client.name || "Unnamed Client"}
-                            </div>
-                            <div className="text-sm text-gray-500">{clientCoach.client.email}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {clientCoach.client.clientProfile?.goals.join(", ") || "No goals set"}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(clientCoach.startDate).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <Link
-                          href={`/coach/clients/${clientCoach.clientId}`}
-                          className="text-primary-600 hover:text-primary-900 mr-4"
-                        >
-                          View
-                        </Link>
-                        <Link
-                          href="/coach/programs/ai-builder"
-                          className="text-primary-600 hover:text-primary-900"
-                        >
-                          🤖 Create Program
-                        </Link>
-                      </td>
-                    </tr>
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_22rem]">
+          <div className="min-w-0 space-y-6">
+            <section className={`${card} p-5`}>
+              <p className={label}>Needs you</p>
+              {attention.length ? (
+                <ul className="mt-3 divide-y divide-[#efeae1]">
+                  {attention.slice(0, 8).map((a) => (
+                    <li key={a.key} className="flex items-center gap-3 py-3">
+                      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tones[a.tone]}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold leading-snug text-[#16181d]">{a.title}</p>
+                        <p className="line-clamp-2 text-sm text-[#6b6257]">{a.detail}</p>
+                      </div>
+                      <Link href={a.href} className="shrink-0 rounded-lg border border-[#ddd7cc] px-3 py-1.5 text-sm font-semibold text-[#16181d]">
+                        {a.cta}
+                      </Link>
+                    </li>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-[#6b6257]">Nothing waiting on you. Everyone&rsquo;s on plan.</p>
+              )}
+            </section>
 
-        {/* Recent Programs */}
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Recent Programs</h2>
-            <Link href="/coach/programs" className="text-primary-600 hover:text-primary-700">
-              View All →
-            </Link>
-          </div>
-          {programs.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <p className="text-gray-500">No programs created yet. Create your first program!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {programs.map((program) => (
-                <Link
-                  key={program.id}
-                  href={`/coach/programs/${program.id}`}
-                  className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition"
-                >
-                  <h3 className="font-semibold text-gray-900 mb-2">{program.name}</h3>
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                    {program.description || "No description"}
-                  </p>
-                  <div className="flex justify-between text-sm text-gray-500">
-                    <span>{program.mesocycles.length} mesocycles</span>
-                    <span>{new Date(program.startDate).toLocaleDateString()}</span>
-                  </div>
+            <section className={`${card} p-5`}>
+              <div className="flex items-baseline justify-between">
+                <p className={label}>Today&rsquo;s sessions</p>
+                <p className="text-sm text-[#6b6257]">{todays.length ? `${doneToday} of ${todays.length} done` : ""}</p>
+              </div>
+              {todays.length ? (
+                <ul className="mt-3 divide-y divide-[#efeae1]">
+                  {todays.map((w) => (
+                    <li key={w.id}>
+                      <Link href={`/coach/clients/${w.clientId}`} className="flex items-center gap-3 py-3">
+                        <span
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                            w.isCompleted ? "bg-[#2f7d4f] text-white" : "border border-[#ddd7cc] text-[#857c70]"
+                          }`}
+                        >
+                          {w.isCompleted ? "✓" : ""}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-semibold text-[#16181d]">{nameOf.get(w.clientId!)}</span>
+                          <span className="block truncate text-sm text-[#6b6257]">
+                            {w.name}
+                            {w.program ? ` · ${w.program.name}` : ""}
+                          </span>
+                        </span>
+                        <span className={`text-sm font-semibold ${w.isCompleted ? "text-[#2f7d4f]" : "text-[#857c70]"}`}>
+                          {w.isCompleted ? "Done" : "Not yet"}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-[#6b6257]">No one&rsquo;s scheduled today.</p>
+              )}
+            </section>
+
+            <section className={`${card} overflow-hidden`}>
+              <div className="flex items-baseline justify-between p-5 pb-3">
+                <p className={label}>Clients</p>
+                <Link href="/coach/clients" className="text-sm font-semibold text-[#c1272d]">
+                  All clients
                 </Link>
-              ))}
-            </div>
-          )}
+              </div>
+              {roster.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-y border-[#efeae1] text-left text-xs uppercase tracking-[0.08em] text-[#857c70]">
+                        <th className="px-5 py-2 font-semibold">Client</th>
+                        <th className="px-3 py-2 font-semibold">Last trained</th>
+                        <th className="px-3 py-2 font-semibold">Next</th>
+                        <th className="px-5 py-2 text-right font-semibold">This week</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#efeae1]">
+                      {roster.map((r) => (
+                        <tr key={r.id} className="hover:bg-[#faf8f4]">
+                          <td className="px-5 py-3">
+                            <Link href={`/coach/clients/${r.id}`} className="font-semibold text-[#16181d]">
+                              {r.name}
+                            </Link>
+                          </td>
+                          <td className="px-3 py-3 text-[#6b6257]">{r.last ? ago(r.last) : "not yet"}</td>
+                          <td className="px-3 py-3 text-[#6b6257]">
+                            {r.next ? (
+                              <>
+                                {shortDay(dayKey(r.next.scheduledDate))} <span className="text-[#857c70]">· {r.next.name}</span>
+                              </>
+                            ) : (
+                              <span className="font-semibold text-[#c98a2b]">nothing scheduled</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-right font-semibold text-[#16181d]">
+                            {r.weekTotal ? `${r.weekDone}/${r.weekTotal}` : "–"}
+                            {r.missed.length > 0 && <span className="ml-2 text-xs font-semibold text-[#c98a2b]">{r.missed.length} missed</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="px-5 pb-5 text-sm text-[#6b6257]">
+                  No clients yet.{" "}
+                  <Link href="/coach/clients/new" className="font-semibold text-[#c1272d]">
+                    Add your first client
+                  </Link>
+                  .
+                </div>
+              )}
+            </section>
+          </div>
+
+          <aside className="min-w-0 space-y-6">
+            <section className={`${card} p-5`}>
+              <p className={label}>Recent activity</p>
+              {recent.length ? (
+                <ul className="mt-3 space-y-3">
+                  {recent.map((l) => (
+                    <li key={`${l.userId}-${l.workout.id}`}>
+                      <Link href={`/coach/clients/${l.userId}`} className="block">
+                        <p className="text-sm text-[#16181d]">
+                          <span className="font-semibold">{firstName(nameOf.get(l.userId) ?? null)}</span> finished {l.workout.name}
+                        </p>
+                        <p className="text-xs text-[#857c70]">{ago(l.completedAt)}</p>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-[#6b6257]">Finished sessions show up here.</p>
+              )}
+            </section>
+
+            <section className={`${card} p-5`}>
+              <p className={label}>Shortcuts</p>
+              <div className="mt-3 grid gap-2">
+                {[
+                  ["/coach/library", "Exercise library"],
+                  ["/coach/programs", "Programs"],
+                  ["/coach/settings", "Settings"],
+                  ["/coach/help", "Help"],
+                ].map(([href, text]) => (
+                  <Link key={href} href={href} className="rounded-xl border border-[#e4dfd5] px-4 py-2.5 text-sm font-semibold text-[#16181d] hover:bg-[#faf8f4]">
+                    {text}
+                  </Link>
+                ))}
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
     </div>
