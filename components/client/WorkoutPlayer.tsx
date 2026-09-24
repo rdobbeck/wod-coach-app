@@ -10,6 +10,7 @@ import VideoPlayer, { type PlayerItem } from "@/components/VideoPlayer"
 import VideoThumb from "@/components/VideoThumb"
 import { summarizeEntry, type HistoryEntry } from "@/lib/training-format"
 import { formatClock, parseRestSeconds } from "@/lib/rest"
+import Hint from "./Hint"
 import MoveWorkoutButton from "./MoveWorkoutButton"
 
 type SetRow = { reps: number | null; weight: number | null; rpe: number | null; done?: boolean }
@@ -323,6 +324,10 @@ export default function WorkoutPlayer({
                     )}
                   </button>
 
+                  <Hint id="log-sets" done={e.sets.some((s) => s.done)}>
+                    Tick each set as you finish it. The next set copies your numbers, and your rest timer starts.
+                  </Hint>
+
                   {e.sets.length > 0 ? (
                     <div className="space-y-2">
                       <div className="grid grid-cols-[1.5rem_1fr_1fr_3rem] gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-app-muted">
@@ -416,7 +421,7 @@ export default function WorkoutPlayer({
       <CommentThread
         workoutId={workout.id}
         initial={workout.comments}
-        placeholder="Ask your coach about this session"
+        placeholder="Ask your coach, or attach a video of a set"
       />
 
       {exercises.length > 0 && (
@@ -436,6 +441,13 @@ export default function WorkoutPlayer({
       {/* Sticky bar above the tab bar: rest timer while it runs, finish always. */}
       {exercises.length > 0 && (
         <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 px-4">
+          {rest && (
+            <div className="mx-auto mb-2 max-w-md shadow-lg">
+              <Hint id="rest-timer" done={rest.left <= 0}>
+                Rest counts down on its own. Add 30 seconds or skip it here, and your phone buzzes when you&rsquo;re up.
+              </Hint>
+            </div>
+          )}
           <div className="mx-auto flex max-w-md items-center gap-2">
             {rest && (
               <div className="flex h-14 items-center gap-2 rounded-xl border border-app-border bg-app-surface px-3 shadow-lg">

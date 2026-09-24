@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from "react"
 
 /**
  * First-run walkthrough. It runs once, the first time a client opens Today,
- * and can be replayed from Settings. What it covers is deliberately the set of
- * things nobody finds on their own: the tabs, the set carry-forward,
- * filling from a past day, the rest timer, video form checks, and the monthly
- * calls.
+ * and can be replayed from Settings. It is deliberately short: where things
+ * live, and turning notifications on. Everything else is learned in place:
+ * one-time Hints on the workout screen (logging sets, the rest timer), the
+ * comment box's placeholder (video form checks), and Today's own labels
+ * (moving sessions, free calls).
  */
 type Step = { id: string; title: string; icon: React.ReactNode; body: React.ReactNode }
 
@@ -24,7 +25,7 @@ const TABS = [
   ["Settings", "Make it look and work how you want"],
 ]
 
-function buildSteps({ coachName, canBook, canMove }: { coachName: string; canBook: boolean; canMove: boolean }): Step[] {
+function buildSteps(_: { coachName: string; canBook: boolean; canMove: boolean }): Step[] {
   const steps: Step[] = [
     {
       id: "tabs",
@@ -43,80 +44,7 @@ function buildSteps({ coachName, canBook, canMove }: { coachName: string; canBoo
         </>
       ),
     },
-    {
-      id: "logging",
-      title: "Log a set without typing",
-      icon: <Icon><path d="M20 6 9 17l-5-5" /></Icon>,
-      body: (
-        <>
-          <p>
-            Open a session, tap an exercise, then <span className="font-semibold text-app-text">Log sets</span>. Tick set one and set two
-            fills in with the same weight, so going up is one tap on the plus. The steppers move in 5 lb, or 2.5 kg.
-          </p>
-          <p className="mt-3">
-            Want a different day as your starting point? Tap <span className="font-semibold text-app-text">Last time</span> to open your
-            history for that lift, then <span className="font-semibold text-app-text">Use these numbers</span> on any day in the list.
-          </p>
-        </>
-      ),
-    },
-    {
-      id: "rest",
-      title: "The rest timer runs itself",
-      icon: <Icon><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M9 2h6" /></Icon>,
-      body: (
-        <p>
-          Tick a set and rest starts counting straight away, using whatever rest your program calls for. Add 30 seconds or skip it from
-          the bar at the bottom. Your phone buzzes when you are back up.
-        </p>
-      ),
-    },
-    {
-      id: "video",
-      title: "Film a set and get it looked at",
-      icon: <Icon><rect x="2" y="6" width="13" height="12" rx="2" /><path d="m15 11 6-3.5v9L15 13" /></Icon>,
-      body: (
-        <p>
-          Every session has a comment box at the bottom. Tap the paperclip, attach a video of the set you want eyes on, and
-          {coachName ? ` ${coachName}` : " your coach"} replies right there on that session instead of somewhere you have to go looking.
-        </p>
-      ),
-    },
   ]
-
-  if (canBook) {
-    steps.push({
-      id: "calls",
-      title: "Two free calls, every month",
-      icon: <Icon><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></Icon>,
-      body: (
-        <p>
-          You get two 30 minute video calls a month. Tap <span className="font-semibold text-app-text">Book a call</span> on Today and
-          pick a time that works. The count resets on the 1st, and Today always shows how many you have left.
-        </p>
-      ),
-    })
-  }
-
-  if (canMove) {
-    steps.push({
-      id: "week",
-      title: "Make the week fit your life",
-      icon: <Icon><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M9 14h6" /></Icon>,
-      body: (
-        <>
-          <p>
-            Hold any session until your phone buzzes, then drag it onto the day you want in the week strip. Tap a day to see what is
-            on it, and swipe the strip to look weeks ahead.
-          </p>
-          <p className="mt-3">
-            Moving a few at once? Tap <span className="font-semibold text-app-text">Plan my week</span>, pick the days you can train, and
-            you see exactly what moves before anything moves.
-          </p>
-        </>
-      ),
-    })
-  }
 
   steps.push({
     id: "notifications",

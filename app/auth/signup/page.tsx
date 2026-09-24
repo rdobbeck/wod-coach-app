@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { signIn } from "next-auth/react"
 import { BRAND_DOMAIN, normalizeSlug, suggestSlug } from "@/lib/coach-link"
+import AuthShell, { AuthError, authField, authLabel, authLink, authPrimary } from "@/components/auth/AuthShell"
 
 export default function SignUp() {
   const router = useRouter()
@@ -110,169 +111,94 @@ export default function SignUp() {
     }
   }
 
+  const coach = formData.role === "COACH"
+  const field = (id: "name" | "email" | "password" | "confirmPassword", label: string, type: string, placeholder: string, autoComplete?: string) => (
+    <div>
+      <label htmlFor={id} className={authLabel}>{label}</label>
+      <input
+        id={id}
+        name={id}
+        type={type}
+        autoComplete={autoComplete}
+        required
+        value={formData[id]}
+        onChange={(e) => setFormData({ ...formData, [id]: e.target.value })}
+        className={authField}
+        placeholder={placeholder}
+      />
+    </div>
+  )
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <AuthShell
+      title={coach ? "Create your coach account" : "Create your account"}
+      subtitle={coach ? "Free to try. Add a client, build their program, and send them a link." : undefined}
+      footer={
+        <>
+          Already have an account? <Link href="/auth/signin" className={authLink}>Sign in</Link>
+        </>
+      }
+    >
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        {error && <AuthError>{error}</AuthError>}
+
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Already have an account?{" "}
-            <Link href="/auth/signin" className="font-medium text-primary-600 hover:text-primary-500">
-              Sign in
-            </Link>
-          </p>
+          <p className={authLabel}>I&rsquo;m a...</p>
+          <div className="grid grid-cols-2 gap-3">
+            {(["COACH", "CLIENT"] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setFormData({ ...formData, role: r })}
+                aria-pressed={formData.role === r}
+                className={`h-12 rounded-xl border text-base font-semibold transition ${
+                  formData.role === r ? "border-[#c1272d] bg-[#c1272d]/15 text-[#f4f1ea]" : "border-[#2c2f36] text-[#8c8478]"
+                }`}
+              >
+                {r === "COACH" ? "Coach" : "Client"}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-800">{error}</div>
-            </div>
-          )}
+        {field("name", "Full name", "text", "Jordan Reyes", "name")}
+        {field("email", "Email", "email", "you@example.com", "email")}
+        {field("password", "Password", "password", "At least 6 characters", "new-password")}
+        {field("confirmPassword", "Confirm password", "password", "Same again", "new-password")}
 
-          <div className="rounded-md shadow-sm space-y-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="John Doe"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="Minimum 6 characters"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                required
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="Confirm your password"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                I am a...
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, role: "COACH" })}
-                  className={"px-4 py-3 border-2 rounded-md text-sm font-medium transition " + (formData.role === "COACH" ? "border-primary-600 bg-primary-50 text-primary-700" : "border-gray-300 bg-white text-gray-700 hover:border-gray-400")}
-                >
-                  Coach
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, role: "CLIENT" })}
-                  className={"px-4 py-3 border-2 rounded-md text-sm font-medium transition " + (formData.role === "CLIENT" ? "border-primary-600 bg-primary-50 text-primary-700" : "border-gray-300 bg-white text-gray-700 hover:border-gray-400")}
-                >
-                  Client
-                </button>
-              </div>
-            </div>
-
-            {formData.role === "COACH" && (
-              <div>
-                <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-1">
-                  Your link
-                </label>
-                <div className="flex items-center rounded-md border border-gray-300 focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500">
-                  <input
-                    id="slug"
-                    name="slug"
-                    type="text"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    value={slug}
-                    onChange={(e) => {
-                      setSlugEdited(true)
-                      setSlug(normalizeSlug(e.target.value.replace(/\s/g, "-")).slice(0, 30))
-                    }}
-                    className="min-w-0 flex-1 rounded-l-md px-3 py-2 text-right text-gray-900 focus:outline-none sm:text-sm"
-                    placeholder="yourname"
-                  />
-                  <span className="pr-3 text-sm text-gray-500">.{BRAND_DOMAIN}</span>
-                </div>
-                <p className={"mt-1 text-xs " + (slugStatus && !slugStatus.ok ? "text-red-600" : "text-gray-500")}>
-                  {slugStatus && !slugStatus.ok
-                    ? slugStatus.error
-                    : "Your clients sign in from your own page. You can change it later in Settings."}
-                </p>
-              </div>
-            )}
-          </div>
-
+        {coach && (
           <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-            >
-              {loading ? "Creating account..." : "Create account"}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <Link href="/" className="font-medium text-gray-600 hover:text-gray-500">
-                ← Back to home
-              </Link>
+            <label htmlFor="slug" className={authLabel}>Your link</label>
+            <div className="flex items-center rounded-xl border border-[#2c2f36] bg-[#0e0f12] focus-within:border-[#c1272d]">
+              <input
+                id="slug"
+                name="slug"
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                value={slug}
+                onChange={(e) => {
+                  setSlugEdited(true)
+                  setSlug(normalizeSlug(e.target.value.replace(/\s/g, "-")).slice(0, 30))
+                }}
+                className="min-w-0 flex-1 rounded-l-xl bg-transparent px-4 py-3 text-right text-base text-[#f4f1ea] placeholder:text-[#6f6a62] focus:outline-none"
+                placeholder="yourname"
+              />
+              <span className="pr-4 text-base text-[#8c8478]">.{BRAND_DOMAIN}</span>
             </div>
+            <p className={`mt-1.5 text-xs ${slugStatus && !slugStatus.ok ? "text-[#f4b8ba]" : "text-[#8c8478]"}`}>
+              {slugStatus && !slugStatus.ok
+                ? slugStatus.error
+                : "Your clients sign in from your own page. You can change it later in Settings."}
+            </p>
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+
+        <button type="submit" disabled={loading} className={authPrimary}>
+          {loading ? "Creating account..." : "Create account"}
+        </button>
+      </form>
+    </AuthShell>
   )
 }
