@@ -4,6 +4,7 @@ import { getProviders, signIn } from "next-auth/react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import AuthShell, { AuthError, GoogleMark, authField, authLabel, authLink, authPrimary, authSecondary } from "@/components/auth/AuthShell"
 
 export default function SignIn() {
   const router = useRouter()
@@ -51,125 +52,77 @@ export default function SignIn() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <AuthShell
+      title="Sign in"
+      subtitle="Your training, from your coach."
+      footer={
+        <>
+          Coach and new here? <Link href="/auth/signup?role=coach" className={authLink}>Create a coach account</Link>
+          <br />
+          Training with a coach? They&rsquo;ll send you an invite link.
+        </>
+      }
+    >
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        {error && <AuthError>{error}</AuthError>}
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to WOD Coach
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Or{" "}
-            <Link href="/auth/signup" className="font-medium text-primary-600 hover:text-primary-500">
-              create a new account
-            </Link>
-          </p>
+          <label htmlFor="email-address" className={authLabel}>Email</label>
+          <input
+            id="email-address"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={authField}
+            placeholder="you@example.com"
+          />
         </div>
-
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-800">{error}</div>
-            </div>
-          )}
-
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email-address" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email-address"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-              />
-            </div>
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-            >
-              {loading ? "Signing in..." : "Sign in"}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <Link href="/" className="font-medium text-gray-600 hover:text-gray-500">
-                ← Back to home
-              </Link>
-            </div>
-          </div>
-        </form>
-
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <button
-              onClick={() => signIn("google", { callbackUrl: "/" })}
-              className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-            >
-              Google
-            </button>
-          </div>
+        <div>
+          <label htmlFor="password" className={authLabel}>Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={authField}
+            placeholder="Your password"
+          />
         </div>
+        <button type="submit" disabled={loading} className={authPrimary}>
+          {loading ? "Signing in..." : "Sign in"}
+        </button>
+      </form>
 
-        {devLogin && (
-          <div className="mt-6 rounded-md border border-dashed border-amber-400 bg-amber-50 p-4">
-            <p className="text-center text-xs font-medium uppercase tracking-wide text-amber-800">
-              Test login (not shown on the live site)
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <button
-                onClick={() => handleDevLogin("COACH")}
-                disabled={loading}
-                className="py-2 px-4 rounded-md border border-amber-300 bg-white text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
-              >
-                Test coach
-              </button>
-              <button
-                onClick={() => handleDevLogin("CLIENT")}
-                disabled={loading}
-                className="py-2 px-4 rounded-md border border-amber-300 bg-white text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
-              >
-                Test client
-              </button>
-            </div>
-          </div>
-        )}
+      <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-[0.14em] text-[#6f6a62]">
+        <span className="h-px flex-1 bg-[#2c2f36]" />
+        or
+        <span className="h-px flex-1 bg-[#2c2f36]" />
       </div>
-    </div>
+
+      <button onClick={() => signIn("google", { callbackUrl: "/" })} className={authSecondary}>
+        <GoogleMark /> Continue with Google
+      </button>
+
+      {devLogin && (
+        <div className="mt-6 rounded-xl border border-dashed border-amber-400/60 p-4">
+          <p className="text-center text-xs font-medium uppercase tracking-wide text-amber-300">
+            Test login (not shown on the live site)
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button onClick={() => handleDevLogin("COACH")} disabled={loading} className={authSecondary}>
+              Test coach
+            </button>
+            <button onClick={() => handleDevLogin("CLIENT")} disabled={loading} className={authSecondary}>
+              Test client
+            </button>
+          </div>
+        </div>
+      )}
+    </AuthShell>
   )
 }

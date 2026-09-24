@@ -194,17 +194,17 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+    <div className="overflow-hidden rounded-2xl border border-[#e4dfd5] bg-white">
       {/* Progress Bar */}
-      <div className="bg-gray-100 px-6 py-4">
+      <div className="border-b border-[#e4dfd5] bg-[#faf8f4] px-6 py-4">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium text-gray-700">Step {step} of 5</span>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm font-medium text-[#4a443c]">Step {step} of 5</span>
+          <span className="text-sm text-[#857c70]">
             {coach.aiProvider === "GEMINI_FREE" && freeLeft !== null && `${freeLeft} free programs left`}
             {coach.aiProvider === "PAY_PER_PROGRAM" && `${coach.aiCredits} credits remaining`}
           </span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-[#ece7de] rounded-full h-2">
           <div
             className="bg-primary-600 h-2 rounded-full transition-all duration-300"
             style={{ width: `${(step / 5) * 100}%` }}
@@ -216,17 +216,17 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
         {/* Step 1: Select Client */}
         {step === 1 && (
           <div>
-            <h2 className="text-2xl font-bold mb-2">Select Your Client</h2>
-            <p className="text-gray-600 mb-6">Who is this program for?</p>
+            <h2 className="font-display text-3xl font-bold text-[#16181d] mb-2">Select Your Client</h2>
+            <p className="text-[#6b6257] mb-6">Who is this program for?</p>
 
             {clients.length === 0 ? (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
                 <p className="text-yellow-800 mb-4">
                   You don't have any active clients yet. Add a client first to create programs.
                 </p>
                 <button
                   onClick={() => router.push("/coach/clients/new")}
-                  className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700"
+                  className="bg-primary-600 text-white px-6 py-2 rounded-xl hover:bg-primary-700"
                 >
                   Add Client
                 </button>
@@ -237,16 +237,16 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
                   <button
                     key={client.id}
                     onClick={() => handleClientSelect(client)}
-                    className={`text-left border-2 rounded-lg p-4 transition ${
+                    className={`text-left border-2 rounded-xl p-4 transition ${
                       selectedClient?.id === client.id
                         ? "border-primary-600 bg-primary-50"
-                        : "border-gray-200 hover:border-primary-300"
+                        : "border-[#e4dfd5] hover:border-primary-300"
                     }`}
                   >
                     <div className="font-semibold text-lg">{client.client.name || "Unnamed Client"}</div>
-                    <div className="text-sm text-gray-500">{client.client.email || "No email"}</div>
+                    <div className="text-sm text-[#857c70]">{client.client.email || "No email"}</div>
                     {client.client.clientProfile?.goals && client.client.clientProfile.goals.length > 0 && (
-                      <div className="text-sm text-gray-600 mt-2">
+                      <div className="text-sm text-[#6b6257] mt-2">
                         Goals: {client.client.clientProfile.goals.join(", ")}
                       </div>
                     )}
@@ -260,16 +260,16 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
         {/* Step 2: Client Goals */}
         {step === 2 && (
           <div>
-            <h2 className="text-2xl font-bold mb-2">Training Goals</h2>
-            <p className="text-gray-600 mb-6">What does {selectedClient?.client.name || "your client"} want to achieve?</p>
+            <h2 className="font-display text-3xl font-bold text-[#16181d] mb-2">Training Goals</h2>
+            <p className="text-[#6b6257] mb-6">What does {selectedClient?.client.name || "your client"} want to achieve?</p>
 
             <textarea
               value={clientGoals}
               onChange={(e) => setClientGoals(e.target.value)}
               placeholder="e.g., Increase squat 1RM by 50lbs, build muscle mass in upper body, improve work capacity"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent h-32"
+              className="w-full px-4 py-3 border border-[#ddd7cc] rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent h-32"
             />
-            <p className="text-sm text-gray-500 mt-2">Be specific. The AI will use this to design the program.</p>
+            <p className="text-sm text-[#857c70] mt-2">Be specific. The AI will use this to design the program.</p>
           </div>
         )}
 
@@ -280,7 +280,7 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
 
             {/* Training Days */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-[#4a443c] mb-3">
                 Training Days Per Week
               </label>
               <div className="flex gap-2">
@@ -288,10 +288,10 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
                   <button
                     key={days}
                     onClick={() => setTrainingDays(days)}
-                    className={`flex-1 py-3 rounded-lg border-2 transition ${
+                    className={`flex-1 py-3 rounded-xl border-2 transition ${
                       trainingDays === days
                         ? "border-primary-600 bg-primary-600 text-white"
-                        : "border-gray-200 hover:border-primary-300"
+                        : "border-[#e4dfd5] hover:border-primary-300"
                     }`}
                   >
                     {days}
@@ -302,7 +302,7 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
 
             {/* Equipment */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-[#4a443c] mb-3">
                 Available Equipment
               </label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -310,10 +310,10 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
                   <button
                     key={item}
                     onClick={() => handleEquipmentToggle(item)}
-                    className={`py-2 px-4 rounded-lg border-2 transition text-sm ${
+                    className={`py-2 px-4 rounded-xl border-2 transition text-sm ${
                       equipment.includes(item)
                         ? "border-primary-600 bg-primary-50 text-primary-700"
-                        : "border-gray-200 hover:border-primary-300"
+                        : "border-[#e4dfd5] hover:border-primary-300"
                     }`}
                   >
                     {item}
@@ -324,7 +324,7 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
 
             {/* Experience Level */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-[#4a443c] mb-3">
                 Training Experience
               </label>
               <div className="grid grid-cols-3 gap-4">
@@ -332,14 +332,14 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
                   <button
                     key={level.value}
                     onClick={() => setExperience(level.value as any)}
-                    className={`text-left border-2 rounded-lg p-3 transition ${
+                    className={`text-left border-2 rounded-xl p-3 transition ${
                       experience === level.value
                         ? "border-primary-600 bg-primary-50"
-                        : "border-gray-200 hover:border-primary-300"
+                        : "border-[#e4dfd5] hover:border-primary-300"
                     }`}
                   >
                     <div className="font-semibold text-sm">{level.label}</div>
-                    <div className="text-xs text-gray-500 mt-1">{level.description}</div>
+                    <div className="text-xs text-[#857c70] mt-1">{level.description}</div>
                   </button>
                 ))}
               </div>
@@ -347,7 +347,7 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
 
             {/* Program Length */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-[#4a443c] mb-3">
                 Program Length: {programLength} weeks
               </label>
               <input
@@ -358,7 +358,7 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
                 onChange={(e) => setProgramLength(Number(e.target.value))}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <div className="flex justify-between text-xs text-[#857c70] mt-1">
                 <span>4 weeks</span>
                 <span>16 weeks</span>
               </div>
@@ -366,14 +366,14 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
 
             {/* Injuries */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-[#4a443c] mb-3">
                 Injuries or Limitations (Optional)
               </label>
               <textarea
                 value={injuries}
                 onChange={(e) => setInjuries(e.target.value)}
                 placeholder="e.g., Previous shoulder injury, avoid overhead pressing"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent h-24"
+                className="w-full px-4 py-3 border border-[#ddd7cc] rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent h-24"
               />
             </div>
           </div>
@@ -382,36 +382,36 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
         {/* Step 4: Review & Generate */}
         {step === 4 && (
           <div>
-            <h2 className="text-2xl font-bold mb-2">Review & Generate</h2>
-            <p className="text-gray-600 mb-6">Confirm the details before generating</p>
+            <h2 className="font-display text-3xl font-bold text-[#16181d] mb-2">Review & Generate</h2>
+            <p className="text-[#6b6257] mb-6">Confirm the details before generating</p>
 
-            <div className="bg-gray-50 rounded-lg p-6 space-y-4">
+            <div className="bg-[#faf8f4] rounded-xl p-6 space-y-4">
               <div>
-                <div className="text-sm font-medium text-gray-500">Client</div>
+                <div className="text-sm font-medium text-[#857c70]">Client</div>
                 <div className="text-lg font-semibold">{selectedClient?.client.name || "Unnamed Client"}</div>
               </div>
 
               <div>
-                <div className="text-sm font-medium text-gray-500">Goals</div>
+                <div className="text-sm font-medium text-[#857c70]">Goals</div>
                 <div>{clientGoals}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-sm font-medium text-gray-500">Training Days</div>
+                  <div className="text-sm font-medium text-[#857c70]">Training Days</div>
                   <div className="font-semibold">{trainingDays} days/week</div>
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-gray-500">Program Length</div>
+                  <div className="text-sm font-medium text-[#857c70]">Program Length</div>
                   <div className="font-semibold">{programLength} weeks</div>
                 </div>
               </div>
 
               <div>
-                <div className="text-sm font-medium text-gray-500">Equipment</div>
+                <div className="text-sm font-medium text-[#857c70]">Equipment</div>
                 <div className="flex flex-wrap gap-2 mt-1">
                   {equipment.map((item) => (
-                    <span key={item} className="bg-white px-3 py-1 rounded-full text-sm border border-gray-200">
+                    <span key={item} className="bg-white px-3 py-1 rounded-full text-sm border border-[#e4dfd5]">
                       {item}
                     </span>
                   ))}
@@ -419,29 +419,29 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
               </div>
 
               <div>
-                <div className="text-sm font-medium text-gray-500">Experience Level</div>
+                <div className="text-sm font-medium text-[#857c70]">Experience Level</div>
                 <div className="font-semibold capitalize">{experience.toLowerCase()}</div>
               </div>
 
               {injuries && (
                 <div>
-                  <div className="text-sm font-medium text-gray-500">Injuries/Limitations</div>
+                  <div className="text-sm font-medium text-[#857c70]">Injuries/Limitations</div>
                   <div>{injuries}</div>
                 </div>
               )}
 
               <label className="block">
-                <span className="text-sm font-medium text-gray-500">Start date (week 1, day 1)</span>
+                <span className="text-sm font-medium text-[#857c70]">Start date (week 1, day 1)</span>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="mt-1 block rounded-lg border border-gray-300 px-3 py-2"
+                  className="mt-1 block rounded-xl border border-[#ddd7cc] px-3 py-2"
                 />
               </label>
             </div>
 
-            <div className="mt-6 bg-[#faf8f4] border border-[#e4dfd5] rounded-lg p-4">
+            <div className="mt-6 bg-[#faf8f4] border border-[#e4dfd5] rounded-xl p-4">
               <p className="text-sm text-[#4a443c]">
                 <strong>Note:</strong> AI will create a complete periodized program with mesocycles, microcycles, and specific workouts.
                 {coach.aiProvider === "PAY_PER_PROGRAM" && " This will use 1 credit."}
@@ -454,19 +454,19 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
         {/* Step 5: Generated Program Preview */}
         {step === 5 && generatedProgram && (
           <div>
-            <h2 className="text-2xl font-bold mb-2">✨ Program Generated!</h2>
-            <p className="text-gray-600 mb-6">
+            <h2 className="font-display text-3xl font-bold text-[#16181d] mb-2">Program ready</h2>
+            <p className="text-[#6b6257] mb-6">
               Saved as a <strong>draft</strong> on {selectedClient?.client.name ?? "the client"}'s calendar starting {new Date(`${startDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               {saved && ` · ${saved.exercisesLinked}/${saved.exerciseRows} exercises linked to videos`}. The client can't see it until you publish.
             </p>
 
-            <div className="bg-gray-50 rounded-lg p-6 mb-6">
-              <h3 className="text-xl font-bold mb-2">{generatedProgram.programName}</h3>
-              <p className="text-gray-600 mb-4">{generatedProgram.description}</p>
+            <div className="bg-[#faf8f4] rounded-xl p-6 mb-6">
+              <h3 className="font-display text-2xl font-bold text-[#16181d] mb-2">{generatedProgram.programName}</h3>
+              <p className="text-[#6b6257] mb-4">{generatedProgram.description}</p>
 
-              <div className="bg-white rounded-lg p-4 mb-4">
+              <div className="bg-white rounded-xl p-4 mb-4">
                 <h4 className="font-semibold mb-2">AI Rationale</h4>
-                <p className="text-sm text-gray-600">{generatedProgram.rationale}</p>
+                <p className="text-sm text-[#6b6257]">{generatedProgram.rationale}</p>
               </div>
 
               <div className="space-y-4">
@@ -474,8 +474,8 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
                 {generatedProgram.mesocycles.map((meso: any, idx: number) => (
                   <div key={idx} className="border-l-4 border-primary-600 pl-4">
                     <div className="font-semibold">{meso.name}</div>
-                    <div className="text-sm text-gray-600">{meso.description}</div>
-                    <div className="text-sm text-gray-500 mt-1">
+                    <div className="text-sm text-[#6b6257]">{meso.description}</div>
+                    <div className="text-sm text-[#857c70] mt-1">
                       {meso.durationWeeks} weeks • {meso.microcycles.length} microcycles • Focus: {meso.focus}
                     </div>
                   </div>
@@ -487,21 +487,21 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
               <button
                 onClick={handlePublish}
                 disabled={saving}
-                className="flex-1 bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 font-semibold disabled:opacity-50"
+                className="flex-1 bg-primary-600 text-white py-3 rounded-xl hover:bg-primary-700 font-semibold disabled:opacity-50"
               >
                 ✅ Publish to client
               </button>
               <button
                 onClick={() => router.push(`/coach/clients/${selectedClient?.clientId}`)}
                 disabled={saving}
-                className="flex-1 bg-white border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 font-semibold disabled:opacity-50"
+                className="flex-1 bg-white border border-[#ddd7cc] text-[#4a443c] py-3 rounded-xl hover:bg-[#faf8f4] font-semibold disabled:opacity-50"
               >
-                📅 Review in calendar
+                Review in calendar
               </button>
               <button
                 onClick={handleDiscard}
                 disabled={saving}
-                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 font-semibold disabled:opacity-50"
+                className="flex-1 bg-[#ece7de] text-[#4a443c] py-3 rounded-xl hover:bg-[#e2dccf] font-semibold disabled:opacity-50"
               >
                 {saving ? "Discarding..." : "Discard & regenerate"}
               </button>
@@ -515,7 +515,7 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
             {step > 1 && (
               <button
                 onClick={() => setStep(step - 1)}
-                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 font-semibold"
+                className="flex-1 bg-[#ece7de] text-[#4a443c] py-3 rounded-xl hover:bg-[#e2dccf] font-semibold"
               >
                 ← Back
               </button>
@@ -529,7 +529,7 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
                 }
               }}
               disabled={!canProceed()}
-              className="flex-1 bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-primary-600 text-white py-3 rounded-xl hover:bg-primary-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {step === 3 ? "Review →" : "Next →"}
             </button>
@@ -540,15 +540,15 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
           <div className="flex gap-4 mt-8">
             <button
               onClick={() => setStep(3)}
-              className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 font-semibold"
+              className="flex-1 bg-[#ece7de] text-[#4a443c] py-3 rounded-xl hover:bg-[#e2dccf] font-semibold"
             >
               ← Back
             </button>
             <button
               onClick={handleGenerate}
-              className="flex-1 bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 font-semibold"
+              className="flex-1 bg-primary-600 text-white py-3 rounded-xl hover:bg-primary-700 font-semibold"
             >
-              🤖 Generate with AI
+              Generate program
             </button>
           </div>
         )}
@@ -556,8 +556,8 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
         {generating && (
           <div className="mt-8 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4" />
-            <p className="text-gray-600">AI is designing the program... this usually takes 1-3 minutes.</p>
-            <p className="text-sm text-gray-500 mt-1">It's saved as a draft automatically (only you can see it), so it's safe to leave this page.</p>
+            <p className="text-[#6b6257]">AI is designing the program... this usually takes 1-3 minutes.</p>
+            <p className="text-sm text-[#857c70] mt-1">It's saved as a draft automatically (only you can see it), so it's safe to leave this page.</p>
           </div>
         )}
       </div>

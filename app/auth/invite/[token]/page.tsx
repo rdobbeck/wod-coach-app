@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import AuthShell from "@/components/auth/AuthShell"
 import InviteForm from "./InviteForm"
 
 export default async function InvitePage({ params }: { params: { token: string } }) {
@@ -11,26 +12,21 @@ export default async function InvitePage({ params }: { params: { token: string }
       })
     : null
 
+  if (!user) {
+    return (
+      <AuthShell title="This link has expired" subtitle="Invite links work once and last 7 days. Ask your coach to send you a new one." />
+    )
+  }
+
+  const coach = user.coaches[0]?.coach
+  const first = user.name?.split(" ")[0]
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-12">
-      <div className="mx-auto max-w-sm">
-        <h1 className="text-center text-3xl font-black text-gray-900">
-          {user?.coaches[0]?.coach.coachProfile?.brandName ?? "WOD.COACH"}
-        </h1>
-        {!user ? (
-          <p className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 text-center text-gray-700">
-            This invite link has expired or was already used. Ask your coach for a new one.
-          </p>
-        ) : (
-          <div className="mt-8 rounded-2xl border border-gray-200 bg-white p-5">
-            <h2 className="text-xl font-bold text-gray-900">Welcome{user.name ? `, ${user.name.split(" ")[0]}` : ""}!</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              {user.coaches[0]?.coach.name ?? "Your coach"} invited you. Set a password to see your training.
-            </p>
-            <InviteForm token={params.token} email={user.email ?? ""} />
-          </div>
-        )}
-      </div>
-    </div>
+    <AuthShell
+      kicker={coach?.coachProfile?.brandName ?? undefined}
+      title={first ? `Welcome, ${first}` : "Welcome"}
+      subtitle={`${coach?.name ?? "Your coach"} invited you. Set a password and your training's ready.`}
+    >
+      <InviteForm token={params.token} email={user.email ?? ""} />
+    </AuthShell>
   )
 }
