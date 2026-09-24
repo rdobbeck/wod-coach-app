@@ -14,7 +14,6 @@ export default function AddClientForm({ coachId }: AddClientFormProps) {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    password: "changeme123", // Default password
     goals: "",
     equipment: [] as string[],
     injuries: "",
@@ -52,8 +51,9 @@ export default function AddClientForm({ coachId }: AddClientFormProps) {
         throw new Error(error.error || "Failed to create client")
       }
 
-      toast.success("Client added successfully!")
-      router.push("/coach")
+      const { client } = await res.json()
+      toast.success("Client added. Next, send them their sign-in link.")
+      router.push(`/coach/clients/${client.id}`)
     } catch (error: any) {
       toast.error(error.message || "Failed to add client")
     } finally {
@@ -62,10 +62,10 @@ export default function AddClientForm({ coachId }: AddClientFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
+    <form onSubmit={handleSubmit} className="rounded-2xl border border-[#e4dfd5] bg-white p-6 space-y-6">
       {/* Basic Info */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-[#4a443c] mb-2">
           Client Name *
         </label>
         <input
@@ -73,13 +73,13 @@ export default function AddClientForm({ coachId }: AddClientFormProps) {
           required
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full px-4 py-2 border border-[#ddd7cc] rounded-xl focus:ring-2 focus:ring-[#c1272d] focus:border-transparent"
           placeholder="John Doe"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-[#4a443c] mb-2">
           Email Address *
         </label>
         <input
@@ -87,33 +87,33 @@ export default function AddClientForm({ coachId }: AddClientFormProps) {
           required
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full px-4 py-2 border border-[#ddd7cc] rounded-xl focus:ring-2 focus:ring-[#c1272d] focus:border-transparent"
           placeholder="john@example.com"
         />
-        <p className="text-xs text-gray-500 mt-1">
-          Client will receive an invite email with login credentials
+        <p className="text-xs text-[#857c70] mt-1">
+          Nothing is sent yet. You'll text them a sign-in link from their page
         </p>
       </div>
 
       {/* Goals */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-[#4a443c] mb-2">
           Training Goals
         </label>
         <textarea
           value={formData.goals}
           onChange={(e) => setFormData({ ...formData, goals: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent h-24"
+          className="w-full px-4 py-2 border border-[#ddd7cc] rounded-xl focus:ring-2 focus:ring-[#c1272d] focus:border-transparent h-24"
           placeholder="Build muscle, increase strength, improve conditioning (comma separated)"
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-[#857c70] mt-1">
           Separate multiple goals with commas
         </p>
       </div>
 
       {/* Equipment */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-[#4a443c] mb-2">
           Available Equipment
         </label>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -129,7 +129,7 @@ export default function AddClientForm({ coachId }: AddClientFormProps) {
                     setFormData({ ...formData, equipment: formData.equipment.filter(e => e !== eq) })
                   }
                 }}
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                className="rounded border-[#ddd7cc] text-primary-600 focus:ring-[#c1272d]"
               />
               <span className="text-sm">{eq}</span>
             </label>
@@ -139,13 +139,13 @@ export default function AddClientForm({ coachId }: AddClientFormProps) {
 
       {/* Injuries/Limitations */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-[#4a443c] mb-2">
           Injuries or Limitations
         </label>
         <textarea
           value={formData.injuries}
           onChange={(e) => setFormData({ ...formData, injuries: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent h-20"
+          className="w-full px-4 py-2 border border-[#ddd7cc] rounded-xl focus:ring-2 focus:ring-[#c1272d] focus:border-transparent h-20"
           placeholder="Any injuries, mobility issues, or training limitations..."
         />
       </div>
@@ -155,14 +155,14 @@ export default function AddClientForm({ coachId }: AddClientFormProps) {
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+          className="flex-1 px-6 py-3 border border-[#ddd7cc] text-[#4a443c] rounded-xl hover:bg-[#faf8f4] transition"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50"
+          className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition disabled:opacity-50"
         >
           {loading ? "Adding Client..." : "Add Client"}
         </button>

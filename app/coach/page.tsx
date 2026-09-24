@@ -4,7 +4,7 @@ import Link from "next/link"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { clientVisible, dayKey, fromDayKey } from "@/lib/training"
-import { brandDomainLive, coachLinkUrl, coachLinkHost } from "@/lib/coach-link"
+import { BRAND_DOMAIN, brandDomainLive, coachLinkUrl, coachLinkHost } from "@/lib/coach-link"
 import DashboardHeader from "@/components/DashboardHeader"
 import CopyLinkButton from "@/components/coach/CopyLinkButton"
 
@@ -76,6 +76,25 @@ export default async function CoachDashboard() {
       select: { id: true, body: true, authorId: true, createdAt: true, workout: { select: { id: true, name: true } } },
     }),
   ])
+
+  // ---- first-run setup: ticks itself off from real data, gone once done ---
+  const [programCount, joinedCount] = await Promise.all([
+    prisma.program.count({ where: { coachId, isDraft: false } }),
+    ids.length ? prisma.user.count({ where: { id: { in: ids }, OR: [{ hashedPassword: { not: null } }, { accounts: { some: {} } }] } }) : 0,
+  ])
+  const setup = [
+    { done: !!profile?.slug, title: "Pick your link", detail: `Clients sign in from your own page, yourname.${BRAND_DOMAIN}.`, href: "/coach/settings", cta: "Pick it" },
+    { done: ids.length > 0, title: "Add your first client", detail: "A name and an email. Nothing is sent to them yet.", href: "/coach/clients/new", cta: "Add client" },
+    { done: programCount > 0, title: "Build their first program", detail: "Draft a block with AI and edit it, or build it by hand.", href: "/coach/programs/ai-builder", cta: "Build" },
+    {
+      done: joinedCount > 0,
+      title: "Send them their sign-in link",
+      detail: "Open the client, tap New sign-in link, and text it to them. They set a password and they're in.",
+      href: ids.length ? `/coach/clients/${ids[0]}` : "/coach/clients",
+      cta: "Open client",
+    },
+  ]
+  const setupLeft = setup.filter((s) => !s.done).length
 
   // ---- per-client rollups -------------------------------------------------
   const byClient = new Map<string, typeof workouts>()
@@ -197,6 +216,41 @@ export default async function CoachDashboard() {
           </div>
         </header>
 
+        {setupLeft > 0 && (
+          <section className={`${card} mt-6 p-5`}>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className={label}>{ids.length ? "Finish setting up" : "Welcome. Four steps to your first client training"}</p>
+              <p className="text-sm text-[#6b6257]">
+                {setup.length - setupLeft} of {setup.length} done
+              </p>
+            </div>
+            <ol className="mt-3 divide-y divide-[#efeae1]">
+              {setup.map((s, i) => (
+                <li key={s.title} className="flex items-center gap-3 py-3">
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                      s.done ? "bg-[#2f7d4f] text-white" : "border border-[#ddd7cc] text-[#857c70]"
+                    }`}
+                  >
+                    {s.done ? "✓" : i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-semibold ${s.done ? "text-[#857c70] line-through" : "text-[#16181d]"}`}>{s.title}</p>
+                    {!s.done && <p className="text-sm text-[#6b6257]">{s.detail}</p>}
+                  </div>
+                  {!s.done && (
+                    <Link href={s.href} className="shrink-0 rounded-lg bg-[#16181d] px-3 py-1.5 text-sm font-semibold text-[#f4f1ea]">
+                      {s.cta}
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+        {ids.length > 0 && (
+        <>
         <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
             ["Active clients", String(clients.length), null],
@@ -367,6 +421,8 @@ export default async function CoachDashboard() {
             </section>
           </aside>
         </div>
+        </>
+        )}
       </div>
     </div>
   )
