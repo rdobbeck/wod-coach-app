@@ -16,7 +16,8 @@ export default async function ClientToday() {
     prisma.workout.findMany({
       where: {
         clientId: session.user.id,
-        scheduledDate: { gte: new Date(now - 21 * DAY), lte: new Date(now + 21 * DAY) },
+        // Three weeks back, twelve ahead: what the week pager on Today can reach.
+        scheduledDate: { gte: new Date(now - 21 * DAY), lte: new Date(now + 84 * DAY) },
         ...clientVisible,
       },
       orderBy: [{ scheduledDate: "asc" }, { order: "asc" }],

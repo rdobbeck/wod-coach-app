@@ -18,7 +18,7 @@ const Icon = ({ children }: { children: React.ReactNode }) => (
 )
 
 const TABS = [
-  ["Today", "Your session, your week, how you are tracking"],
+  ["Today", "Your session, and every week ahead. Swipe the days to look forward"],
   ["History", "Everything you have done, and every lift you have logged"],
   ["Messages", "Talk to your coach, any time"],
   ["Settings", "Make it look and work how you want"],
@@ -108,10 +108,16 @@ function buildSteps({ coachName, canBook, canMove }: { coachName: string; canBoo
       title: "Make the week fit your life",
       icon: <Icon><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M9 14h6" /></Icon>,
       body: (
-        <p>
-          Tap <span className="font-semibold text-app-text">Plan my week</span> on Today, pick the days you can actually train, and your
-          sessions spread across them in order. You get to see exactly what moves before anything moves.
-        </p>
+        <>
+          <p>
+            Hold any session until your phone buzzes, then drag it onto the day you want in the week strip. Tap a day to see what is
+            on it, and swipe the strip to look weeks ahead.
+          </p>
+          <p className="mt-3">
+            Moving a few at once? Tap <span className="font-semibold text-app-text">Plan my week</span>, pick the days you can train, and
+            you see exactly what moves before anything moves.
+          </p>
+        </>
       ),
     })
   }

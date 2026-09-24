@@ -1,7 +1,10 @@
 'use client'
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
+import { DragGhost, useDragToDay } from "@/components/useDragToDay"
 import MoveWorkoutButton, { localDayKey } from "./MoveWorkoutButton"
 import FastingCard from "./FastingCard"
 import PlanWeekButton from "./PlanWeekButton"
@@ -31,7 +34,20 @@ type Fasting = {
 const shortDate = (key: string) =>
   new Date(`${key}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
 
-function SessionCard({ w, canMove, primary }: { w: DayWorkout; canMove: boolean; primary?: boolean }) {
+function SessionCard({
+  w,
+  canMove,
+  primary,
+  dragProps,
+  dragging,
+}: {
+  w: DayWorkout
+  canMove: boolean
+  primary?: boolean
+  /** Present when this card can be long-pressed and dropped on a day. */
+  dragProps?: Record<string, unknown>
+  dragging?: boolean
+}) {
   if (w.isRest) {
     return (
       <div className="rounded-2xl border border-app-border bg-app-surface p-5">
@@ -41,7 +57,12 @@ function SessionCard({ w, canMove, primary }: { w: DayWorkout; canMove: boolean;
     )
   }
   return (
-    <div className={`overflow-hidden rounded-2xl border bg-app-surface ${primary ? "border-app-accent/60" : "border-app-border"}`}>
+    <div
+      {...dragProps}
+      className={`overflow-hidden rounded-2xl border bg-app-surface transition-opacity ${primary ? "border-app-accent/60" : "border-app-border"} ${
+        dragging ? "opacity-40" : ""
+      }`}
+    >
       <div className="flex flex-col gap-3 p-5">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           {w.programName && <span className="font-display font-semibold uppercase tracking-[0.16em] text-app-accent">{w.programName}</span>}
@@ -78,9 +99,12 @@ function SessionCard({ w, canMove, primary }: { w: DayWorkout; canMove: boolean;
 }
 
 /** Book a video call with the coach. Only rendered when they have a booking link. */
-function BookCallCard({ coachName, callsLeft }: { coachName: string | null; callsLeft: number | null }) {
+function BookCallCard({ coachName, callsLeft, nudge }: { coachName: string | null; callsLeft: number | null; nudge?: boolean }) {
   return (
-    <Link href="/client/book" className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3.5">
+    <Link
+      href="/client/book"
+      className={`flex items-center gap-3 rounded-2xl border bg-app-surface px-4 py-3.5 ${nudge ? "pulse-cta border-app-accent/60" : "border-app-border"}`}
+    >
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-app-surface2">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <rect x="3" y="5" width="18" height="16" rx="2" />
@@ -95,6 +119,7 @@ function BookCallCard({ coachName, callsLeft }: { coachName: string | null; call
             : callsLeft > 0
               ? `${callsLeft} free ${callsLeft === 1 ? "call" : "calls"} left this month`
               : "Free calls used this month"}
+          {nudge && " · they reset on the 1st"}
         </span>
       </span>
       <span className="shrink-0 text-app-muted" aria-hidden="true">
@@ -129,6 +154,21 @@ function BreathwodCard() {
   )
 }
 
+/** How far either side of this week the client can page. Matches what Today loads. */
+const WEEKS_BACK = 2
+const WEEKS_AHEAD = 11
+
+const weekLabel = (offset: number, first: string, last: string) =>
+  offset === 0
+    ? "This week"
+    : offset === 1
+      ? "Next week"
+      : offset === -1
+        ? "Last week"
+        : `${new Date(`${first}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })} to ${new Date(
+            `${last}T12:00:00`
+          ).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+
 export default function TodayView({
   firstName,
   coachName,
@@ -151,27 +191,77 @@ export default function TodayView({
   /** Free calls left this month, or null when the coach has no limit. */
   callsLeft: number | null
 }) {
+  const router = useRouter()
   // "Today" is the client's local day, so it's computed in the browser.
   const [today, setToday] = useState<string | null>(null)
-  useEffect(() => setToday(localDayKey()), [])
-  if (!today) return null
+  const [items, setItems] = useState(workouts)
+  const [offset, setOffset] = useState(0)
+  const [selected, setSelected] = useState<string | null>(null)
+  useEffect(() => setItems(workouts), [workouts])
+  useEffect(() => {
+    const t = localDayKey()
+    setToday(t)
+    setSelected(t)
+  }, [])
 
-  const todays = workouts.filter((w) => w.day === today)
-  const upcoming = workouts.find((w) => w.day > today && !w.isRest)
+  const move = async (id: string, to: string) => {
+    const w = items.find((x) => x.id === id)
+    if (!w || !today) return
+    const before = items
+    setItems((xs) => xs.map((x) => (x.id === id ? { ...x, day: to, movedFrom: x.movedFrom ?? x.day } : x)))
+    const res = await fetch(`/api/workouts/${id}/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: to, today }),
+    }).catch(() => null)
+    if (!res?.ok) {
+      setItems(before)
+      toast.error((await res?.json().catch(() => ({})))?.error ?? "Couldn't move that session")
+      return
+    }
+    toast.success(`${w.name} moved to ${shortDate(to)}`)
+    setSelected(to)
+    router.refresh()
+  }
+  // Clients can only move into today or later; the server enforces the same.
+  const { drag, draggable } = useDragToDay({ onDrop: move, canDrop: (day) => !!today && day >= today })
+
+  // Swipe the week strip left or right to page through weeks.
+  const swipe = useRef<{ x: number; y: number } | null>(null)
+  const page = (d: number) => setOffset((o) => Math.min(WEEKS_AHEAD, Math.max(-WEEKS_BACK, o + d)))
+
+  if (!today || !selected) return null
+
+  const todays = items.filter((w) => w.day === today)
+  const upcoming = items.find((w) => w.day > today && !w.isRest)
   const weekAgo = localDayKey(new Date(Date.now() - 7 * 86_400_000))
-  const missed = workouts.filter((w) => w.day < today && w.day >= weekAgo && !w.isCompleted && !w.isRest)
+  const missed = items.filter((w) => w.day < today && w.day >= weekAgo && !w.isCompleted && !w.isRest)
 
   const monday = new Date(`${today}T12:00:00`)
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + offset * 7)
   const week = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday)
     d.setDate(monday.getDate() + i)
     const key = localDayKey(d)
-    const ws = workouts.filter((w) => w.day === key && !w.isRest)
+    const ws = items.filter((w) => w.day === key && !w.isRest)
     const status = !ws.length ? "none" : ws.every((w) => w.isCompleted) ? "done" : key < today ? "missed" : "planned"
     return { key, letter: d.toLocaleDateString("en-US", { weekday: "narrow" }), date: d.getDate(), status }
   })
   const bar = { done: "bg-app-good", missed: "bg-app-warn", planned: "bg-app-muted/50", none: "bg-transparent" }
+
+  const onToday = selected === today
+  const picked = items.filter((w) => w.day === selected)
+  const canDrag = (w: DayWorkout) => canMove && !w.isCompleted && !w.isRest
+  const card = (w: DayWorkout, primary?: boolean) => (
+    <SessionCard
+      key={w.id}
+      w={w}
+      canMove={canMove}
+      primary={primary}
+      dragProps={canDrag(w) ? draggable(w.id, w.day, w.name) : undefined}
+      dragging={drag?.id === w.id}
+    />
+  )
 
   return (
     <div className="space-y-5">
@@ -191,26 +281,79 @@ export default function TodayView({
         )}
       </header>
 
-      {canMove && (
-        <div className="flex justify-end">
-          <PlanWeekButton week={week.map((d) => d.key)} className="text-sm font-semibold text-app-accent" />
-        </div>
-      )}
-
-      <div className="flex gap-1.5">
-        {week.map((d) => (
-          <div
-            key={d.key}
-            className={`flex flex-1 flex-col items-center gap-1.5 rounded-xl py-2 ${d.key === today ? "bg-app-accent text-app-accent-text" : "bg-app-surface"}`}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => page(-1)}
+            disabled={offset <= -WEEKS_BACK}
+            aria-label="Previous week"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-app-surface text-lg text-app-muted disabled:opacity-30"
           >
-            <span className={`text-[11px] font-semibold ${d.key === today ? "text-app-accent-text/80" : "text-app-muted"}`}>{d.letter}</span>
-            <span className="font-display text-lg font-semibold leading-none">{d.date}</span>
-            <span className={`h-[3px] w-4 rounded-full ${d.key === today ? "bg-app-accent-text" : bar[d.status as keyof typeof bar]}`} />
+            ‹
+          </button>
+          <p className="flex-1 text-center font-display text-sm font-semibold uppercase tracking-[0.14em] text-app-muted">
+            {weekLabel(offset, week[0].key, week[6].key)}
+          </p>
+          <button
+            onClick={() => page(1)}
+            disabled={offset >= WEEKS_AHEAD}
+            aria-label="Next week"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-app-surface text-lg text-app-muted disabled:opacity-30"
+          >
+            ›
+          </button>
+        </div>
+
+        <div
+          className="flex gap-1.5"
+          onTouchStart={(e) => (swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
+          onTouchEnd={(e) => {
+            const s = swipe.current
+            swipe.current = null
+            if (!s || drag) return
+            const dx = e.changedTouches[0].clientX - s.x
+            const dy = e.changedTouches[0].clientY - s.y
+            if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5) page(dx < 0 ? 1 : -1)
+          }}
+        >
+          {week.map((d) => {
+            const isToday = d.key === today
+            const isPicked = d.key === selected
+            const target = drag?.over === d.key && drag.ok
+            return (
+              <button
+                key={d.key}
+                data-drop-day={d.key}
+                onClick={() => setSelected(d.key)}
+                aria-pressed={isPicked}
+                aria-label={`${new Date(`${d.key}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}`}
+                className={`flex flex-1 flex-col items-center gap-1.5 rounded-xl py-2 transition-shadow ${
+                  target
+                    ? "bg-app-surface ring-2 ring-app-accent shadow-[0_0_0_5px_rgba(var(--app-accent-rgb),0.25)]"
+                    : isPicked
+                      ? "bg-app-accent text-app-accent-text"
+                      : isToday
+                        ? "bg-app-surface ring-1 ring-app-accent"
+                        : "bg-app-surface"
+                }`}
+              >
+                <span className={`text-[11px] font-semibold ${isPicked && !target ? "text-app-accent-text/80" : "text-app-muted"}`}>{d.letter}</span>
+                <span className="font-display text-lg font-semibold leading-none">{d.date}</span>
+                <span className={`h-[3px] w-4 rounded-full ${isPicked && !target ? "bg-app-accent-text" : bar[d.status as keyof typeof bar]}`} />
+              </button>
+            )
+          })}
+        </div>
+
+        {canMove && offset >= 0 && (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-app-muted">Hold a session and drag it onto a day to move it.</p>
+            <PlanWeekButton week={week.map((d) => d.key)} className="shrink-0 text-sm font-semibold text-app-accent" />
           </div>
-        ))}
+        )}
       </div>
 
-      {fasting && (
+      {fasting && onToday && (
         <FastingCard
           protocol={fasting.protocol}
           targetHours={fasting.targetHours}
@@ -221,27 +364,59 @@ export default function TodayView({
         />
       )}
 
-      <section className="space-y-3">
-        <h2 className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-app-muted">Today</h2>
-        {todays.length ? (
-          todays.map((w) => <SessionCard key={w.id} w={w} canMove={canMove} primary />)
-        ) : (
-          <div className="rounded-2xl border border-dashed border-app-border p-5 text-sm text-app-muted">
-            Nothing scheduled today.
-            {upcoming && (
-              <>
-                {" "}Next: <span className="font-semibold text-app-text">{upcoming.name}</span> on {shortDate(upcoming.day)}.
-              </>
-            )}
+      {onToday ? (
+        <section className="space-y-3">
+          <h2 className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-app-muted">Today</h2>
+          {todays.length ? (
+            todays.map((w) => card(w, true))
+          ) : (
+            <div className="rounded-2xl border border-dashed border-app-border p-5 text-sm text-app-muted">
+              Nothing scheduled today.
+              {upcoming && (
+                <>
+                  {" "}Next: <span className="font-semibold text-app-text">{upcoming.name}</span> on {shortDate(upcoming.day)}.
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-app-muted">{shortDate(selected)}</h2>
+            <button
+              onClick={() => {
+                setOffset(0)
+                setSelected(today)
+              }}
+              className="text-sm font-semibold text-app-accent"
+            >
+              Back to today
+            </button>
           </div>
-        )}
-      </section>
+          {picked.length ? (
+            picked.map((w) => card(w))
+          ) : (
+            <div className="rounded-2xl border border-dashed border-app-border p-5 text-sm text-app-muted">
+              Nothing scheduled {selected < today ? "that day" : "yet"}.
+            </div>
+          )}
+        </section>
+      )}
 
-      {canBook && <BookCallCard coachName={coachName} callsLeft={callsLeft} />}
+      {onToday && canBook && (
+        <BookCallCard
+          coachName={coachName}
+          callsLeft={callsLeft}
+          // Unused free calls in the last ten days of the month are about to
+          // disappear, which is the one time this card should ask for a tap.
+          nudge={!!callsLeft && callsLeft > 0 && Number(today.slice(8)) >= 21}
+        />
+      )}
 
-      <BreathwodCard />
+      {onToday && <BreathwodCard />}
 
-      {missed.length > 0 && (
+      {onToday && missed.length > 0 && (
         <section className="space-y-3">
           <h2 className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-app-muted">Missed this week</h2>
           {missed.map((w) => (
@@ -264,14 +439,14 @@ export default function TodayView({
         </section>
       )}
 
-      {!todays.length && upcoming && (
+      {onToday && !todays.length && upcoming && (
         <section className="space-y-3">
           <h2 className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-app-muted">Up next · {shortDate(upcoming.day)}</h2>
-          <SessionCard w={upcoming} canMove={canMove} />
+          {card(upcoming)}
         </section>
       )}
 
-      {latestNote && (
+      {onToday && latestNote && (
         <Link
           href={`/client/workouts/${latestNote.workoutId}`}
           className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3"
@@ -286,6 +461,8 @@ export default function TodayView({
           <span className="h-2 w-2 shrink-0 rounded-full bg-app-accent" />
         </Link>
       )}
+
+      <DragGhost drag={drag} className="bg-app-accent text-app-accent-text" />
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import DashboardHeader from "@/components/DashboardHeader"
 import ClientActions from "@/components/coach/ClientActions"
-import AddWorkoutButton from "@/components/coach/AddWorkoutButton"
+import CoachCalendar, { type CalDay } from "@/components/coach/CoachCalendar"
 import DraftProgramBar from "@/components/coach/DraftProgramBar"
 import ProgramActions from "@/components/coach/ProgramActions"
 import FastingControl from "@/components/coach/FastingControl"
@@ -104,6 +104,22 @@ export default async function ClientDetailPage({
       return { key, day, inMonth: day.getUTCMonth() === monthStart.getUTCMonth(), items: workouts.filter((x) => dayKey(x.scheduledDate) === key) }
     })
   )
+  // Plain data for the calendar, which is interactive and so renders on the client.
+  const calendarDays: CalDay[] = weeks.flat().map((d) => ({
+    key: d.key,
+    date: d.day.getUTCDate(),
+    inMonth: d.inMonth,
+    items: d.items.map((w) => {
+      const rest = w._count.exercises === 0 && /rest/i.test(w.name)
+      return {
+        id: w.id,
+        name: w.name,
+        status: w.program?.isDraft ? "draft" : rest ? "rest" : w.isCompleted ? "done" : d.key < todayKey ? "missed" : "planned",
+        note: !!(w.logs[0]?.notes || w._count.comments > 0),
+        movable: !w.isCompleted,
+      }
+    }),
+  }))
   const trendWeights = snapshot.trend?.points.map((p) => p.weight) ?? []
   const trendMax = Math.max(...trendWeights, 1)
   const trendFloor = trendWeights.length ? Math.min(...trendWeights) * 0.92 : 0
@@ -299,49 +315,7 @@ export default async function ClientDetailPage({
                     ›
                   </Link>
                 </div>
-                <div className="grid grid-cols-7 gap-1.5 p-3">
-                  {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-                    <div key={i} className="text-center text-[11px] font-bold text-[#857c70]">
-                      {d}
-                    </div>
-                  ))}
-                  {weeks.flat().map((d) => (
-                    <div
-                      key={d.key}
-                      className={`group min-h-[86px] rounded-lg border p-1.5 ${
-                        d.key === todayKey ? "border-2 border-[#c1272d] bg-white" : d.inMonth ? "border-[#e4dfd5] bg-white" : "border-[#efeae1] bg-[#faf8f4]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[11px] ${d.key === todayKey ? "font-bold text-[#c1272d]" : "text-[#a79e91]"}`}>{d.day.getUTCDate()}</span>
-                        <AddWorkoutButton clientId={client.id} date={d.key} />
-                      </div>
-                      <div className="mt-1 space-y-1">
-                        {d.items.map((w) => {
-                          const rest = w._count.exercises === 0 && /rest/i.test(w.name)
-                          const status = w.program?.isDraft ? "draft" : rest ? "rest" : w.isCompleted ? "done" : d.key < todayKey ? "missed" : "planned"
-                          const tone = {
-                            draft: "bg-[#efe6f6] text-[#5b3590]",
-                            rest: "bg-[#f1ede5] text-[#6b6257]",
-                            done: "bg-[#e6f2ea] text-[#2f6b45]",
-                            missed: "bg-[#fbeceb] text-[#b3211f]",
-                            planned: "bg-[#eef2f7] text-[#38506b]",
-                          }[status]
-                          return (
-                            <Link
-                              key={w.id}
-                              href={`/coach/clients/${client.id}/workouts/${w.id}`}
-                              className={`block truncate rounded px-1.5 py-1 text-[11px] font-semibold ${tone}`}
-                            >
-                              {w.name}
-                              {(w.logs[0]?.notes || w._count.comments > 0) && " 💬"}
-                            </Link>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <CoachCalendar clientId={client.id} todayKey={todayKey} days={calendarDays} />
               </section>
 
               <div className="flex w-full shrink-0 flex-col gap-4 xl:w-80">

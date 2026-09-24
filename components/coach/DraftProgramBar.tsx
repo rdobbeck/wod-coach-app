@@ -38,7 +38,8 @@ export default function DraftProgramBar({ programId, name, range }: { programId:
         <p className="text-sm font-semibold text-violet-900">Draft: {name}</p>
         <p className="text-xs text-violet-800">{range} · only you can see it. Review the workouts below, then publish.</p>
       </div>
-      <button onClick={publish} disabled={busy} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      {/* A draft is invisible to the client until this is pressed, so it asks for it. */}
+      <button onClick={publish} disabled={busy} className="pulse-cta rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
         Publish to client
       </button>
       <button onClick={discard} disabled={busy} className={`rounded-lg px-3 py-2 text-sm font-semibold ${confirmDiscard ? "bg-red-600 text-white" : "text-red-600"}`}>
