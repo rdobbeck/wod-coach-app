@@ -8,7 +8,8 @@ import AccountSettings from "@/components/AccountSettings"
 import PushToggle from "@/components/PushToggle"
 import CoachDefaults from "@/components/coach/CoachDefaults"
 import CoachLink from "@/components/coach/CoachLink"
-import { brandDomainLive } from "@/lib/coach-link"
+import CoachPublicProfile from "@/components/coach/CoachPublicProfile"
+import { brandDomainLive, coachLinkUrl } from "@/lib/coach-link"
 import SignOutButton from "@/components/client/SignOutButton"
 
 export default async function CoachSettingsPage() {
@@ -36,6 +37,16 @@ export default async function CoachSettingsPage() {
           <AccountSettings name={user?.name ?? ""} email={user?.email ?? ""} hasPassword={!!user?.hashedPassword} />
 
           <CoachLink slug={coach?.slug ?? null} brandName={coach?.brandName ?? null} live={brandDomainLive()} />
+
+          <CoachPublicProfile
+            name={user?.name ?? "Coach"}
+            photo={user?.image ?? null}
+            bio={coach?.bio ?? null}
+            specialties={coach?.specialties ?? []}
+            certifications={coach?.certifications ?? []}
+            yearsExp={coach?.yearsExp ?? null}
+            pageUrl={coach?.slug ? (brandDomainLive() ? coachLinkUrl(coach.slug) : `/c/${coach.slug}`) : null}
+          />
 
           <CoachDefaults
             units={coach?.defaultUnits ?? "lb"}

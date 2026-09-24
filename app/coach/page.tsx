@@ -27,7 +27,7 @@ const ago = (d: Date) => {
   const days = Math.round(h / 24)
   return days === 1 ? "yesterday" : `${days} days ago`
 }
-const firstName = (n: string | null) => (n ?? "Client").split(" ")[0]
+const firstName = (n: string | null) => (n ?? "Client").replace(/^coach\s+/i, "").split(" ")[0]
 
 const card = "rounded-2xl border border-[#e4dfd5] bg-white"
 const label = "font-display text-xs font-semibold uppercase tracking-[0.14em] text-[#857c70]"
