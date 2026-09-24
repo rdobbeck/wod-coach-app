@@ -176,7 +176,7 @@ export default function WorkoutPlayer({
     schedule()
   }
   const updateSet = (e: PlayerExercise, i: number, patch: Partial<SetRow>) =>
-    update(e.id, { sets: e.sets.map((s, j) => (j === i ? { ...s, ...patch } : s)) })
+    update(e.id, { sets: rowsFor(e).map((s, j) => (j === i ? { ...s, ...patch } : s)) })
 
   /** Rows to start from: last time's numbers when we have them, else blanks. */
   const seedSets = (e: PlayerExercise): SetRow[] => {
@@ -189,6 +189,16 @@ export default function WorkoutPlayer({
       done: false,
     }))
   }
+
+  /**
+   * The set rows to show. Once the client has touched an exercise these are
+   * its saved sets; before that they are a suggestion (last time's numbers, or
+   * the planned set count) shown ready to tick, and nothing is saved until
+   * they change or tick one. Exercises with neither, like a timed carry or a
+   * run, get no rows and a button instead, so cardio isn't a wall of blanks.
+   */
+  const rowsFor = (e: PlayerExercise): SetRow[] =>
+    e.sets.length ? e.sets : e.lastTime?.sets.length || e.plannedSets ? seedSets(e) : []
 
   /**
    * Take one past day's numbers as today's starting point. The set rows are
@@ -204,7 +214,8 @@ export default function WorkoutPlayer({
   }
 
   const tickSet = (e: PlayerExercise, i: number) => {
-    const set = e.sets[i]
+    const rows = rowsFor(e)
+    const set = rows[i]
     const next = !set.done
     const reps = set.reps ?? (next ? e.lastTime?.sets[i]?.reps ?? null : null)
 
@@ -212,7 +223,7 @@ export default function WorkoutPlayer({
     // assumption the next set is the same until the client says otherwise.
     // Only blanks are filled, so anything they typed is never overwritten,
     // and the steppers make going up from there one tap.
-    const sets = e.sets.map((s, j) => {
+    const sets = rows.map((s, j) => {
       if (j === i) return { ...s, done: next, reps }
       if (j === i + 1 && next && !s.done) {
         return { ...s, weight: s.weight ?? set.weight ?? null, reps: s.reps ?? reps }
@@ -239,7 +250,7 @@ export default function WorkoutPlayer({
   }
 
   return (
-    <div className="space-y-4 pb-36">
+    <div className="space-y-4 pb-60">
       <div className="flex items-center justify-between">
         <Link href="/client" className="text-sm font-semibold text-app-muted">‹ Today</Link>
         <span className="text-xs text-app-muted">
@@ -328,7 +339,7 @@ export default function WorkoutPlayer({
                     Tick each set as you finish it. The next set copies your numbers, and your rest timer starts.
                   </Hint>
 
-                  {e.sets.length > 0 ? (
+                  {rowsFor(e).length > 0 ? (
                     <div className="space-y-2">
                       <div className="grid grid-cols-[1.5rem_1fr_1fr_3rem] gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-app-muted">
                         <span>Set</span>
@@ -336,7 +347,7 @@ export default function WorkoutPlayer({
                         <span>Reps</span>
                         <span className="text-center">Done</span>
                       </div>
-                      {e.sets.map((s, i) => (
+                      {rowsFor(e).map((s, i, rows) => (
                         <div key={i} className="grid grid-cols-[1.5rem_1fr_1fr_3rem] items-center gap-2">
                           <span className="font-display text-lg font-semibold text-app-muted">{i + 1}</span>
                           <Stepper value={s.weight} step={units === "kg" ? 2.5 : 5} onChange={(v) => updateSet(e, i, { weight: v })} ariaLabel={`Set ${i + 1} weight`} />
@@ -347,7 +358,7 @@ export default function WorkoutPlayer({
                             aria-pressed={!!s.done}
                             className={`flex h-12 items-center justify-center rounded-xl border text-base ${
                               s.done ? "border-app-good bg-app-good text-white" : "border-app-border text-app-muted"
-                            } ${i === e.sets.findIndex((x) => !x.done) ? "pulse-cta" : ""}`}
+                            } ${i === rows.findIndex((x) => !x.done) ? "pulse-cta" : ""}`}
                           >
                             ✓
                           </button>
@@ -356,15 +367,17 @@ export default function WorkoutPlayer({
                       <div className="flex gap-2">
                         <button
                           onClick={() =>
-                            update(e.id, { sets: [...e.sets, { ...(e.sets[e.sets.length - 1] ?? { reps: null, weight: null, rpe: null }), done: false }] })
+                            update(e.id, { sets: [...rowsFor(e), { ...(rowsFor(e).at(-1) ?? { reps: null, weight: null, rpe: null }), done: false }] })
                           }
                           className="flex-1 rounded-xl border border-dashed border-app-border py-2 text-sm font-semibold text-app-muted"
                         >
                           + Add set
                         </button>
-                        <button onClick={() => update(e.id, { sets: [] })} className="rounded-xl border border-app-border px-3 py-2 text-sm font-semibold text-app-muted">
-                          Clear
-                        </button>
+                        {e.sets.length > 0 && (
+                          <button onClick={() => update(e.id, { sets: [] })} className="rounded-xl border border-app-border px-3 py-2 text-sm font-semibold text-app-muted">
+                            Reset
+                          </button>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -374,7 +387,7 @@ export default function WorkoutPlayer({
                         isLogged(e) ? "" : "pulse-cta"
                       }`}
                     >
-                      {e.lastTime?.sets.length ? "Log sets, start from last time" : "Log sets (weight × reps)"}
+                      Log sets (weight × reps)
                     </button>
                   )}
 
@@ -438,7 +451,7 @@ export default function WorkoutPlayer({
         />
       )}
 
-      {/* Sticky bar above the tab bar: rest timer while it runs, finish always. */}
+      {/* Sticky stack above the tab bar: the rest countdown while it runs, finish always. */}
       {exercises.length > 0 && (
         <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 px-4">
           {rest && (
@@ -448,23 +461,39 @@ export default function WorkoutPlayer({
               </Hint>
             </div>
           )}
-          <div className="mx-auto flex max-w-md items-center gap-2">
-            {rest && (
-              <div className="flex h-14 items-center gap-2 rounded-xl border border-app-border bg-app-surface px-3 shadow-lg">
-                <div className="flex flex-col items-center">
-                  <span className={`font-display text-xl font-bold leading-none ${rest.left <= 0 ? "text-app-good" : ""}`}>
+          {rest && (
+            <div
+              role="timer"
+              aria-live="polite"
+              className="mx-auto mb-2 max-w-md overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-lg"
+            >
+              <div className="flex items-center gap-3 px-4 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted">{rest.left > 0 ? "Rest" : "Rest done"}</p>
+                  <p className={`font-display text-5xl font-bold leading-none tabular-nums ${rest.left <= 0 ? "text-app-good" : ""}`}>
                     {rest.left > 0 ? formatClock(rest.left) : "Go"}
-                  </span>
-                  <span className="text-[9px] uppercase tracking-[0.1em] text-app-muted">Rest</span>
+                  </p>
                 </div>
-                <button onClick={() => setRest((r) => (r ? { ...r, left: r.left + 30 } : r))} aria-label="Add 30 seconds" className="px-1 text-xs font-semibold text-app-muted">
-                  +30
+                <button
+                  onClick={() => setRest((r) => (r ? { left: r.left + 30, total: Math.max(r.total, r.left + 30) } : r))}
+                  aria-label="Add 30 seconds"
+                  className="h-12 rounded-xl border border-app-border px-4 text-sm font-semibold text-app-text"
+                >
+                  +30s
                 </button>
-                <button onClick={() => setRest(null)} aria-label="Skip rest" className="px-1 text-xs font-semibold text-app-muted">
+                <button onClick={() => setRest(null)} aria-label="Skip rest" className="h-12 rounded-xl border border-app-border px-4 text-sm font-semibold text-app-text">
                   Skip
                 </button>
               </div>
-            )}
+              <div className="h-1.5 bg-app-surface2">
+                <div
+                  className={`h-full transition-[width] duration-1000 ease-linear ${rest.left <= 0 ? "bg-app-good" : "bg-app-accent"}`}
+                  style={{ width: `${Math.max(0, Math.min(100, (rest.left / rest.total) * 100))}%` }}
+                />
+              </div>
+            </div>
+          )}
+          <div className="mx-auto flex max-w-md items-center gap-2">
             <button
               onClick={finish}
               disabled={finishing}
