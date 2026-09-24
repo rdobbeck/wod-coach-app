@@ -188,7 +188,36 @@ export type Change = {
   inLibrary?: boolean // false: no demo video exists for it
   reason: string
 }
-export type Proposal = { reply: string; changes: Change[]; warnings: string[]; dropped: string[] }
+export type Proposal = {
+  reply: string
+  changes: Change[]
+  warnings: string[]
+  dropped: string[]
+  /** Every change is a load bump, so the panel may apply it without asking. */
+  autoApply: boolean
+}
+
+/** "3x8 @ RPE 7" -> "3x8". Null when the prescription does not start with sets x reps. */
+const scheme = (rx: string) => {
+  const m = rx.match(/^\s*(\d+)\s*[x\u00d7]\s*(\d+(?:\s*-\s*\d+)?)/i)
+  return m ? `${m[1]}x${m[2].replace(/\s+/g, "")}` : null
+}
+
+/**
+ * A load bump changes how hard an exercise is, not what it is or how it is
+ * structured: same movement, same sets and reps, different prescription text
+ * (RPE, load, rest). Anything else is a redesign and waits for the coach.
+ */
+export const isLoadBump = (c: Change) =>
+  c.action === "modify" &&
+  !!c.currentPrescription &&
+  !!c.newPrescription &&
+  c.currentPrescription !== c.newPrescription &&
+  scheme(c.currentPrescription) !== null &&
+  scheme(c.currentPrescription) === scheme(c.newPrescription)
+
+const MAX_AUTO_CHANGES = 40
+export const canAutoApply = (changes: Change[]) => changes.length > 0 && changes.length <= MAX_AUTO_CHANGES && changes.every(isLoadBump)
 
 let matcherCache: { at: number; match: Awaited<ReturnType<typeof buildExerciseMatcher>> } | null = null
 export async function libraryMatcher() {
@@ -217,7 +246,7 @@ export function parseProposal(
   try {
     j = JSON.parse(stripFences(raw))
   } catch {
-    return { reply: noLongDashes(raw.trim()).slice(0, 2000) || "I could not put together an answer. Try rephrasing.", changes: [], warnings: [], dropped: [] }
+    return { reply: noLongDashes(raw.trim()).slice(0, 2000) || "I could not put together an answer. Try rephrasing.", changes: [], warnings: [], dropped: [], autoApply: false }
   }
   const sessions = new Map(ctx.sessions.map((s) => [s.ref, s]))
   const exercises = new Map(ctx.sessions.flatMap((s) => s.exercises.map((e) => [e.ref, { e, s }] as const)))
@@ -280,5 +309,12 @@ export function parseProposal(
   }
 
   const warnings = (Array.isArray(j?.warnings) ? j.warnings : []).map((w: unknown) => str(w, 400)).filter(Boolean) as string[]
-  return { reply: str(j?.reply, 2000) ?? (changes.length ? "Here are the changes I'd make." : "Nothing to change."), changes, warnings, dropped }
+  return {
+    reply: str(j?.reply, 2000) ?? (changes.length ? "Here are the changes I'd make." : "Nothing to change."),
+    changes,
+    warnings,
+    dropped,
+    // A warning means the model wants a human to look, so it never applies on its own.
+    autoApply: canAutoApply(changes) && warnings.length === 0,
+  }
 }

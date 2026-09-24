@@ -71,10 +71,23 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
   const [input, setInput] = useState("")
   const [busy, setBusy] = useState(false)
   const [meter, setMeter] = useState(initial)
+  // Load bumps (same movement, same sets and reps, different intensity) apply on their own.
+  const [auto, setAuto] = useState(true)
   const end = useRef<HTMLDivElement>(null)
   const first = clientName.split(" ")[0] || "this client"
 
   useEffect(() => end.current?.scrollIntoView({ block: "end" }), [msgs, busy, open])
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("ai-auto-load") === "off") setAuto(false)
+    } catch {}
+  }, [])
+  const toggleAuto = (v: boolean) => {
+    setAuto(v)
+    try {
+      localStorage.setItem("ai-auto-load", v ? "on" : "off")
+    } catch {}
+  }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false)
     document.addEventListener("keydown", onKey)
@@ -102,6 +115,8 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
       setMsgs((m) => [...m, { role: "assistant", text: d.error ?? "Could not reach the AI. Check your connection and try again.", failed: true }])
       return
     }
+    const willAuto = auto && !!d.autoApply && !!d.changes?.length
+    const idx = msgs.length + 1 // the reply lands right after the message just sent
     setMsgs((m) => [
       ...m,
       {
@@ -111,17 +126,16 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
         warnings: d.warnings,
         dropped: d.dropped,
         picked: (d.changes ?? []).map(() => true),
-        state: d.changes?.length ? "pending" : undefined,
+        state: d.changes?.length ? (willAuto ? "applied" : "pending") : undefined,
+        applyNote: willAuto ? "Applying load changes…" : undefined,
       },
     ])
+    if (willAuto) await runApply(idx, d.changes, message, true)
   }
 
-  const apply = async (i: number) => {
-    const m = msgs[i]
-    const chosen = (m.changes ?? []).filter((_, k) => m.picked?.[k])
+  const runApply = async (i: number, chosen: Change[], request: string, automatic = false) => {
     if (!chosen.length) return
     patch(i, { state: "applied", applyNote: "Applying…" })
-    const request = [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text ?? ""
     const res = await fetch("/api/ai/assist/apply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -129,16 +143,27 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
     }).catch(() => null)
     const d = res ? await res.json().catch(() => ({})) : {}
     if (!res?.ok || !d.applied) {
+      // Falls back to asking, so nothing is ever lost or half done.
       patch(i, { state: "pending", applyNote: undefined })
       toast.error(d.skipped?.[0] ?? d.error ?? "Nothing could be applied")
       return
     }
+    const n = d.applied as number
     patch(i, {
       state: "applied",
       changeSetId: d.changeSetId,
-      applyNote: `Applied ${d.applied} ${d.applied === 1 ? "change" : "changes"} to ${first}'s calendar.${d.skipped?.length ? ` ${d.skipped.length} skipped.` : ""}`,
+      applyNote: automatic
+        ? `Applied ${n} load ${n === 1 ? "change" : "changes"} automatically to ${first}'s calendar.${d.skipped?.length ? ` ${d.skipped.length} skipped.` : ""}`
+        : `Applied ${n} ${n === 1 ? "change" : "changes"} to ${first}'s calendar.${d.skipped?.length ? ` ${d.skipped.length} skipped.` : ""}`,
     })
     router.refresh()
+  }
+
+  const apply = (i: number) => {
+    const m = msgs[i]
+    const chosen = (m.changes ?? []).filter((_, k) => m.picked?.[k])
+    const request = [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text ?? ""
+    return runApply(i, chosen, request)
   }
 
   const undo = async (i: number) => {
@@ -193,6 +218,11 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
                   <div className={`h-full ${bar}`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
+              <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-[#4a443c]">
+                <input type="checkbox" checked={auto} onChange={(e) => toggleAuto(e.target.checked)} className="h-3.5 w-3.5 accent-[#c1272d]" />
+                Apply load bumps automatically
+                <span className="text-[#857c70]">(same exercise, sets and reps)</span>
+              </label>
             </div>
 
             <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">

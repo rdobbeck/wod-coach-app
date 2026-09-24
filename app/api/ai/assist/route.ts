@@ -52,6 +52,7 @@ async function handlePOST(req: Request) {
       changes: [],
       warnings: [],
       dropped: [],
+      autoApply: false,
       meter: await spendMeter(coachId),
     })
   }

@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs"
 import { dbUrl } from "../lib/db-url"
 import { dayKey } from "../lib/training-format"
 import { assertUnderCap, spendMeter, AiCapError, monthStart } from "../lib/ai/spend"
-import { parseProposal, type Context } from "../lib/ai/assist"
+import { parseProposal, isLoadBump, type Change, type Context } from "../lib/ai/assist"
 
 /**
  * The AI box: the monthly spend cap, what the assistant is allowed to touch,
@@ -177,6 +177,32 @@ test("answers that are not clean JSON still come through", () => {
   expect(prose.changes).toEqual([])
 })
 
+test("only a load bump may apply itself: same movement, same sets and reps", () => {
+  const c = (over: Partial<Change>): Change => ({
+    action: "modify", workoutId: "w", workoutName: "A", date: "2026-10-01", exerciseId: "e",
+    exercise: "Back Squat", currentPrescription: "3x8 @ RPE 6.5, rest 2 min", newPrescription: "3x8 @ RPE 7, rest 2 min", reason: "", ...over,
+  })
+  expect(isLoadBump(c({}))).toBe(true)
+  expect(isLoadBump(c({ currentPrescription: "3x8-10 @ RPE 6", newPrescription: "3x8-10 @ RPE 7" }))).toBe(true)
+  // Different sets or reps is a redesign, not a bump.
+  expect(isLoadBump(c({ newPrescription: "5x3 @ RPE 8, rest 3 min" }))).toBe(false)
+  expect(isLoadBump(c({ newPrescription: "4x8 @ RPE 7" }))).toBe(false)
+  // No change, no starting point, and non-modify actions are never bumps.
+  expect(isLoadBump(c({ newPrescription: "3x8 @ RPE 6.5, rest 2 min" }))).toBe(false)
+  expect(isLoadBump(c({ currentPrescription: "AMRAP 10 min" }))).toBe(false)
+  expect(isLoadBump(c({ action: "replace", newExercise: "Goblet Squat" }))).toBe(false)
+
+  const bump = (ref: string, rx: string) => ({ action: "modify", ref, newPrescription: rx, reason: "" })
+  const ask = (changes: unknown[], warnings: string[] = []) =>
+    parseProposal(JSON.stringify({ reply: "ok", changes, warnings }), ctx, match, libName)
+  expect(ask([bump("s1e1", "3x5 @ RPE 8")]).autoApply).toBe(true)
+  // One redesign in the batch, and the whole batch waits.
+  expect(ask([bump("s1e1", "3x5 @ RPE 8"), { action: "remove", ref: "s1e3", reason: "" }]).autoApply).toBe(false)
+  // If the model flagged a concern, a person looks first.
+  expect(ask([bump("s1e1", "3x5 @ RPE 8")], ["Check her knee"]).autoApply).toBe(false)
+  expect(ask([]).autoApply).toBe(false)
+})
+
 // ---------- applying and undoing ----------
 
 test("applying edits respects locked, done and other clients' sessions, and undo restores everything", async ({ page, browser }) => {
@@ -286,7 +312,7 @@ test("in the panel: review a proposal, untick a change, apply, undo", async ({ p
   await expect(page.getByText("$3.26 of $25")).toBeVisible()
 
   // Untick the removal, so only the swap goes through.
-  await page.getByRole("dialog", { name: "AI assistant" }).getByRole("checkbox").nth(1).uncheck()
+  await page.getByRole("dialog", { name: "AI assistant" }).locator("label", { hasText: "Inverted row" }).getByRole("checkbox").uncheck()
   await page.getByRole("button", { name: "Apply 1 change" }).click()
   await expect(page.getByText(/Applied 1 change to/)).toBeVisible()
   await expect.poll(async () => (await prisma.workoutExercise.findUniqueOrThrow({ where: { id: squat.id } })).name).toBe("Goblet Squat")
@@ -305,4 +331,64 @@ test("in the panel: at the cap the box is switched off", async ({ page }) => {
   await openPanel(page)
   await expect(page.getByPlaceholder("Monthly AI limit reached")).toBeDisabled()
   await expect(page.getByText("$25.50 of $25")).toBeVisible()
+})
+
+// ---------- load bumps apply themselves, unless switched off ----------
+
+async function bumpProposal(w: { id: string; name: string; scheduledDate: Date }, ex: { id: string }, autoApply: boolean) {
+  return {
+    reply: "Bumped the squat a notch.",
+    changes: [
+      { action: "modify", workoutId: w.id, workoutName: w.name, date: dayKey(w.scheduledDate), exerciseId: ex.id, exercise: "Back Squat", currentPrescription: "3x5 @ RPE 7, rest 2 min", newPrescription: "3x5 @ RPE 8, rest 2 min", reason: "Felt easy" },
+    ],
+    warnings: [],
+    dropped: [],
+    autoApply,
+    meter: { spent: 0.1, cap: 25, level: "ok" },
+  }
+}
+
+test("a load bump applies on its own, says so, and can be undone", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Auto Bump`)
+  const squat = w.exercises[0]
+  await page.route("**/api/ai/assist", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    await route.fulfill({ json: await bumpProposal(w, squat, true) })
+  })
+
+  await openPanel(page)
+  await page.getByPlaceholder("Ask a question or describe a change").fill("Squats felt easy")
+  await page.getByRole("button", { name: "Send" }).click()
+
+  // No Apply button was pressed.
+  await expect(page.getByText(/Applied 1 load change automatically/)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole("button", { name: /^Apply \d/ })).toBeHidden()
+  expect((await prisma.workoutExercise.findUniqueOrThrow({ where: { id: squat.id } })).prescription).toBe("3x5 @ RPE 8, rest 2 min")
+
+  const undone = page.waitForResponse((r) => r.url().includes("/api/ai/assist/undo"))
+  await page.getByRole("button", { name: "Undo" }).click()
+  expect((await undone).status()).toBe(200)
+  await expect.poll(async () => (await prisma.workoutExercise.findUniqueOrThrow({ where: { id: squat.id } })).prescription).toBe("3x5 @ RPE 7, rest 2 min")
+})
+
+test("with the switch off, a load bump waits for Apply like anything else", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Manual Bump`)
+  const squat = w.exercises[0]
+  await page.route("**/api/ai/assist", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    await route.fulfill({ json: await bumpProposal(w, squat, true) })
+  })
+
+  await openPanel(page)
+  await page.getByLabel(/Apply load bumps automatically/).uncheck()
+  await page.getByPlaceholder("Ask a question or describe a change").fill("Squats felt easy")
+  await page.getByRole("button", { name: "Send" }).click()
+
+  const apply = page.getByRole("button", { name: "Apply 1 change" })
+  await expect(apply).toBeVisible()
+  // Nothing has been written yet.
+  expect((await prisma.workoutExercise.findUniqueOrThrow({ where: { id: squat.id } })).prescription).toBe("3x5 @ RPE 7, rest 2 min")
+  await apply.click()
+  await expect(page.getByText(/Applied 1 change to/)).toBeVisible()
+  await page.evaluate(() => localStorage.removeItem("ai-auto-load")) // leave the switch as we found it
 })
