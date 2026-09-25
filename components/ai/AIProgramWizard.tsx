@@ -20,15 +20,13 @@ interface Client {
 }
 
 interface AIProgramWizardProps {
-  coach: {
-    id: string
-    aiProvider: "GEMINI_FREE" | "VENICE_FREE" | "PAY_PER_PROGRAM" | "BRING_YOUR_OWN_KEY"
-    aiCredits: number
-    totalProgramsGenerated: number
-  }
   clients: Client[]
-  freeLimit: number | null // null = unlimited free generations
+  // Who pays for the next program; see lib/ai-billing.ts.
+  funding: { mode: "byok" | "allowance" | "balance" | "none"; left: number; balanceCents: number }
+  estimate: { low: number; high: number } // cents, with markup
 }
+
+const usd = (c: number) => `$${(c / 100).toFixed(2)}`
 
 const EQUIPMENT_OPTIONS = [
   "Barbell",
@@ -48,8 +46,21 @@ const EXPERIENCE_LEVELS = [
   { value: "ADVANCED", label: "Advanced", description: "3+ years training" },
 ]
 
-export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgramWizardProps) {
-  const freeLeft = freeLimit === null ? null : Math.max(freeLimit - coach.totalProgramsGenerated, 0)
+export default function AIProgramWizard({ clients, funding, estimate }: AIProgramWizardProps) {
+  const fundingLine =
+    funding.mode === "byok"
+      ? "Uses your own OpenRouter key"
+      : funding.mode === "allowance"
+        ? `${funding.left} AI ${funding.left === 1 ? "program" : "programs"} left this month`
+        : `AI balance ${usd(funding.balanceCents)}`
+  const costNote =
+    funding.mode === "byok"
+      ? " OpenRouter bills your key directly."
+      : funding.mode === "allowance"
+        ? ` This uses 1 of the ${funding.left} included in your plan this month.`
+        : funding.mode === "balance"
+          ? ` Your plan's programs are used up for the month, so this comes out of your balance: usually ${usd(estimate.low)} to ${usd(estimate.high / 2)}, never more than ${usd(estimate.high)}.`
+          : ""
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [generating, setGenerating] = useState(false)
@@ -91,16 +102,9 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
   const handleGenerate = async () => {
     if (!selectedClient) return
 
-    // Check if coach has access
-    if (coach.aiProvider === "GEMINI_FREE" && freeLeft === 0) {
-      toast.error("Free tier limit reached. Upgrade to continue generating programs.")
-      router.push("/coach/settings/ai")
-      return
-    }
-
-    if (coach.aiProvider === "PAY_PER_PROGRAM" && coach.aiCredits < 1) {
-      toast.error("Insufficient credits. Purchase more credits to continue.")
-      router.push("/coach/settings/ai")
+    if (funding.mode === "none") {
+      toast.error("This month's AI programs are used up. Add AI balance to keep going.")
+      router.push("/coach/settings/billing")
       return
     }
 
@@ -124,6 +128,7 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
 
       if (!res.ok) {
         const error = await res.json()
+        if (res.status === 402) router.push("/coach/settings/billing")
         throw new Error(error.error || "Failed to generate program")
       }
 
@@ -200,8 +205,7 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-medium text-[#4a443c]">Step {step} of 5</span>
           <span className="text-sm text-[#857c70]">
-            {coach.aiProvider === "GEMINI_FREE" && freeLeft !== null && `${freeLeft} free programs left`}
-            {coach.aiProvider === "PAY_PER_PROGRAM" && `${coach.aiCredits} credits remaining`}
+            {fundingLine}
           </span>
         </div>
         <div className="w-full bg-[#ece7de] rounded-full h-2">
@@ -444,8 +448,7 @@ export default function AIProgramWizard({ coach, clients, freeLimit }: AIProgram
             <div className="mt-6 bg-[#faf8f4] border border-[#e4dfd5] rounded-xl p-4">
               <p className="text-sm text-[#4a443c]">
                 <strong>Note:</strong> AI will create a complete periodized program with mesocycles, microcycles, and specific workouts.
-                {coach.aiProvider === "PAY_PER_PROGRAM" && " This will use 1 credit."}
-                {coach.aiProvider === "GEMINI_FREE" && freeLeft !== null && ` You have ${freeLeft} free generations left.`}
+                {costNote}
               </p>
             </div>
           </div>

@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma"
 
 /**
- * The AI spend cap. Every model call is written to AiUsage, and a call is
- * refused once this month's total reaches the cap.
+ * The AI spend cap. Every model call on our key is written to AiUsage, and an
+ * assistant call is refused once this month's included ("assist") spend reaches
+ * the cap. Plan programs are capped by count instead, and calls paid from the
+ * coach's balance ("*_paid") don't count.
  *
  *   AI_MONTHLY_CAP_USD   hard stop, default 25
  *   AI_WARN_FRACTION     when the meter turns amber, default 0.6
@@ -31,7 +33,7 @@ export const monthStart = (at = new Date()) => new Date(Date.UTC(at.getUTCFullYe
 
 export async function spentThisMonth(coachId: string, at = new Date()) {
   const r = await prisma.aiUsage.aggregate({
-    where: { coachId, createdAt: { gte: monthStart(at) } },
+    where: { coachId, kind: "assist", createdAt: { gte: monthStart(at) } },
     _sum: { costUsd: true },
   })
   return r._sum.costUsd ?? 0
@@ -55,7 +57,7 @@ export async function assertUnderCap(coachId: string) {
 export const recordUsage = (row: {
   coachId: string
   clientId?: string | null
-  kind: "assist" | "generate"
+  kind: "assist" | "generate" | "assist_paid" | "generate_paid"
   model: string
   tokensIn?: number
   tokensOut?: number

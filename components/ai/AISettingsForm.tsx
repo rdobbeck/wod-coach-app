@@ -4,13 +4,9 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 
 interface AISettingsFormProps {
-  coach: {
-    id: string
-    aiProvider: "GEMINI_FREE" | "VENICE_FREE" | "PAY_PER_PROGRAM" | "BRING_YOUR_OWN_KEY"
-    /** "…1a2b" when a key is saved; the key itself never reaches the browser. */
-    keyHint: string | null
-    preferredModel: string | null
-  }
+  /** "…1a2b" when a key is saved; the key itself never reaches the browser. */
+  keyHint: string | null
+  preferredModel: string | null
 }
 
 const AVAILABLE_MODELS = [
@@ -19,34 +15,29 @@ const AVAILABLE_MODELS = [
   { id: "anthropic/claude-sonnet-5", name: "Claude Sonnet 5", description: "Very good, ~$0.40 per program" },
 ]
 
-export default function AISettingsForm({ coach }: AISettingsFormProps) {
+const field = "w-full rounded-xl border border-[#ddd7cc] bg-white px-3 py-2 text-sm"
+
+/** Your own OpenRouter key: saving one switches AI programs to it, removing it switches back. */
+export default function AISettingsForm({ keyHint, preferredModel }: AISettingsFormProps) {
   const router = useRouter()
   // Starts empty: typing replaces the saved key, leaving it empty keeps it.
   const [apiKey, setApiKey] = useState("")
-  const [selectedModel, setSelectedModel] = useState(coach.preferredModel || "anthropic/claude-fable-5.1")
+  const [selectedModel, setSelectedModel] = useState(preferredModel || "anthropic/claude-fable-5.1")
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
 
-  const handleSaveSettings = async () => {
+  const save = async (body: Record<string, string>, done: string) => {
     setSaving(true)
     setMessage("")
-
     try {
       const res = await fetch("/api/ai/update-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(apiKey.trim() ? { openrouterApiKey: apiKey.trim() } : {}),
-          preferredModel: selectedModel,
-        }),
+        body: JSON.stringify(body),
       })
-
-      if (!res.ok) {
-        throw new Error((await res.json().catch(() => null))?.error ?? "Failed to update settings")
-      }
-
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Couldn't save")
       setApiKey("")
-      setMessage("Settings saved successfully!")
+      setMessage(done)
       router.refresh()
     } catch (error) {
       setMessage(`Error: ${(error as Error).message}`)
@@ -56,118 +47,61 @@ export default function AISettingsForm({ coach }: AISettingsFormProps) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 mb-6">
-      <h2 className="text-xl font-semibold mb-4">Configuration</h2>
+    <section className="mt-6 rounded-2xl border border-[#e4dfd5] bg-white p-5">
+      <p className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-[#857c70]">Use your own OpenRouter key (optional)</p>
+      <p className="mt-2 text-sm text-[#4a443c]">
+        {keyHint ? `Using your key ${keyHint}.` : "Most coaches skip this."} Get a key at{" "}
+        <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+          openrouter.ai/keys
+        </a>
+        . It's encrypted before it's stored and never shown again.
+      </p>
 
-      {coach.aiProvider === "BRING_YOUR_OWN_KEY" && (
-        <>
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              OpenRouter API Key
-            </label>
-            <p className="text-sm text-gray-600 mb-3">
-              Get your API key from{" "}
-              <a
-                href="https://openrouter.ai/keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:underline"
-              >
-                openrouter.ai/keys
-              </a>
-            </p>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={coach.keyHint ? `Saved key ${coach.keyHint}. Paste a new one to replace it.` : "sk-or-v1-..."}
-              autoComplete="off"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-            <p className="text-xs text-gray-500 mt-2">
-              Your key is encrypted before it's stored and is never shown again. Charges go to your OpenRouter account.
-            </p>
-            {coach.keyHint && (
-              <button
-                type="button"
-                onClick={async () => {
-                  const res = await fetch("/api/ai/update-settings", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ openrouterApiKey: "" }),
-                  })
-                  setMessage(res.ok ? "Key removed" : "Error: couldn't remove the key")
-                  router.refresh()
-                }}
-                className="mt-2 text-sm font-semibold text-[#6b6257] underline"
-              >
-                Remove saved key
-              </button>
-            )}
-          </div>
+      <input
+        type="password"
+        value={apiKey}
+        onChange={(e) => setApiKey(e.target.value)}
+        placeholder={keyHint ? `Saved key ${keyHint}. Paste a new one to replace it.` : "sk-or-v1-..."}
+        autoComplete="off"
+        className={`${field} mt-3`}
+      />
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Preferred Model
-            </label>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              {AVAILABLE_MODELS.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name} - {model.description}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-2">
-              Different models have different costs. Check{" "}
-              <a
-                href="https://openrouter.ai/models"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:underline"
-              >
-                OpenRouter pricing
-              </a>
-              .
-            </p>
-          </div>
+      {keyHint && (
+        <label className="mt-4 block text-sm text-[#4a443c]">
+          Model for your key
+          <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)} className={`${field} mt-1`}>
+            {AVAILABLE_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} - {m.description}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          onClick={() =>
+            save({ ...(apiKey.trim() ? { openrouterApiKey: apiKey.trim() } : {}), preferredModel: selectedModel }, apiKey.trim() ? "Key saved. AI programs now use it." : "Saved")
+          }
+          disabled={saving || (!apiKey.trim() && !keyHint)}
+          className="rounded-xl bg-[#16181d] px-4 py-2 text-sm font-semibold text-[#f4f1ea] disabled:opacity-50"
+        >
+          {saving ? "Saving..." : keyHint ? "Save" : "Save key"}
+        </button>
+        {keyHint && (
           <button
-            onClick={handleSaveSettings}
+            type="button"
             disabled={saving}
-            className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 transition disabled:opacity-50"
+            onClick={() => save({ openrouterApiKey: "" }, "Key removed. AI goes back to your plan and balance.")}
+            className="text-sm font-semibold text-[#6b6257] underline"
           >
-            {saving ? "Saving..." : "Save Settings"}
+            Remove key
           </button>
+        )}
+      </div>
 
-          {message && (
-            <div className={`mt-4 p-3 rounded-lg ${message.includes("Error") ? "bg-red-50 text-red-800" : "bg-green-50 text-green-800"}`}>
-              {message}
-            </div>
-          )}
-        </>
-      )}
-
-      {coach.aiProvider === "GEMINI_FREE" && (
-        <div className="bg-[#faf8f4] border border-[#e4dfd5] rounded-lg p-4">
-          <p className="text-sm text-[#4a443c]">
-            <strong>Free Plan:</strong> You can generate up to 5 programs per month using Google's Gemini 2.0 Flash model.
-            Upgrade to pay-per-program for unlimited access with Claude Sonnet 4, or bring your own API key for full control.
-          </p>
-        </div>
-      )}
-
-      {coach.aiProvider === "PAY_PER_PROGRAM" && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-sm text-green-800">
-            <strong>Pay-Per-Program:</strong> We use Claude Sonnet 4 to generate high-quality programs. Each generation costs $3 and uses 1 credit.
-            Purchase credits above to continue generating programs.
-          </p>
-        </div>
-      )}
-    </div>
+      {message && <p className={`mt-3 text-sm ${message.startsWith("Error") ? "text-[#c1272d]" : "text-[#2f7d4f]"}`}>{message}</p>}
+    </section>
   )
 }

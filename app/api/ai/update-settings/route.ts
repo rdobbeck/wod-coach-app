@@ -21,24 +21,24 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { aiProvider, openrouterApiKey, preferredModel } = body
+    const { openrouterApiKey, preferredModel } = body
 
-    // The key is sealed before it's stored and never sent back. "" removes it;
+    // The key is sealed before it's stored and never sent back. Saving one switches
+    // the coach to their own key; "" removes it and switches back to WOD.COACH AI;
     // leaving it out keeps whatever is saved.
-    let keyData: { openrouterApiKey: string | null } | Record<string, never> = {}
+    let keyData: { openrouterApiKey: string | null; aiProvider: "BRING_YOUR_OWN_KEY" | "GEMINI_FREE" } | Record<string, never> = {}
     if (typeof openrouterApiKey === "string") {
       const k = openrouterApiKey.trim()
       if (k && !/^sk-or-[A-Za-z0-9_-]{10,}$/.test(k)) {
         return NextResponse.json({ error: "That doesn't look like an OpenRouter key (it starts with sk-or-)" }, { status: 400 })
       }
-      keyData = { openrouterApiKey: k ? seal(k) : null }
+      keyData = k ? { openrouterApiKey: seal(k), aiProvider: "BRING_YOUR_OWN_KEY" } : { openrouterApiKey: null, aiProvider: "GEMINI_FREE" }
     }
 
     // Update settings
     await prisma.coachProfile.update({
       where: { id: coach.id },
       data: {
-        ...(aiProvider && { aiProvider }),
         ...keyData,
         ...(preferredModel && { preferredModel }),
       },

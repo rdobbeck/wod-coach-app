@@ -114,6 +114,12 @@ model CoachProfile {
   openrouterApiKey       String? // Encrypted
   preferredModel         String? // e.g., "anthropic/claude-sonnet-4"
   aiCredits              Int        @default(5) // Free credits for pay-per-program
+  // Pay-as-you-go AI balance in cents (lib/ai-billing.ts); topped up through Stripe.
+  aiBalanceCents         Int        @default(0)
+  aiAutoTopUp            Boolean    @default(false)
+  // Stripe Connect: the coach's own Stripe account, for charging their clients.
+  stripeConnectAccountId String?    @unique
+  connectChargesEnabled  Boolean    @default(false)
   totalProgramsGenerated Int        @default(0)
 
   // Onboarding
@@ -654,6 +660,10 @@ model Subscription {
   endDate              DateTime?
   stripeCustomerId     String?
   stripeSubscriptionId String?
+  interval             String? // "month" | "year"
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  setupPaid            Boolean            @default(false) // done-for-you setup bought (or included with yearly)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -661,6 +671,9 @@ model Subscription {
 }
 
 enum SubscriptionTier {
+  COACH // $39: 15 clients (2026 pricing; the older values below are unused)
+  PRO // $79: 50 clients
+  STUDIO // $149: 150 clients
   FREE // 1-5 clients
   STARTER // 6-50 clients
   PROFESSIONAL // 51-150 clients
@@ -668,6 +681,7 @@ enum SubscriptionTier {
 }
 
 enum SubscriptionStatus {
+  TRIALING
   ACTIVE
   CANCELLED
   PAST_DUE

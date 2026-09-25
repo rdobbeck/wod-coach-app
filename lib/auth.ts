@@ -90,7 +90,10 @@ export const authOptions: NextAuthOptions = {
         id: dbUser.id,
         name: dbUser.name,
         email: dbUser.email,
-        picture: dbUser.image,
+        // Uploaded photos are stored inline (data: URLs, ~20 KB+). In the token they
+        // blow the cookie past what browsers and Vercel accept, and nothing reads
+        // the photo from the session anyway (pages load it from the database).
+        picture: dbUser.image?.startsWith("data:") ? null : dbUser.image,
         role: dbUser.role,
       }
     },

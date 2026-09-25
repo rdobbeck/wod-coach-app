@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import DashboardHeader from "@/components/DashboardHeader"
 import AIProgramWizard from "@/components/ai/AIProgramWizard"
-import { FREE_PROGRAM_LIMIT } from "@/lib/ai/openrouter"
+import { PROGRAM_ESTIMATE_CENTS, programFundingSummary } from "@/lib/ai-billing"
 
 export default async function AIBuilderPage() {
   const session = await getServerSession(authOptions)
@@ -16,12 +16,14 @@ export default async function AIBuilderPage() {
   // Only what the wizard needs: this object is sent to the browser.
   const coach = await prisma.coachProfile.findUnique({
     where: { userId: session.user.id },
-    select: { id: true, aiProvider: true, aiCredits: true, totalProgramsGenerated: true },
+    select: { id: true },
   })
 
   if (!coach) {
     redirect("/coach")
   }
+
+  const funding = await programFundingSummary(session.user.id)
 
   // Get coach's clients for selection
   const clients = await prisma.clientCoach.findMany({
@@ -50,7 +52,7 @@ export default async function AIBuilderPage() {
           </p>
         </div>
 
-        <AIProgramWizard coach={coach} clients={clients} freeLimit={FREE_PROGRAM_LIMIT} />
+        <AIProgramWizard clients={clients} funding={funding} estimate={PROGRAM_ESTIMATE_CENTS} />
       </div>
     </div>
   )
