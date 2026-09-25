@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { seal } from "@/lib/secret-box"
 
 export async function POST(req: Request) {
   try {
@@ -22,12 +23,23 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { aiProvider, openrouterApiKey, preferredModel } = body
 
+    // The key is sealed before it's stored and never sent back. "" removes it;
+    // leaving it out keeps whatever is saved.
+    let keyData: { openrouterApiKey: string | null } | Record<string, never> = {}
+    if (typeof openrouterApiKey === "string") {
+      const k = openrouterApiKey.trim()
+      if (k && !/^sk-or-[A-Za-z0-9_-]{10,}$/.test(k)) {
+        return NextResponse.json({ error: "That doesn't look like an OpenRouter key (it starts with sk-or-)" }, { status: 400 })
+      }
+      keyData = { openrouterApiKey: k ? seal(k) : null }
+    }
+
     // Update settings
     await prisma.coachProfile.update({
       where: { id: coach.id },
       data: {
         ...(aiProvider && { aiProvider }),
-        ...(openrouterApiKey !== undefined && { openrouterApiKey }),
+        ...keyData,
         ...(preferredModel && { preferredModel }),
       },
     })

@@ -7,7 +7,8 @@ interface AISettingsFormProps {
   coach: {
     id: string
     aiProvider: "GEMINI_FREE" | "VENICE_FREE" | "PAY_PER_PROGRAM" | "BRING_YOUR_OWN_KEY"
-    openrouterApiKey: string | null
+    /** "…1a2b" when a key is saved; the key itself never reaches the browser. */
+    keyHint: string | null
     preferredModel: string | null
   }
 }
@@ -20,7 +21,8 @@ const AVAILABLE_MODELS = [
 
 export default function AISettingsForm({ coach }: AISettingsFormProps) {
   const router = useRouter()
-  const [apiKey, setApiKey] = useState(coach.openrouterApiKey || "")
+  // Starts empty: typing replaces the saved key, leaving it empty keeps it.
+  const [apiKey, setApiKey] = useState("")
   const [selectedModel, setSelectedModel] = useState(coach.preferredModel || "anthropic/claude-fable-5.1")
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
@@ -34,19 +36,20 @@ export default function AISettingsForm({ coach }: AISettingsFormProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          openrouterApiKey: apiKey,
+          ...(apiKey.trim() ? { openrouterApiKey: apiKey.trim() } : {}),
           preferredModel: selectedModel,
         }),
       })
 
       if (!res.ok) {
-        throw new Error("Failed to update settings")
+        throw new Error((await res.json().catch(() => null))?.error ?? "Failed to update settings")
       }
 
+      setApiKey("")
       setMessage("Settings saved successfully!")
       router.refresh()
     } catch (error) {
-      setMessage("Error saving settings. Please try again.")
+      setMessage(`Error: ${(error as Error).message}`)
     } finally {
       setSaving(false)
     }
@@ -77,12 +80,30 @@ export default function AISettingsForm({ coach }: AISettingsFormProps) {
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-or-v1-..."
+              placeholder={coach.keyHint ? `Saved key ${coach.keyHint}. Paste a new one to replace it.` : "sk-or-v1-..."}
+              autoComplete="off"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
             <p className="text-xs text-gray-500 mt-2">
-              Your API key is encrypted and stored securely. We never see your usage or charges.
+              Your key is encrypted before it's stored and is never shown again. Charges go to your OpenRouter account.
             </p>
+            {coach.keyHint && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const res = await fetch("/api/ai/update-settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ openrouterApiKey: "" }),
+                  })
+                  setMessage(res.ok ? "Key removed" : "Error: couldn't remove the key")
+                  router.refresh()
+                }}
+                className="mt-2 text-sm font-semibold text-[#6b6257] underline"
+              >
+                Remove saved key
+              </button>
+            )}
           </div>
 
           <div className="mb-6">

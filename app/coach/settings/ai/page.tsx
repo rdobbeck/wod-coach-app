@@ -7,6 +7,7 @@ import CreditPurchaseButtons from "@/components/ai/CreditPurchaseButtons"
 import PurchaseSuccessHandler from "@/components/ai/PurchaseSuccessHandler"
 import DashboardHeader from "@/components/DashboardHeader"
 import ProviderSwitchButtons from "@/components/ai/ProviderSwitchButtons"
+import { hint, isSealed, seal } from "@/lib/secret-box"
 
 export default async function AISettingsPage() {
   const session = await getServerSession(authOptions)
@@ -27,6 +28,12 @@ export default async function AISettingsPage() {
 
   if (!coach) {
     redirect("/coach")
+  }
+
+  // Seal a key saved before encryption existed; this runs on the server, so it
+  // uses the production secret.
+  if (coach.openrouterApiKey && !isSealed(coach.openrouterApiKey)) {
+    await prisma.coachProfile.update({ where: { id: coach.id }, data: { openrouterApiKey: seal(coach.openrouterApiKey) } })
   }
 
   return (
@@ -80,7 +87,9 @@ export default async function AISettingsPage() {
         </div>
 
         {/* Settings Form */}
-        <AISettingsForm coach={coach} />
+        <AISettingsForm
+          coach={{ id: coach.id, aiProvider: coach.aiProvider, preferredModel: coach.preferredModel, keyHint: hint(coach.openrouterApiKey) }}
+        />
 
         {/* Purchase Credits (if pay-per-program) */}
         {coach.aiProvider === "PAY_PER_PROGRAM" && (

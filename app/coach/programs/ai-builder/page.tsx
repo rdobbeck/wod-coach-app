@@ -13,8 +13,10 @@ export default async function AIBuilderPage() {
     redirect("/")
   }
 
+  // Only what the wizard needs: this object is sent to the browser.
   const coach = await prisma.coachProfile.findUnique({
     where: { userId: session.user.id },
+    select: { id: true, aiProvider: true, aiCredits: true, totalProgramsGenerated: true },
   })
 
   if (!coach) {

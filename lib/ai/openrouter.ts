@@ -1,5 +1,6 @@
 import OpenAI from "openai"
 import { prisma } from "../prisma"
+import { isSealed, open, seal } from "@/lib/secret-box"
 
 // API endpoints
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -97,7 +98,11 @@ export async function generateProgram(params: ProgramGenerationParams) {
       if (!coach.openrouterApiKey) {
         throw new Error("No API key configured. Please add your OpenRouter API key in settings.")
       }
-      apiKey = coach.openrouterApiKey
+      apiKey = open(coach.openrouterApiKey)
+      // Keys saved before encryption existed get sealed the first time they're used.
+      if (!isSealed(coach.openrouterApiKey)) {
+        await prisma.coachProfile.update({ where: { id: params.coachId }, data: { openrouterApiKey: seal(apiKey) } })
+      }
       model = coach.preferredModel || PROGRAM_MODEL
       break
 
@@ -275,7 +280,6 @@ export async function getAISettings(coachId: string) {
       aiCredits: true,
       totalProgramsGenerated: true,
       preferredModel: true,
-      openrouterApiKey: true,
     },
   })
 
