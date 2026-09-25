@@ -151,6 +151,22 @@ export function PricesEditor({ products, venmo, instructions, cardReady }: { pro
     setDraft({ name: "", price: "", sessions: "1", description: "" })
     router.refresh()
   }
+  // One item open for editing at a time. Price is shown in dollars and stored in cents.
+  const [editing, setEditing] = useState<string | null>(null)
+  const [edit, setEdit] = useState({ name: "", price: "", sessions: "1", description: "" })
+  const startEdit = (p: ProductRow) => {
+    setEditing(p.id)
+    setEdit({ name: p.name, price: String(p.priceCents / 100), sessions: String(p.sessions), description: p.description ?? "" })
+  }
+  const saveEdit = async () => {
+    const res = await send("/api/products", { id: editing, ...edit, sessions: Number(edit.sessions) || 1 })
+    const d = await res.json().catch(() => ({}))
+    if (!res.ok) return toast.error(d.error ?? "Couldn't save that")
+    toast.success("Saved")
+    setEditing(null)
+    router.refresh()
+  }
+
   const toggle = async (p: ProductRow) => {
     const res = await send("/api/products", { id: p.id, active: !p.active })
     if (!res.ok) return toast.error("Couldn't change that")
@@ -183,17 +199,53 @@ export function PricesEditor({ products, venmo, instructions, cardReady }: { pro
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-[#f0ece4]">
-            {products.map((p) => (
-              <li key={p.id} className={`flex items-center gap-3 py-2 text-sm ${p.active ? "" : "text-[#a79e91]"}`}>
-                <span className="min-w-0 flex-1">
-                  <span className="font-semibold text-[#16181d]">{p.name}</span> <span className="tabular-nums">{dollars(p.priceCents)}</span>
-                  {p.sessions > 1 && <span> &middot; {p.sessions} sessions</span>}
-                </span>
-                <button onClick={() => toggle(p)} className="text-xs font-semibold text-[#c1272d]">
-                  {p.active ? "Turn off" : "Turn on"}
-                </button>
-              </li>
-            ))}
+            {products.map((p) =>
+              editing === p.id ? (
+                <li key={p.id} className="space-y-2 py-3">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="text-xs font-semibold text-[#6b6257]">
+                      Name
+                      <input aria-label="Name" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} className={`${input} mt-1 block w-52`} />
+                    </label>
+                    <label className="text-xs font-semibold text-[#6b6257]">
+                      Price ($)
+                      <input aria-label="Price" inputMode="decimal" value={edit.price} onChange={(e) => setEdit({ ...edit, price: e.target.value })} className={`${input} mt-1 block w-28`} />
+                    </label>
+                    <label className="text-xs font-semibold text-[#6b6257]">
+                      Sessions it covers
+                      <input aria-label="Sessions" inputMode="numeric" value={edit.sessions} onChange={(e) => setEdit({ ...edit, sessions: e.target.value })} className={`${input} mt-1 block w-28`} />
+                    </label>
+                    <label className="min-w-40 flex-1 text-xs font-semibold text-[#6b6257]">
+                      Short description
+                      <input aria-label="Description" value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} className={`${input} mt-1 block w-full`} />
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={saveEdit} disabled={!edit.name || !edit.price} className="rounded-md bg-[#16181d] px-3 py-1.5 text-sm font-semibold text-[#f4f1ea] disabled:opacity-50">
+                      Save changes
+                    </button>
+                    <button onClick={() => setEditing(null)} className="text-sm font-semibold text-[#857c70]">
+                      Cancel
+                    </button>
+                    <span className="text-xs text-[#857c70]">A new price applies to future purchases. Payments already made keep what was paid.</span>
+                  </div>
+                </li>
+              ) : (
+                <li key={p.id} className={`flex items-center gap-3 py-2 text-sm ${p.active ? "" : "text-[#a79e91]"}`}>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-semibold text-[#16181d]">{p.name}</span> <span className="tabular-nums">{dollars(p.priceCents)}</span>
+                    {p.sessions > 1 && <span> &middot; {p.sessions} sessions</span>}
+                    {p.description && <span className="block text-xs text-[#857c70]">{p.description}</span>}
+                  </span>
+                  <button onClick={() => startEdit(p)} className="text-xs font-semibold text-[#16181d]">
+                    Edit
+                  </button>
+                  <button onClick={() => toggle(p)} className="text-xs font-semibold text-[#c1272d]">
+                    {p.active ? "Turn off" : "Turn on"}
+                  </button>
+                </li>
+              )
+            )}
           </ul>
         )}
         <div className="mt-3 flex flex-wrap items-end gap-2">

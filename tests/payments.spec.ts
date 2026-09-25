@@ -374,3 +374,66 @@ test("the public page lists what is for sale without signing in, and the coach's
   await ctx.close()
   await prisma.coachProfile.update({ where: { userId: coachId }, data: { slug: null } })
 })
+
+// ---------- changing what is for sale after it exists ----------
+
+test("the coach edits an item's name, price, sessions and description, and old payments keep what was paid", async ({ page }) => {
+  const paid = await recordManual({ coachId, clientId, amountCents: 12_000, method: "CASH", description: "Gym pod session" })
+  await page.goto("/coach/payments")
+  await page.waitForLoadState("networkidle")
+
+  const row = page.getByRole("listitem").filter({ hasText: "Gym pod session" }).filter({ hasText: "Edit" })
+  await row.getByRole("button", { name: "Edit" }).click()
+  // The form opens with what is there now, price in dollars.
+  await expect(page.getByLabel("Price", { exact: true })).toHaveValue("120")
+  await page.getByLabel("Name", { exact: true }).fill("Gym pod session (4 pack)")
+  await page.getByLabel("Price", { exact: true }).fill("440.50")
+  await page.getByLabel("Sessions", { exact: true }).fill("4")
+  await page.getByLabel("Description", { exact: true }).fill("Four 60 minute sessions, valid 4 months")
+  await page.getByRole("button", { name: "Save changes" }).click()
+
+  await expect.poll(async () => (await prisma.product.findUniqueOrThrow({ where: { id: productId } })).priceCents).toBe(44_050)
+  expect(await prisma.product.findUniqueOrThrow({ where: { id: productId } })).toMatchObject({
+    name: "Gym pod session (4 pack)", sessions: 4, description: "Four 60 minute sessions, valid 4 months", active: true,
+  })
+  // The page shows the change, and a payment already recorded is untouched.
+  await expect(page.getByText("Gym pod session (4 pack)")).toBeVisible()
+  expect(await prisma.payment.findUniqueOrThrow({ where: { id: paid } })).toMatchObject({ amountCents: 12_000, description: "Gym pod session" })
+})
+
+test("editing an item that is switched off leaves it off, and a bad price is refused", async ({ page }) => {
+  await prisma.product.update({ where: { id: productId }, data: { active: false } })
+  await page.goto("/coach/payments")
+  await page.waitForLoadState("networkidle")
+
+  const row = page.getByRole("listitem").filter({ hasText: "Gym pod session" }).filter({ hasText: "Turn on" })
+  await row.getByRole("button", { name: "Edit" }).click()
+  await page.getByLabel("Price", { exact: true }).fill("0")
+  await page.getByRole("button", { name: "Save changes" }).click()
+  await expect(page.getByText(/between \$1 and \$5,000/)).toBeVisible()
+  expect((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).priceCents).toBe(12_000) // unchanged
+
+  await page.getByLabel("Price", { exact: true }).fill("125")
+  await page.getByRole("button", { name: "Save changes" }).click()
+  await expect.poll(async () => (await prisma.product.findUniqueOrThrow({ where: { id: productId } })).priceCents).toBe(12_500)
+  expect((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).active).toBe(false) // still off
+})
+
+test("a client sees an edited price on the Pay screen, and only your own items can be edited", async ({ browser, page }) => {
+  const res = await page.request.post("/api/products", { data: { id: productId, name: "Gym pod session", price: "135", sessions: 1, description: "" } })
+  expect(res.ok()).toBe(true)
+  expect((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).description).toBeNull() // cleared
+
+  // Not found, not silently created, when the id is not this coach's.
+  expect((await page.request.post("/api/products", { data: { id: "someone-elses", name: "x", price: "50", sessions: 1 } })).status()).toBe(404)
+  expect(await prisma.product.count({ where: { coachId } })).toBe(1)
+
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const clientPage = await ctx.newPage()
+  await signInAsClient(clientPage)
+  await clientPage.goto("/client/pay")
+  await prisma.coachProfile.update({ where: { userId: coachId }, data: { venmoHandle: "ryan-pt" } })
+  await clientPage.reload()
+  await expect(clientPage.getByRole("button", { name: /Gym pod session/ })).toContainText("$135")
+  await ctx.close()
+})
