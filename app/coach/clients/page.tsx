@@ -5,6 +5,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import DashboardHeader from "@/components/DashboardHeader"
 import EmptyState from "@/components/coach/EmptyState"
+import ClientStatusButton from "@/components/coach/ClientStatusButton"
+import { getCoachPlan } from "@/lib/plans"
 
 export default async function AllClientsPage() {
   const session = await getServerSession(authOptions)
@@ -21,6 +23,7 @@ export default async function AllClientsPage() {
     },
     orderBy: { createdAt: "desc" },
   })
+  const { plan } = await getCoachPlan(session.user.id)
   const current = links.filter((l) => l.status !== "INACTIVE")
   const past = links.filter((l) => l.status === "INACTIVE")
 
@@ -37,9 +40,10 @@ export default async function AllClientsPage() {
             <span className="block truncate text-sm text-[#6b6257]">{l.client.email}</span>
           </span>
           {l.status === "PAUSED" && <span className="rounded-full bg-[#f3ead8] px-2.5 py-0.5 text-xs font-semibold text-[#8a5a14]">Paused</span>}
-          <span className={`shrink-0 text-xs font-semibold ${joined ? "text-[#2f7d4f]" : "text-[#c98a2b]"}`}>
+          <span className={`hidden shrink-0 text-xs font-semibold sm:inline ${joined ? "text-[#2f7d4f]" : "text-[#c98a2b]"}`}>
             {joined ? "Signed in" : "Not invited yet"}
           </span>
+          <ClientStatusButton clientId={l.clientId} current={l.status !== "INACTIVE"} name={(l.client.name ?? "Client").split(" ")[0]} />
         </Link>
       </li>
     )
@@ -53,7 +57,8 @@ export default async function AllClientsPage() {
           <div>
             <h1 className="font-display text-4xl font-bold text-[#16181d]">Clients</h1>
             <p className="mt-1 text-sm text-[#6b6257]">
-              {current.length} current{past.length ? ` · ${past.length} past` : ""}
+              {current.filter((l) => l.status === "ACTIVE").length} of {plan.clients} current on {plan.name}
+              {past.length ? ` · ${past.length} past` : ""}
             </p>
           </div>
           <Link href="/coach/clients/new" className="rounded-xl bg-[#16181d] px-4 py-2 text-sm font-semibold text-[#f4f1ea]">

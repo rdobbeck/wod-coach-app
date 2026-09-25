@@ -132,7 +132,7 @@ export default function SignUp() {
   return (
     <AuthShell
       title={coach ? "Create your coach account" : "Create your account"}
-      subtitle={coach ? "Free to try. Add a client, build their program, and send them a link." : undefined}
+      subtitle={coach ? "14 days of Pro free, no card. Add a client, build their program, and send them a link." : undefined}
       footer={
         <>
           Already have an account? <Link href="/auth/signin" className={authLink}>Sign in</Link>

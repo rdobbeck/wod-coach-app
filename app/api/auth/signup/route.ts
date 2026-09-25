@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { checkSlug } from "@/lib/coach-slug-db"
 import { suggestSlug } from "@/lib/coach-link"
+import { STARTER_AI_CENTS } from "@/lib/plans"
 
 export async function POST(req: Request) {
   try {
@@ -65,10 +66,8 @@ export async function POST(req: Request) {
 
     if (user.role === "COACH") {
       await prisma.coachProfile.create({
-        data: {
-          userId: user.id,
-          slug,
-        },
+        // A little pay-as-you-go AI to try it with after the trial's programs.
+        data: { userId: user.id, slug, aiBalanceCents: STARTER_AI_CENTS },
       })
     } else {
       await prisma.clientProfile.create({

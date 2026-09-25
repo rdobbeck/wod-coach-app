@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { clientLimitProblem } from "@/lib/plans"
 
 export async function POST(req: Request) {
   try {
@@ -14,6 +15,9 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { name, email, goals, equipment, injuries } = body
     const coachId = session.user.id // never trust a coachId from the request body
+
+    const limit = await clientLimitProblem(coachId)
+    if (limit) return NextResponse.json({ error: limit }, { status: 402 })
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { AiFundingError } from "@/lib/ai-billing"
 import { reportServerError } from "@/lib/alert"
 import { generateProgram } from "@/lib/ai/openrouter"
 import { prisma } from "@/lib/prisma"
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ...result, ...saved })
   } catch (error: any) {
+    if (error instanceof AiFundingError) return NextResponse.json({ error: error.message, code: error.code }, { status: 402 })
     await reportServerError("ai/generate-program", error)
     return NextResponse.json(
       { error: error.message || "Failed to generate program" },

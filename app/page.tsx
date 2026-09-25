@@ -30,9 +30,14 @@ export default async function Home() {
         <span className="font-display text-2xl font-bold tracking-wide">
           WOD<span className="text-[#c1272d]">.</span>COACH
         </span>
-        <Link href="/auth/signin" className="text-sm font-semibold text-[#c9c2b7] hover:text-[#f4f1ea]">
-          Sign in
-        </Link>
+        <span className="flex gap-6">
+          <Link href="/pricing" className="text-sm font-semibold text-[#c9c2b7] hover:text-[#f4f1ea]">
+            Pricing
+          </Link>
+          <Link href="/auth/signin" className="text-sm font-semibold text-[#c9c2b7] hover:text-[#f4f1ea]">
+            Sign in
+          </Link>
+        </span>
       </header>
 
       <section className="mx-auto max-w-5xl px-6 pb-20 pt-10 sm:pt-16">
@@ -81,6 +86,9 @@ export default async function Home() {
       <footer className="mx-auto flex max-w-5xl flex-col gap-2 px-6 py-10 text-sm text-[#6f6a62] sm:flex-row sm:items-center sm:justify-between">
         <span>WOD.COACH · built by Dobbeck Training Systems</span>
         <span className="flex gap-5">
+          <Link href="/pricing" className="hover:text-[#c9c2b7]">
+            Pricing
+          </Link>
           <Link href="/privacy" className="hover:text-[#c9c2b7]">
             Privacy
           </Link>

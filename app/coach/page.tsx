@@ -7,6 +7,7 @@ import { clientVisible, dayKey, fromDayKey } from "@/lib/training"
 import { BRAND_DOMAIN, brandDomainLive, coachLinkUrl, coachLinkHost } from "@/lib/coach-link"
 import DashboardHeader from "@/components/DashboardHeader"
 import CopyLinkButton from "@/components/coach/CopyLinkButton"
+import PlanBanner from "@/components/coach/PlanBanner"
 
 /**
  * Coach home: what needs you today, not totals. Everything here is computed
@@ -215,6 +216,7 @@ export default async function CoachDashboard() {
             </Link>
           </div>
         </header>
+        <PlanBanner userId={coachId} />
 
         {setupLeft > 0 && (
           <section className={`${card} mt-6 p-5`}>

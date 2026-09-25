@@ -1,6 +1,6 @@
 import OpenAI from "openai"
 import { prisma } from "../prisma"
-import { isSealed, open, seal } from "@/lib/secret-box"
+import { fundProgram, settleAiCall } from "@/lib/ai-billing"
 
 // API endpoints
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -48,67 +48,11 @@ export async function generateProgram(params: ProgramGenerationParams) {
     throw new Error("Coach profile not found")
   }
 
-  // Determine which AI provider/model to use
-  let apiKey: string
-  let model: string
-  let baseURL: string = OPENROUTER_BASE_URL
-
-  switch (coach.aiProvider) {
-    case "GEMINI_FREE":
-      // Use our OpenRouter key with free model
-      apiKey = process.env.OPENROUTER_API_KEY || ""
-      model = PROGRAM_MODEL
-
-      // Check monthly limit (5 free programs)
-      if (FREE_PROGRAM_LIMIT !== null && coach.totalProgramsGenerated >= FREE_PROGRAM_LIMIT) {
-        throw new Error("Free tier limit reached. Upgrade to pay-per-program or add your own API key.")
-      }
-      break
-
-    case "VENICE_FREE":
-      // Use Venice.ai (privacy-focused, no data retention, ~25 prompts/day free)
-      apiKey = process.env.VENICE_API_KEY || ""
-      model = VENICE_MODELS.LLAMA_70B
-      baseURL = VENICE_BASE_URL
-
-      if (!apiKey) {
-        throw new Error("Venice.ai API key not configured. Please contact support.")
-      }
-      break
-
-    case "PAY_PER_PROGRAM":
-      // Use our OpenRouter key with premium model
-      apiKey = process.env.OPENROUTER_API_KEY || ""
-      model = PROGRAM_MODEL
-
-      // Check credits
-      if (coach.aiCredits < 1) {
-        throw new Error("Insufficient credits. Purchase more credits to continue.")
-      }
-
-      // Deduct credit
-      await prisma.coachProfile.update({
-        where: { id: params.coachId },
-        data: { aiCredits: { decrement: 1 } },
-      })
-      break
-
-    case "BRING_YOUR_OWN_KEY":
-      // Use coach's own OpenRouter key
-      if (!coach.openrouterApiKey) {
-        throw new Error("No API key configured. Please add your OpenRouter API key in settings.")
-      }
-      apiKey = open(coach.openrouterApiKey)
-      // Keys saved before encryption existed get sealed the first time they're used.
-      if (!isSealed(coach.openrouterApiKey)) {
-        await prisma.coachProfile.update({ where: { id: params.coachId }, data: { openrouterApiKey: seal(apiKey) } })
-      }
-      model = coach.preferredModel || PROGRAM_MODEL
-      break
-
-    default:
-      throw new Error("Invalid AI provider configuration")
-  }
+  // Who pays: the coach's own key, then the plan's monthly programs, then their balance.
+  const funding = await fundProgram(coach.userId)
+  const apiKey = funding.mode === "byok" ? funding.apiKey : process.env.OPENROUTER_API_KEY || ""
+  const model = (funding.mode === "byok" && funding.model) || PROGRAM_MODEL
+  const baseURL = OPENROUTER_BASE_URL
 
   // Initialize OpenAI client (compatible with OpenRouter and Venice)
   const openai = new OpenAI({
@@ -165,6 +109,7 @@ Return JSON only (no markdown), in exactly this shape:
 }
 ${preferredNames.length ? `Preferred exercise names (the coach's video library; use these exact names whenever one fits):\n${preferredNames.join("; ")}\n\n` : ""}Rules: exactly ${params.trainingDays} entries in "days" per phase; "day" is 1-7 = day of the week counted from the program start date, spread sensibly (e.g. 1,2,4,5); "wk" and every "rx" have one entry per week of the phase; "ss" is a superset letter or omitted.`
 
+  let chargedCents = 0
   try {
     const completion = await openai.chat.completions.create({
       model: model,
@@ -174,7 +119,17 @@ ${preferredNames.length ? `Preferred exercise names (the coach's video library; 
       ],
       temperature: 0.4,
       max_tokens: 32000,
+      // OpenRouter adds the call's real cost to `usage`.
+      ...({ usage: { include: true } } as {}),
     })
+
+    // The model time is spent whether or not the reply parses, so book it now.
+    const usage = completion.usage as (OpenAI.CompletionUsage & { cost?: number }) | undefined
+    const tokensIn = usage?.prompt_tokens ?? 0
+    const tokensOut = usage?.completion_tokens ?? 0
+    // Fallback price is Fable's ($10 / $50 per million), the priciest we use.
+    const costUsd = typeof usage?.cost === "number" ? usage.cost : (tokensIn * 10 + tokensOut * 50) / 1e6
+    chargedCents = await settleAiCall(coach.userId, funding, { kind: "generate", model, costUsd, tokensIn, tokensOut, clientId: params.clientId })
 
     const responseContent = completion.choices[0]?.message?.content
     if (!responseContent) {
@@ -234,17 +189,10 @@ ${preferredNames.length ? `Preferred exercise names (the coach's video library; 
       success: true,
       program: programData,
       modelUsed: model,
-      creditsRemaining: coach.aiProvider === "PAY_PER_PROGRAM" ? coach.aiCredits - 1 : null,
+      paidBy: funding.mode,
+      chargedCents,
     }
   } catch (error: any) {
-    // Refund credit if generation failed and we charged
-    if (coach.aiProvider === "PAY_PER_PROGRAM") {
-      await prisma.coachProfile.update({
-        where: { id: params.coachId },
-        data: { aiCredits: { increment: 1 } },
-      })
-    }
-
     throw new Error(`Program generation failed: ${error.message}`)
   }
 }

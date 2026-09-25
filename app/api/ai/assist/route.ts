@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 import { coachOf } from "@/lib/coach-access"
 import { withAlert } from "@/lib/alert"
-import { AiCapError, assertUnderCap, recordUsage, spendMeter } from "@/lib/ai/spend"
+import { AiCapError, assertUnderCap, spendMeter } from "@/lib/ai/spend"
+import { ASSIST_MIN_CENTS, settleAiCall } from "@/lib/ai-billing"
+import { getCoachPlan } from "@/lib/plans"
+import { prisma } from "@/lib/prisma"
 import { buildContext, callModel, libraryMatcher, parseProposal, type Turn } from "@/lib/ai/assist"
 
 // A large redesign can take a minute or two.
@@ -22,13 +25,30 @@ async function handlePOST(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const coachId = session.user.id
 
-  try {
-    await assertUnderCap(coachId)
-  } catch (e) {
-    if (e instanceof AiCapError) {
-      return NextResponse.json({ error: e.message, code: e.code, meter: await spendMeter(coachId) }, { status: 402 })
+  // Included on Pro and Studio up to the monthly cap; otherwise (or past the cap)
+  // each message comes out of the coach's AI balance.
+  const [{ plan }, profile] = await Promise.all([
+    getCoachPlan(coachId),
+    prisma.coachProfile.findUnique({ where: { userId: coachId }, select: { aiBalanceCents: true } }),
+  ])
+  const balance = profile?.aiBalanceCents ?? 0
+  let mode: "allowance" | "balance" = "balance"
+  if (plan.assistant) {
+    try {
+      await assertUnderCap(coachId)
+      mode = "allowance"
+    } catch (e) {
+      if (!(e instanceof AiCapError)) throw e
+      if (balance < ASSIST_MIN_CENTS) {
+        return NextResponse.json({ error: e.message, code: e.code, meter: await spendMeter(coachId) }, { status: 402 })
+      }
     }
-    throw e
+  }
+  if (mode === "balance" && balance < ASSIST_MIN_CENTS) {
+    return NextResponse.json(
+      { error: "The AI assistant comes with Pro and Studio. Or add AI balance in Settings, Plan & billing and pay a few cents a message.", code: "AI_FUNDS", meter: await spendMeter(coachId) },
+      { status: 402 },
+    )
   }
 
   const history = (Array.isArray(body.history) ? body.history : [])
@@ -43,7 +63,7 @@ async function handlePOST(req: Request) {
     return NextResponse.json({ error: (e as Error).message || "The AI service is unavailable.", meter: await spendMeter(coachId) }, { status: 502 })
   }
   // The money is spent whether or not the answer turns out usable.
-  await recordUsage({ coachId, clientId: body.clientId, kind: "assist", model: out.model, tokensIn: out.tokensIn, tokensOut: out.tokensOut, costUsd: out.costUsd })
+  await settleAiCall(coachId, { mode }, { kind: "assist", clientId: body.clientId, model: out.model, tokensIn: out.tokensIn, tokensOut: out.tokensOut, costUsd: out.costUsd })
 
   // Cut off at the length limit: the JSON is unfinished, so say so instead of showing a half answer.
   if (out.finish === "length") {
