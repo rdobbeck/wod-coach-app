@@ -40,7 +40,7 @@ test("a new client is walked through the app once, then left alone", async ({ br
 
   const tour = page.getByRole("dialog", { name: "App walkthrough" })
   await expect(tour).toBeVisible()
-  await expect(tour.getByRole("heading")).toHaveText("Here is where everything lives")
+  await expect(tour.getByRole("heading")).toHaveText("Here's where everything lives")
 
   // The things the tour exists to teach, in the order it teaches them.
   const titles: string[] = []
@@ -52,7 +52,7 @@ test("a new client is walked through the app once, then left alone", async ({ br
   }
   // The tour is short now: where things live, then notifications. Logging, the
   // rest timer and the rest are taught by in-place hints as they come up.
-  expect(titles[0]).toBe("Here is where everything lives")
+  expect(titles[0]).toBe("Here's where everything lives")
   expect(titles).toContain("One last thing")
 
   // Back really does go back.

@@ -791,3 +791,51 @@ model AiChangeSet {
 
   @@index([clientId, createdAt])
 }
+
+// ============================================
+// SESSION COUNTER (read from the coach's Google Calendar)
+// ============================================
+
+// A session on the coach's calendar, matched to the client or clients it is for.
+// Only sessions are kept: events that match nobody and do not look like a
+// session (CrossFit classes, errands) are never stored.
+model SessionEvent {
+  id            String    @id @default(cuid())
+  coachId       String
+  uid           String // the calendar's event id, plus the recurrence id when it repeats
+  clientIds     String[] // usually one; both partners on a tandem session
+  title         String
+  startsAt      DateTime
+  endsAt        DateTime?
+  packageIndex  Int? // the 5 in "5/10"
+  packageSize   Int? // the 10 in "5/10"
+  indexInferred Boolean   @default(false) // no count in the title, so counted on from the session before
+  needsPayment  Boolean   @default(false) // the title says so, like "_needspayment"
+  paidOverride  Boolean   @default(false) // marked paid here, without editing the calendar
+  matchedBy     String? // "email" | "name" | "alias" | "manual"
+  syncedAt      DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([coachId, uid])
+  @@index([coachId, startsAt])
+}
+
+model SessionSyncState {
+  coachId    String    @id
+  lastSyncAt DateTime?
+  lastReport Json?
+  lastError  String?
+}
+
+// "Murray" in a calendar title means this client. Also used for a second email.
+model ClientAlias {
+  id        String   @id @default(cuid())
+  coachId   String
+  clientId  String
+  alias     String // lowercase
+  createdAt DateTime @default(now())
+
+  @@unique([coachId, alias])
+  @@index([clientId])
+}

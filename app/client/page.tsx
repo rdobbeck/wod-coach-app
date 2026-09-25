@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { clientVisible, dayKey } from "@/lib/training"
 import { bookingFor } from "@/lib/booking"
 import { callCreditsFor } from "@/lib/call-credits"
+import { counterForClient } from "@/lib/sessions/queries"
 import TodayView, { type DayWorkout } from "@/components/client/TodayView"
 import Tour from "@/components/client/Tour"
 
@@ -54,6 +55,20 @@ export default async function ClientToday() {
   const credits = canBook && coachLink ? await callCreditsFor(session.user.id, coachLink.coachId) : null
   const callsLeft = credits && !credits.unlimited ? credits.left : null
 
+  // Where they are with their sessions, read from the coach's calendar.
+  const counter = await counterForClient(session.user.id)
+  const sessions = counter
+    ? {
+        used: counter.used,
+        size: counter.size,
+        left: counter.left,
+        packageDone: counter.packageDone,
+        next: counter.next ? { startsAt: counter.next.startsAt.toISOString(), endsAt: counter.next.endsAt?.toISOString() ?? null } : null,
+        paymentDue: counter.paymentDue,
+        estimated: counter.estimated,
+      }
+    : null
+
   const fastEntries = fasts.map((f) => ({ id: f.id, startedAt: f.startedAt.toISOString(), endedAt: f.endedAt?.toISOString() ?? null, targetHours: f.targetHours }))
   const scored = compliance.filter((w) => w._count.exercises > 0)
   const percent = scored.length ? Math.round((scored.filter((w) => w.isCompleted).length / scored.length) * 100) : null
@@ -82,6 +97,7 @@ export default async function ClientToday() {
         compliance={percent}
         canBook={canBook}
         callsLeft={callsLeft}
+        sessions={sessions}
         workouts={days}
         fasting={
           profile?.fastingEnabled

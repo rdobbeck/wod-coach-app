@@ -8,6 +8,7 @@ import { DragGhost, useDragToDay } from "@/components/useDragToDay"
 import MoveWorkoutButton, { localDayKey } from "./MoveWorkoutButton"
 import FastingCard from "./FastingCard"
 import PlanWeekButton from "./PlanWeekButton"
+import SessionsCard, { type SessionsInfo } from "./SessionsCard"
 import type { FastEntry } from "@/lib/fasting"
 
 export type DayWorkout = {
@@ -179,6 +180,7 @@ export default function TodayView({
   fasting,
   canBook,
   callsLeft,
+  sessions,
 }: {
   firstName: string
   coachName: string | null
@@ -190,6 +192,8 @@ export default function TodayView({
   canBook: boolean
   /** Free calls left this month, or null when the coach has no limit. */
   callsLeft: number | null
+  /** From the coach's calendar; null when none of the client's sessions are on it. */
+  sessions: SessionsInfo | null
 }) {
   const router = useRouter()
   // "Today" is the client's local day, so it's computed in the browser.
@@ -352,6 +356,8 @@ export default function TodayView({
           </div>
         )}
       </div>
+
+      {sessions && onToday && <SessionsCard info={sessions} coachName={coachName} />}
 
       {fasting && onToday && (
         <FastingCard

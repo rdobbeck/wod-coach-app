@@ -12,6 +12,7 @@ interface DashboardHeaderProps {
 const coachNav = [
   { href: "/coach", label: "Dashboard", exact: true },
   { href: "/coach/clients", label: "Clients" },
+  { href: "/coach/sessions", label: "Sessions" },
   { href: "/coach/programs", label: "Programs" },
   { href: "/coach/library", label: "Library" },
   { href: "/coach/settings", label: "Settings" },
