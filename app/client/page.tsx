@@ -57,6 +57,7 @@ export default async function ClientToday() {
 
   // Where they are with their sessions, read from the coach's calendar.
   const counter = await counterForClient(session.user.id)
+  const canPay = coachLink ? (await prisma.product.count({ where: { coachId: coachLink.coachId, active: true } })) > 0 : false
   const sessions = counter
     ? {
         used: counter.used,
@@ -98,6 +99,7 @@ export default async function ClientToday() {
         canBook={canBook}
         callsLeft={callsLeft}
         sessions={sessions}
+        canPay={canPay}
         workouts={days}
         fasting={
           profile?.fastingEnabled

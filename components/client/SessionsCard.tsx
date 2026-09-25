@@ -28,7 +28,7 @@ const when = (iso: string) => {
  * how many of the package are used, and whether payment is due. Read from the
  * coach's calendar, so it matches what the coach sees.
  */
-export default function SessionsCard({ info, coachName }: { info: SessionsInfo; coachName: string | null }) {
+export default function SessionsCard({ info, coachName, canPay = false }: { info: SessionsInfo; coachName: string | null; canPay?: boolean }) {
   const router = useRouter()
 
   // Quietly bring the counter up to date. The server only reads the calendar if the last read is old.
@@ -86,8 +86,8 @@ export default function SessionsCard({ info, coachName }: { info: SessionsInfo; 
       {info.paymentDue && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-app-surface2 px-3 py-2.5">
           <span className="text-sm font-semibold">Payment due</span>
-          <Link href="/client/messages" className="text-sm font-semibold text-app-accent">
-            Message {coachName ?? "your coach"} &rsaquo;
+          <Link href={canPay ? "/client/pay" : "/client/messages"} className={`text-sm font-semibold ${canPay ? "pulse-cta rounded-lg bg-app-accent px-3 py-1.5 text-app-accent-text" : "text-app-accent"}`}>
+            {canPay ? "Pay now" : `Message ${coachName ?? "your coach"} \u203a`}
           </Link>
         </div>
       )}
@@ -95,6 +95,12 @@ export default function SessionsCard({ info, coachName }: { info: SessionsInfo; 
       {(info.packageDone || (info.left != null && info.left <= 1)) && !info.paymentDue && (
         <Link href="/client/book" className="mt-3 block rounded-xl bg-app-accent px-4 py-2.5 text-center font-display text-base font-bold uppercase tracking-[0.06em] text-app-accent-text">
           Book your next session
+        </Link>
+      )}
+
+      {canPay && !info.paymentDue && (
+        <Link href="/client/pay" className="mt-3 block text-sm font-semibold text-app-accent">
+          Pay or buy a package &rsaquo;
         </Link>
       )}
     </section>

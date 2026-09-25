@@ -2,6 +2,9 @@ import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import Stripe from "stripe"
 import { prisma } from "@/lib/prisma"
+import { notifyUser } from "@/lib/notify"
+import { fulfillStripeSession } from "@/lib/pay/ledger"
+import { dollars } from "@/lib/pay/money"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-02-24.acacia"
@@ -42,6 +45,24 @@ export async function POST(req: Request) {
           // Handle VBT subscription (existing logic)
         }
 
+        // A client paying for a session or package. Recorded once, whether or
+        // not the page they land on afterwards got there first.
+        if (session.metadata?.kind === "session_purchase") {
+          await fulfillStripeSession(session)
+        }
+
+        break
+      }
+
+      // A payment that finished later than the checkout (some bank methods).
+      case "checkout.session.async_payment_succeeded": {
+        const session = event.data.object as Stripe.Checkout.Session
+        if (session.metadata?.kind === "session_purchase") await fulfillStripeSession(session)
+        break
+      }
+
+      case "charge.refunded": {
+        await handleRefund(event.data.object as Stripe.Charge)
         break
       }
 
@@ -109,4 +130,25 @@ async function handleCreditPurchase(session: Stripe.Checkout.Session) {
     console.error("Error adding credits:", error)
     throw error
   }
+}
+
+/**
+ * A refund in Stripe. A full refund flips the payment to REFUNDED so the
+ * ledger and the export stay true; a partial one only tells the coach.
+ */
+async function handleRefund(charge: Stripe.Charge) {
+  const intent = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id
+  if (!intent) return
+  const payment = await prisma.payment.findFirst({ where: { stripePaymentIntent: intent } })
+  if (!payment) return
+  const full = charge.refunded && charge.amount_refunded >= charge.amount
+  if (full && payment.status !== "REFUNDED") {
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: "REFUNDED" } })
+  }
+  await notifyUser(payment.coachId, {
+    title: full ? "Payment refunded" : "Partial refund",
+    body: `${dollars(charge.amount_refunded)} of ${dollars(payment.amountCents)} refunded: ${payment.description}.`,
+    url: "/coach/payments",
+    tag: `refund-${payment.id}`,
+  })
 }
