@@ -23,16 +23,14 @@ export function bookingFor(raw: string | null | undefined): Booking | null {
   let embedUrl: string | null = null
 
   if (host === "cal.com" || host.endsWith(".cal.com")) {
-    // Cal.com serves the embed at <path>/embed.
-    const path = url.pathname.replace(/\/+$/, "")
-    if (path && !path.endsWith("/embed")) {
-      const embed = new URL(url.toString())
-      embed.pathname = `${path}/embed`
-      embed.searchParams.set("layout", "mobile")
-      embedUrl = embed.toString()
-    } else {
-      embedUrl = url.toString()
-    }
+    // Not <path>/embed: that route is the inner half of Cal's embed.js handshake and
+    // stays visibility:hidden until a parent script signals it, so a bare iframe
+    // renders blank. The normal page with ?embed=true renders standalone.
+    const embed = new URL(url.toString())
+    embed.pathname = url.pathname.replace(/\/+$/, "").replace(/\/embed$/, "")
+    embed.searchParams.set("embed", "true")
+    embed.searchParams.set("layout", "month_view")
+    embedUrl = embed.toString()
   } else if (host === "calendly.com") {
     const embed = new URL(url.toString())
     embed.searchParams.set("embed_domain", "app.ryandobbeck.com")

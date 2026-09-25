@@ -130,6 +130,10 @@ model CoachProfile {
   slug      String? @unique
   brandName String? // e.g. "Dobbeck Training", shown on their link page
 
+  // How clients can pay outside of card. Shown on the client's Pay screen.
+  venmoHandle     String? // without the @
+  payInstructions String? @db.Text // bank or Zelle details, in the coach's own words
+
   hasCompletedOnboarding Boolean   @default(false)
   onboardingCompletedAt  DateTime?
 
@@ -837,5 +841,50 @@ model ClientAlias {
   createdAt DateTime @default(now())
 
   @@unique([coachId, alias])
+  @@index([clientId])
+}
+
+// ============================================
+// PAYMENTS (one-off: a session, a package)
+// ============================================
+
+// What a client can buy. Prices are the coach's to change; a payment keeps its
+// own copy of the description and amount, so editing a product never rewrites history.
+model Product {
+  id          String   @id @default(cuid())
+  coachId     String
+  name        String
+  description String?
+  priceCents  Int
+  sessions    Int      @default(1) // how many sessions it covers, for display
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([coachId, active])
+}
+
+// The ledger: every payment, whichever way it arrived. Card payments arrive
+// confirmed. Venmo and bank ones start PENDING ("I sent it") until the coach confirms.
+model Payment {
+  id                  String    @id @default(cuid())
+  coachId             String
+  clientId            String? // null for a guest until their account exists
+  productId           String?
+  description         String
+  amountCents         Int
+  currency            String    @default("usd")
+  method              String // STRIPE | VENMO | BANK | CASH | OTHER
+  status              String // PENDING | CONFIRMED | REJECTED | REFUNDED
+  payerEmail          String?
+  payerName           String?
+  stripeSessionId     String?   @unique
+  stripePaymentIntent String?
+  note                String?   @db.Text
+  createdAt           DateTime  @default(now())
+  confirmedAt         DateTime?
+
+  @@index([coachId, createdAt])
   @@index([clientId])
 }

@@ -24,6 +24,8 @@ async function handlePATCH(req: Request) {
     yearsExp?: number | null
     /** Square JPEG data URL, already shrunk in the browser; "" removes it. */
     photo?: string
+    venmoHandle?: string
+    payInstructions?: string
   }
 
   let slug: string | undefined
@@ -49,6 +51,14 @@ async function handlePATCH(req: Request) {
     await prisma.user.update({ where: { id: session.user.id }, data: { image: body.photo || null } })
   }
 
+  // A Venmo handle goes into a link, so it is held to what Venmo allows.
+  let venmoHandle: string | null | undefined
+  if (typeof body.venmoHandle === "string") {
+    const h = body.venmoHandle.trim().replace(/^@/, "")
+    if (h && !/^[A-Za-z0-9_-]{2,40}$/.test(h)) return NextResponse.json({ error: "A Venmo handle is letters, numbers, dashes and underscores." }, { status: 400 })
+    venmoHandle = h || null
+  }
+
   const rest = Number(body.defaultRestSeconds)
   const data = {
     ...(body.defaultUnits === "lb" || body.defaultUnits === "kg" ? { defaultUnits: body.defaultUnits } : {}),
@@ -64,6 +74,8 @@ async function handlePATCH(req: Request) {
       ? { monthlyCallCredits: body.monthlyCallCredits }
       : {}),
     ...(slug ? { slug } : {}),
+    ...(venmoHandle !== undefined ? { venmoHandle } : {}),
+    ...(typeof body.payInstructions === "string" ? { payInstructions: body.payInstructions.trim().slice(0, 600) || null } : {}),
     ...(typeof body.brandName === "string" ? { brandName: body.brandName.trim().slice(0, 60) || null } : {}),
     ...(specialties ? { specialties } : {}),
     ...(certifications ? { certifications } : {}),

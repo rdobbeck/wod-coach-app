@@ -100,6 +100,27 @@ function SessionCard({
 }
 
 /** Book a video call with the coach. Only rendered when they have a booking link. */
+/** A way to pay or buy sessions, for clients the calendar counter does not cover. */
+function PayCard() {
+  return (
+    <Link href="/client/pay" className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3.5">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-app-surface2">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <rect x="3" y="6" width="18" height="12" rx="2" />
+          <path d="M3 10h18M7 15h3" />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-xl font-bold leading-tight">Pay or buy sessions</span>
+        <span className="block text-sm text-app-muted">A session, a package, or a receipt</span>
+      </span>
+      <span className="shrink-0 text-app-muted" aria-hidden="true">
+        &rarr;
+      </span>
+    </Link>
+  )
+}
+
 function BookCallCard({ coachName, callsLeft, nudge }: { coachName: string | null; callsLeft: number | null; nudge?: boolean }) {
   return (
     <Link
@@ -181,6 +202,7 @@ export default function TodayView({
   canBook,
   callsLeft,
   sessions,
+  canPay,
 }: {
   firstName: string
   coachName: string | null
@@ -194,6 +216,8 @@ export default function TodayView({
   callsLeft: number | null
   /** From the coach's calendar; null when none of the client's sessions are on it. */
   sessions: SessionsInfo | null
+  /** The coach has something to buy, so the card can offer to pay. */
+  canPay: boolean
 }) {
   const router = useRouter()
   // "Today" is the client's local day, so it's computed in the browser.
@@ -357,7 +381,7 @@ export default function TodayView({
         )}
       </div>
 
-      {sessions && onToday && <SessionsCard info={sessions} coachName={coachName} />}
+      {sessions && onToday && <SessionsCard info={sessions} coachName={coachName} canPay={canPay} />}
 
       {fasting && onToday && (
         <FastingCard
@@ -409,6 +433,8 @@ export default function TodayView({
           )}
         </section>
       )}
+
+      {onToday && canPay && !sessions && <PayCard />}
 
       {onToday && canBook && (
         <BookCallCard

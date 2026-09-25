@@ -9,6 +9,7 @@ async function getCoach(slug: string) {
   return prisma.coachProfile.findUnique({
     where: { slug },
     select: {
+      userId: true,
       brandName: true,
       bio: true,
       specialties: true,
@@ -30,6 +31,8 @@ export default async function CoachPage({ params }: { params: { slug: string } }
   const coach = await getCoach(params.slug)
   if (!coach) notFound()
 
+  // Something for sale means a Book and pay button on the page.
+  const sells = (await prisma.product.count({ where: { coachId: coach.userId, active: true } })) > 0
   const name = coach.user.name ?? "your coach"
   // "Coach Ryan" should read "Train with Ryan", not "Train with Coach".
   const first = name.replace(/^coach\s+/i, "").split(" ")[0]
@@ -88,6 +91,14 @@ export default async function CoachPage({ params }: { params: { slug: string } }
           >
             Sign in
           </Link>
+          {sells && (
+            <Link
+              href={`${main}/pay/${params.slug}`}
+              className="flex h-14 items-center justify-center rounded-xl border border-[#3a3d45] font-display text-xl font-semibold uppercase tracking-[0.06em] sm:col-span-2"
+            >
+              Book and pay
+            </Link>
+          )}
           {coach.bookingUrl && (
             <a
               href={coach.bookingUrl}
