@@ -43,8 +43,14 @@ test("normalising booking links", () => {
   expect(bookingFor("http://cal.com/x/y")).toBeNull()
 
   const cal = bookingFor(CAL)!
-  expect(cal.embedUrl).toContain("/check-in/embed")
-  expect(cal.embedUrl).toContain("layout=mobile")
+  // Cal's /embed path stays hidden until embed.js handshakes with the parent, so a
+  // bare iframe must use the normal page with ?embed=true instead.
+  const calEmbed = new URL(cal.embedUrl!)
+  expect(calEmbed.pathname).toBe("/dobbeck-training-systems/check-in")
+  expect(calEmbed.searchParams.get("embed")).toBe("true")
+  expect(calEmbed.searchParams.get("layout")).toBe("month_view")
+  // A coach who pasted an /embed URL still gets a working frame.
+  expect(new URL(bookingFor(`${CAL}/embed`)!.embedUrl!).pathname).toBe("/dobbeck-training-systems/check-in")
 
   const calendly = bookingFor("https://calendly.com/dobbecktraining/60min")!
   expect(calendly.embedUrl).toContain("embed_type=Inline")
@@ -89,7 +95,7 @@ test("coach sets a link and the client can book from Today", async ({ page, brow
 
   // The booking page embeds the coach's real scheduling page.
   const frame = clientPage.locator("iframe")
-  await expect(frame).toHaveAttribute("src", /cal\.com\/dobbeck-training-systems\/check-in\/embed/)
+  await expect(frame).toHaveAttribute("src", /cal\.com\/dobbeck-training-systems\/check-in\?.*embed=true/)
   await expect(clientPage.getByRole("link", { name: "Open the full booking page" })).toHaveAttribute("href", CAL)
 
   await ctx.close()
