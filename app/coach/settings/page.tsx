@@ -77,7 +77,7 @@ export default async function CoachSettingsPage() {
 
           <div className="rounded-2xl border border-[#e4dfd5] bg-white p-4">
             <p className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-[#857c70]">Exercise library</p>
-            <p className="mt-2 text-sm text-[#4a443c]">Synced nightly from CoachRx. You can also add exercises with a video link while editing a workout.</p>
+            <p className="mt-2 text-sm text-[#4a443c]">Your exercises and their demo videos. Add one with a video link while editing a workout.</p>
             <Link href="/coach/library" className="mt-3 inline-block rounded-xl border border-[#ddd7cc] px-4 py-2 text-sm font-semibold text-[#16181d]">
               Open library
             </Link>

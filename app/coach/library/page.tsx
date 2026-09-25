@@ -145,7 +145,7 @@ export default async function LibraryPage({
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Exercise Library</h1>
           <p className="mt-1 text-gray-600">
-            {total.toLocaleString()} exercises from CoachRx, refreshed daily.
+            {total.toLocaleString()} exercises with demo videos.
             {total > 0 && (
               <>
                 {" "}
