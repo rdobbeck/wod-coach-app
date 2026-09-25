@@ -195,7 +195,7 @@ export function PricesEditor({ products, venmo, instructions, cardReady }: { pro
             <button onClick={seed} className="font-semibold text-[#c1272d]">
               Add my usual prices
             </button>{" "}
-            (first session $140, sessions $100, and 3, 5, 10 and 20 packs), then change them here.
+            (sessions $140, and 3, 5, 10 and 20 packs), then change them here.
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-[#f0ece4]">
