@@ -242,9 +242,9 @@ test("the coach records cash, sets prices and payment details, and exports the l
   await page.goto("/coach/payments")
   await page.waitForLoadState("networkidle")
 
-  await page.getByRole("button", { name: "Add my usual three" }).click()
+  await page.getByRole("button", { name: "Add my usual prices" }).click()
   // Wait for the rows themselves: the hint next to the button already names the package.
-  await expect.poll(() => prisma.product.count({ where: { coachId } })).toBe(3)
+  await expect.poll(() => prisma.product.count({ where: { coachId } })).toBe(7)
   await expect(page.getByRole("listitem").filter({ hasText: "Off-site session" })).toBeVisible()
 
   await page.getByLabel("Venmo handle").fill("@ryan-pt")
