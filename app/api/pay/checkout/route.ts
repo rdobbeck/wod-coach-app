@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withAlert } from "@/lib/alert"
-import { stripe, stripeConfigured } from "@/lib/pay/stripe"
+import { cardReadyFor, stripe, stripeConfigured } from "@/lib/pay/stripe"
 import { checkoutParams } from "@/lib/pay/checkout"
 
 /** A signed-in client starts a card payment for one product. Returns the Stripe page to send them to. */
@@ -19,6 +19,7 @@ async function handlePOST(req: Request) {
     select: { coachId: true, client: { select: { email: true } } },
   })
   if (!link) return NextResponse.json({ error: "You are not linked to a coach yet." }, { status: 404 })
+  if (!(await cardReadyFor(link.coachId))) return NextResponse.json({ error: "Your coach takes Venmo or their own payment details for now." }, { status: 503 })
   const product = await prisma.product.findFirst({ where: { id: productId, coachId: link.coachId, active: true } })
   if (!product) return NextResponse.json({ error: "That is not available." }, { status: 404 })
 

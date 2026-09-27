@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAlert } from "@/lib/alert"
-import { stripe, stripeConfigured } from "@/lib/pay/stripe"
+import { cardReadyFor, stripe, stripeConfigured } from "@/lib/pay/stripe"
 import { checkoutParams } from "@/lib/pay/checkout"
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/
@@ -22,7 +22,7 @@ async function handlePOST(req: Request) {
   if (!coach) return NextResponse.json({ error: "Not found" }, { status: 404 })
   const product = await prisma.product.findFirst({ where: { id: productId, coachId: coach.userId, active: true } })
   if (!product) return NextResponse.json({ error: "That is not available." }, { status: 404 })
-  if (!stripeConfigured()) return NextResponse.json({ error: "Card payments are not set up yet." }, { status: 503 })
+  if (!(await cardReadyFor(coach.userId))) return NextResponse.json({ error: "Card payments are not set up yet." }, { status: 503 })
 
   const origin = process.env.NEXTAUTH_URL ?? new URL(req.url).origin
   const checkout = await stripe().checkout.sessions.create(

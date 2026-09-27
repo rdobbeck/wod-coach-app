@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import PayOptions from "@/components/client/PayOptions"
 import { dollars, METHOD_LABEL, type Method } from "@/lib/pay/money"
-import { stripe, stripeConfigured } from "@/lib/pay/stripe"
+import { cardReadyFor, stripe, stripeConfigured } from "@/lib/pay/stripe"
 import { fulfillStripeSession } from "@/lib/pay/ledger"
 
 const STATUS: Record<string, { label: string; tone: string }> = {
@@ -57,7 +57,7 @@ export default async function ClientPayPage({ searchParams }: { searchParams: { 
 
       <PayOptions
         products={products.map((p) => ({ id: p.id, name: p.name, description: p.description, priceCents: p.priceCents, sessions: p.sessions }))}
-        methods={{ card: stripeConfigured(), venmo: profile?.venmoHandle ?? null, instructions: profile?.payInstructions ?? null }}
+        methods={{ card: !!link && (await cardReadyFor(link.coachId)), venmo: profile?.venmoHandle ?? null, instructions: profile?.payInstructions ?? null }}
         coachName={coachName}
       />
 

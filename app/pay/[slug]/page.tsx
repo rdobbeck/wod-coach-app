@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { prisma } from "@/lib/prisma"
 import GuestBuy from "@/components/pay/GuestBuy"
-import { stripeConfigured } from "@/lib/pay/stripe"
+import { cardReadyFor } from "@/lib/pay/stripe"
 
 const getCoach = (slug: string) =>
   prisma.coachProfile.findUnique({ where: { slug }, select: { userId: true, brandName: true, user: { select: { name: true } } } })
@@ -30,7 +30,7 @@ export default async function PayPage({ params }: { params: { slug: string } }) 
         <GuestBuy
           slug={params.slug}
           items={products.map((p) => ({ id: p.id, name: p.name, description: p.description, priceCents: p.priceCents }))}
-          cardReady={stripeConfigured()}
+          cardReady={await cardReadyFor(coach.userId)}
           coachFirst={first}
         />
       </section>

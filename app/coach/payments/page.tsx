@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 import DashboardHeader from "@/components/DashboardHeader"
 import { Ledger, PendingList, PricesEditor, RecordForm } from "@/components/coach/PaymentsBoard"
 import { dollars } from "@/lib/pay/money"
-import { stripeConfigured } from "@/lib/pay/stripe"
+import { cardReadyFor } from "@/lib/pay/stripe"
 
 export default async function PaymentsPage() {
   const session = await getServerSession(authOptions)
@@ -65,7 +65,7 @@ export default async function PaymentsPage() {
             products={products.map((p) => ({ id: p.id, name: p.name, description: p.description, priceCents: p.priceCents, sessions: p.sessions, active: p.active }))}
             venmo={profile?.venmoHandle ?? ""}
             instructions={profile?.payInstructions ?? ""}
-            cardReady={stripeConfigured()}
+            cardReady={await cardReadyFor(coachId)}
           />
         </section>
       </main>

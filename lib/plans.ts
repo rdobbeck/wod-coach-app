@@ -39,7 +39,7 @@ export const lookupKey = (plan: PlanId, interval: "month" | "year") => `wodcoach
 export const SETUP_LOOKUP_KEY = "wodcoach_setup"
 
 // Owner accounts run on Studio at no charge.
-const ownerEmails = () =>
+export const ownerEmails = () =>
   (process.env.OWNER_COACH_EMAILS ?? "dobbecktraining@gmail.com").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)
 
 export type CoachPlan = {
