@@ -4,28 +4,10 @@ import { fundProgram, settleAiCall } from "@/lib/ai-billing"
 
 // API endpoints
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-const VENICE_BASE_URL = "https://api.venice.ai/api/v1"
 
-// Model used for program generation on our OpenRouter key (free tier + pay-per-program).
+// Model used for program generation on our OpenRouter key (plan allowance + AI balance).
 // Sep 2026: the free Llama/Gemini models were withdrawn by OpenRouter.
 export const PROGRAM_MODEL = process.env.AI_PROGRAM_MODEL || "anthropic/claude-fable-5.1"
-
-// Free-tier generations per coach (lifetime). Unset = unlimited: only Ryan coaches
-// today, and the OpenRouter key's own spending cap is the cost guard.
-export const FREE_PROGRAM_LIMIT = process.env.AI_FREE_PROGRAM_LIMIT ? Number(process.env.AI_FREE_PROGRAM_LIMIT) : null
-
-// Venice.ai models (privacy-focused, no data retention, ~25 prompts/day free)
-export const VENICE_MODELS = {
-  LLAMA_70B: "llama-3.3-70b",
-  LLAMA_405B: "llama-3.1-405b",
-}
-
-// Premium models (for pay-per-program)
-export const PREMIUM_MODELS = {
-  CLAUDE_FABLE: "anthropic/claude-fable-5.1",
-  CLAUDE_OPUS: "anthropic/claude-opus-5",
-  CLAUDE_SONNET: "anthropic/claude-sonnet-5",
-}
 
 interface ProgramGenerationParams {
   coachId: string
@@ -54,7 +36,7 @@ export async function generateProgram(params: ProgramGenerationParams) {
   const model = (funding.mode === "byok" && funding.model) || PROGRAM_MODEL
   const baseURL = OPENROUTER_BASE_URL
 
-  // Initialize OpenAI client (compatible with OpenRouter and Venice)
+  // OpenAI-compatible client pointed at OpenRouter
   const openai = new OpenAI({
     baseURL: baseURL,
     apiKey: apiKey,
@@ -195,41 +177,4 @@ ${preferredNames.length ? `Preferred exercise names (the coach's video library; 
   } catch (error: any) {
     throw new Error(`Program generation failed: ${error.message}`)
   }
-}
-
-export async function purchaseCredits(coachId: string, creditsAmount: number) {
-  const pricePerCredit = 3.00
-  const totalAmount = creditsAmount * pricePerCredit
-
-  // This will be called after successful Stripe payment
-  await prisma.$transaction([
-    prisma.coachProfile.update({
-      where: { id: coachId },
-      data: { aiCredits: { increment: creditsAmount } },
-    }),
-    prisma.aICreditPurchase.create({
-      data: {
-        coachId,
-        creditsAmount,
-        pricePerCredit,
-        totalAmount,
-      },
-    }),
-  ])
-
-  return { success: true, newBalance: creditsAmount }
-}
-
-export async function getAISettings(coachId: string) {
-  const coach = await prisma.coachProfile.findUnique({
-    where: { id: coachId },
-    select: {
-      aiProvider: true,
-      aiCredits: true,
-      totalProgramsGenerated: true,
-      preferredModel: true,
-    },
-  })
-
-  return coach
 }

@@ -35,16 +35,6 @@ export async function POST(req: Request) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session
 
-        // Check if this is an AI credits purchase
-        if (session.metadata?.type === "ai_credits_purchase") {
-          await handleCreditPurchase(session)
-        }
-
-        // Check if this is a VBT subscription
-        if (session.metadata?.type === "vbt_subscription") {
-          // Handle VBT subscription (existing logic)
-        }
-
         // A client paying for a session or package. Recorded once, whether or
         // not the page they land on afterwards got there first.
         if (session.metadata?.kind === "session_purchase") {
@@ -66,16 +56,6 @@ export async function POST(req: Request) {
         break
       }
 
-      case "invoice.payment_succeeded": {
-        // Handle recurring VBT payments if needed
-        break
-      }
-
-      case "invoice.payment_failed": {
-        // Handle failed payments if needed
-        break
-      }
-
       default:
         console.log(`Unhandled event type: ${event.type}`)
     }
@@ -90,52 +70,6 @@ export async function POST(req: Request) {
   }
 }
 
-async function handleCreditPurchase(session: Stripe.Checkout.Session) {
-  const coachId = session.metadata?.coachId
-  const creditsAmount = parseInt(session.metadata?.creditsAmount || "0")
-  const pricePerCredit = parseFloat(session.metadata?.pricePerCredit || "0")
-
-  if (!coachId || !creditsAmount) {
-    console.error("Missing metadata in checkout session:", session.id)
-    return
-  }
-
-  try {
-    // Add credits and record purchase in a transaction
-    await prisma.$transaction([
-      // Add credits to coach's balance
-      prisma.coachProfile.update({
-        where: { id: coachId },
-        data: {
-          aiCredits: {
-            increment: creditsAmount,
-          },
-        },
-      }),
-
-      // Record the purchase
-      prisma.aICreditPurchase.create({
-        data: {
-          coachId,
-          creditsAmount,
-          pricePerCredit,
-          totalAmount: creditsAmount * pricePerCredit,
-          stripePaymentIntentId: session.payment_intent as string,
-        },
-      }),
-    ])
-
-    console.log(`Added ${creditsAmount} credits to coach ${coachId}`)
-  } catch (error) {
-    console.error("Error adding credits:", error)
-    throw error
-  }
-}
-
-/**
- * A refund in Stripe. A full refund flips the payment to REFUNDED so the
- * ledger and the export stay true; a partial one only tells the coach.
- */
 async function handleRefund(charge: Stripe.Charge) {
   const intent = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id
   if (!intent) return
