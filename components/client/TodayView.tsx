@@ -275,7 +275,8 @@ export default function TodayView({
     const status = !ws.length ? "none" : ws.every((w) => w.isCompleted) ? "done" : key < today ? "missed" : "planned"
     return { key, letter: d.toLocaleDateString("en-US", { weekday: "narrow" }), date: d.getDate(), status }
   })
-  const bar = { done: "bg-app-good", missed: "bg-app-warn", planned: "bg-app-muted/50", none: "bg-transparent" }
+  // Dot under each day: something programmed (accent), done (green), missed (amber), nothing (no dot).
+  const dot = { done: "bg-app-good", missed: "bg-app-warn", planned: "bg-app-accent", none: "bg-transparent" }
 
   const onToday = selected === today
   const picked = items.filter((w) => w.day === selected)
@@ -354,7 +355,9 @@ export default function TodayView({
                 data-drop-day={d.key}
                 onClick={() => setSelected(d.key)}
                 aria-pressed={isPicked}
-                aria-label={`${new Date(`${d.key}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}`}
+                aria-label={`${new Date(`${d.key}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}${
+                  { done: ", workout done", missed: ", workout missed", planned: ", workout planned", none: "" }[d.status as "done" | "missed" | "planned" | "none"]
+                }`}
                 className={`flex flex-1 flex-col items-center gap-1.5 rounded-xl py-2 transition-shadow ${
                   target
                     ? "bg-app-surface ring-2 ring-app-accent shadow-[0_0_0_5px_rgba(var(--app-accent-rgb),0.25)]"
@@ -367,7 +370,12 @@ export default function TodayView({
               >
                 <span className={`text-[11px] font-semibold ${isPicked && !target ? "text-app-accent-text/80" : "text-app-muted"}`}>{d.letter}</span>
                 <span className="font-display text-lg font-semibold leading-none">{d.date}</span>
-                <span className={`h-[3px] w-4 rounded-full ${isPicked && !target ? "bg-app-accent-text" : bar[d.status as keyof typeof bar]}`} />
+                <span
+                  aria-hidden
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    d.status === "none" ? "bg-transparent" : isPicked && !target ? "bg-app-accent-text" : dot[d.status as keyof typeof dot]
+                  }`}
+                />
               </button>
             )
           })}
