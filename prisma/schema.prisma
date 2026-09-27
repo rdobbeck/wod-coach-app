@@ -141,6 +141,11 @@ model CoachProfile {
   venmoHandle     String? // without the @
   payInstructions String? @db.Text // bank or Zelle details, in the coach's own words
 
+  // The coach's calendar, read by Sessions (lib/sessions/sync.ts). The private iCal
+  // address is a secret, so it's sealed with lib/secret-box and never sent to the browser.
+  calendarIcsUrl String? @db.Text
+  calendarTz     String? // IANA zone for times without one, e.g. America/Chicago
+
   hasCompletedOnboarding Boolean   @default(false)
   onboardingCompletedAt  DateTime?
 

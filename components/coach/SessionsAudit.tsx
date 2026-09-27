@@ -171,3 +171,95 @@ export function ReviewList({ rows, clients }: { rows: ReviewRow[]; clients: { id
     </ul>
   )
 }
+
+/**
+ * Connect or change the coach's calendar. The saved address never comes back to
+ * the browser; `connected` only says which service it is.
+ */
+export function CalendarFeed({ connected, editable }: { connected: string | null; editable: boolean }) {
+  const router = useRouter()
+  const [open, setOpen] = useState(!connected)
+  const [url, setUrl] = useState("")
+  const [busy, setBusy] = useState(false)
+  const tz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined
+
+  const save = async (value: string) => {
+    setBusy(true)
+    const res = await post("/api/sessions/feed", { url: value, tz }).catch(() => null)
+    const d = res ? await res.json().catch(() => ({})) : {}
+    setBusy(false)
+    if (!res?.ok) return toast.error(d.error ?? "Couldn't connect that calendar")
+    if (d.removed) toast.success("Calendar disconnected. Sessions already read are kept.")
+    else if (d.report) toast.success(`Connected. ${d.report.matched} sessions matched to clients, ${d.report.needsReview} to review.`)
+    else toast.success(`Connected, but the first read failed: ${d.warning}`)
+    setUrl("")
+    setOpen(false)
+    router.refresh()
+  }
+
+  if (connected && !open) {
+    return (
+      <p className="text-sm text-[#6b6257]">
+        Reading from {connected}.{" "}
+        {editable && (
+          <>
+            <button onClick={() => setOpen(true)} className="font-semibold text-[#16181d] underline">
+              Change
+            </button>{" "}
+            ·{" "}
+            <button disabled={busy} onClick={() => save("")} className="font-semibold text-[#16181d] underline">
+              Disconnect
+            </button>
+          </>
+        )}
+      </p>
+    )
+  }
+
+  return (
+    <section className="space-y-3 rounded-2xl border border-[#e4dfd5] bg-white p-5 text-sm text-[#4a443c]">
+      <p className="font-display text-xl font-bold text-[#16181d]">Connect your calendar</p>
+      <p>Sessions counts the training sessions on your calendar for each client, so you see packages running low and who owes you. It only reads; nothing is ever changed on your calendar.</p>
+      <ol className="list-decimal space-y-1 pl-5">
+        <li>
+          <b>Google Calendar</b> on a computer: Settings, click your business calendar, then <b>Integrate calendar</b>. Copy the{" "}
+          <b>Secret address in iCal format</b>.
+        </li>
+        <li>
+          <b>Apple Calendar</b>: in iCloud Calendar on the web, share the calendar as a <b>Public Calendar</b> and copy the link.
+        </li>
+        <li>
+          <b>Outlook</b>: Settings, Calendar, Shared calendars, <b>Publish a calendar</b>, and copy the ICS link.
+        </li>
+      </ol>
+      <p className="text-xs text-[#857c70]">
+        Anyone with this address can read that calendar, so paste it only here. It&rsquo;s encrypted when saved and never shown again.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (url.trim()) save(url.trim())
+        }}
+        className="flex flex-col gap-2 sm:flex-row"
+      >
+        <input
+          id="calendar-feed-url"
+          type="password"
+          autoComplete="off"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
+          className="min-w-0 flex-1 rounded-lg border border-[#ddd7cc] px-3 py-2"
+        />
+        <button disabled={busy || !url.trim()} className="rounded-lg bg-[#16181d] px-4 py-2 font-semibold text-[#f4f1ea] disabled:opacity-50">
+          {busy ? "Reading your calendar…" : "Connect"}
+        </button>
+        {connected && (
+          <button type="button" onClick={() => setOpen(false)} className="px-2 font-semibold text-[#6b6257]">
+            Cancel
+          </button>
+        )}
+      </form>
+    </section>
+  )
+}

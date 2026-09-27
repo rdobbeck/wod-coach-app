@@ -3,9 +3,9 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import DashboardHeader from "@/components/DashboardHeader"
-import { ClientTable, RefreshButton, ReviewList, type ClientRow, type ReviewRow } from "@/components/coach/SessionsAudit"
+import { CalendarFeed, ClientTable, RefreshButton, ReviewList, type ClientRow, type ReviewRow } from "@/components/coach/SessionsAudit"
 import { computeCounter } from "@/lib/sessions/counter"
-import { feedConfigured } from "@/lib/sessions/sync"
+import { feedStatus } from "@/lib/sessions/sync"
 
 export default async function SessionsPage() {
   const session = await getServerSession(authOptions)
@@ -59,7 +59,8 @@ export default async function SessionsPage() {
     .sort((a, b) => Number(b.active) - Number(a.active) || Number(b.paymentDue) - Number(a.paymentDue) || (a.left ?? 99) - (b.left ?? 99) || a.name.localeCompare(b.name))
 
   const reviewRows: ReviewRow[] = review.map((r) => ({ id: r.id, title: r.title, startsAt: r.startsAt.toISOString(), suggestion: "" }))
-  const configured = feedConfigured()
+  const feed = await feedStatus(session.user.id)
+  const configured = !!feed.source
   const report = state?.lastReport as { recurringSkipped?: number } | null
 
   return (
@@ -76,18 +77,8 @@ export default async function SessionsPage() {
           {configured && <RefreshButton />}
         </div>
 
-        {!configured && (
-          <section className="rounded-2xl border border-[#f0e3c4] bg-[#fdf8ec] p-5 text-sm text-[#6b5a2e]">
-            <p className="font-semibold">Connect your calendar</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>In Google Calendar, open the settings for your business calendar, then <b>Integrate calendar</b>.</li>
-              <li>Copy the <b>Secret address in iCal format</b>. Anyone with it can read the calendar, so treat it like a password.</li>
-              <li>
-                Add it to the app: <code className="rounded bg-white px-1.5 py-0.5">vercel env add GCAL_ICS_URL production</code>, then redeploy.
-              </li>
-            </ol>
-          </section>
-        )}
+        {/* A feed set on the server (the original setup) can only be changed there. */}
+        <CalendarFeed connected={feed.hint} editable={feed.source !== "server"} />
         {state?.lastError && <p className="rounded-xl bg-[#fbeceb] px-4 py-3 text-sm text-[#a3262b]">The last read failed: {state.lastError}</p>}
         {report?.recurringSkipped ? (
           <p className="text-xs text-[#857c70]">
