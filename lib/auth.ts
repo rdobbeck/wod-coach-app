@@ -5,6 +5,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "./prisma"
 import bcrypt from "bcryptjs"
 import { devLoginProvider, isDevLoginEnabled } from "./dev-login"
+import { looksLikeEmail, normalizeUsername } from "./username"
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -20,7 +21,9 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
+        // Kept as `email` so the sign-in form's field name doesn't change; it
+        // takes an email or a username.
+        email: { label: "Email or username", type: "text" },
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
@@ -28,11 +31,12 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials")
         }
 
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email
-          }
-        })
+        // An "@" means email (matched case-insensitively: signup lowercases,
+        // phone keyboards capitalise); anything else is a username.
+        const login = credentials.email.trim()
+        const user = looksLikeEmail(login)
+          ? await prisma.user.findFirst({ where: { email: { equals: login, mode: "insensitive" } } })
+          : await prisma.user.findUnique({ where: { username: normalizeUsername(login) } })
 
         if (!user || !user?.hashedPassword) {
           throw new Error("Invalid credentials")

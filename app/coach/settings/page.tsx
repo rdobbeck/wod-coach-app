@@ -34,7 +34,7 @@ export default async function CoachSettingsPage() {
         <div className="mt-6 space-y-4">
           <PushToggle tone="coach" />
 
-          <AccountSettings name={user?.name ?? ""} email={user?.email ?? ""} hasPassword={!!user?.hashedPassword} />
+          <AccountSettings name={user?.name ?? ""} email={user?.email ?? ""} username={user?.username ?? ""} hasPassword={!!user?.hashedPassword} />
 
           <CoachLink slug={coach?.slug ?? null} brandName={coach?.brandName ?? null} live={brandDomainLive()} />
 

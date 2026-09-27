@@ -5,22 +5,25 @@ import { useState } from "react"
 import { toast } from "sonner"
 
 /**
- * Name and password, for coaches and clients. `tone` picks the palette:
+ * Name, username and password, for coaches and clients. `tone` picks the palette:
  * the coach screens are plain light, the client app uses its theme tokens.
  */
 export default function AccountSettings({
   name: initialName,
   email,
+  username: initialUsername = "",
   hasPassword,
   tone = "coach",
 }: {
   name: string
   email: string
+  username?: string
   hasPassword: boolean
   tone?: "coach" | "client"
 }) {
   const router = useRouter()
   const [name, setName] = useState(initialName)
+  const [username, setUsername] = useState(initialUsername)
   const [current, setCurrent] = useState("")
   const [next, setNext] = useState("")
   const [busy, setBusy] = useState(false)
@@ -57,6 +60,35 @@ export default function AccountSettings({
           className={`mt-3 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-40 ${c.button}`}
         >
           Save name
+        </button>
+      </div>
+
+      <div className={`rounded-2xl border p-4 ${c.card}`}>
+        <p className={`font-display text-xs font-semibold uppercase tracking-[0.14em] ${c.label}`}>Username</p>
+        <p className={`mt-1 text-sm ${c.label}`}>
+          Optional. Sign in with this instead of your email.
+          {!hasPassword && " You'll need a password set below for it to work."}
+        </p>
+        <label className="mt-3 block">
+          <span className={`text-sm ${c.label}`}>Username</span>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            autoComplete="username"
+            placeholder="e.g. sasha_k"
+            className={`mt-1 block w-full rounded-xl border px-3 py-2 text-base ${c.input}`}
+          />
+        </label>
+        <p className={`mt-1 text-xs ${c.label}`}>3 to 30 characters: letters, numbers, dots, dashes, underscores.</p>
+        <button
+          onClick={() => save({ username }, username.trim() ? "Username saved" : "Username removed")}
+          disabled={busy || username.trim().toLowerCase() === initialUsername}
+          className={`mt-3 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-40 ${c.button}`}
+        >
+          {username.trim() ? "Save username" : "Remove username"}
         </button>
       </div>
 

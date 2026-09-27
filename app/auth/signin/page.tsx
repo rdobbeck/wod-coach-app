@@ -37,7 +37,7 @@ export default function SignIn() {
       })
 
       if (result?.error) {
-        setError("Invalid email or password")
+        setError("Invalid email, username or password")
         setLoading(false)
         return
       }
@@ -66,17 +66,21 @@ export default function SignIn() {
       <form className="space-y-4" onSubmit={handleSubmit}>
         {error && <AuthError>{error}</AuthError>}
         <div>
-          <label htmlFor="email-address" className={authLabel}>Email</label>
+          <label htmlFor="email-address" className={authLabel}>Email or username</label>
           <input
             id="email-address"
             name="email"
-            type="email"
-            autoComplete="email"
+            type="text"
+            inputMode="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={authField}
-            placeholder="you@example.com"
+            placeholder="you@example.com or your username"
           />
         </div>
         <div>

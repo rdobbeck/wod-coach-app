@@ -44,7 +44,7 @@ export default async function ClientProfilePage() {
 
       <PushToggle />
 
-      <AccountSettings name={user?.name ?? ""} email={user?.email ?? ""} hasPassword={!!user?.hashedPassword} tone="client" />
+      <AccountSettings name={user?.name ?? ""} email={user?.email ?? ""} username={user?.username ?? ""} hasPassword={!!user?.hashedPassword} tone="client" />
 
       <AppearanceSetting current={p?.theme ?? "dark"} units={p?.units ?? "lb"} />
 
