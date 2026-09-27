@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { withAlert } from "@/lib/alert"
 import { bookingFor } from "@/lib/booking"
 import { checkSlug } from "@/lib/coach-slug-db"
+import { removeAvatar, saveAvatar } from "@/lib/avatars"
 
 /** Coach defaults for new clients and rest timers. */
 async function handlePATCH(req: Request) {
@@ -48,7 +49,19 @@ async function handlePATCH(req: Request) {
   if (typeof body.photo === "string") {
     const ok = body.photo === "" || (/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(body.photo) && body.photo.length <= 200_000)
     if (!ok) return NextResponse.json({ error: "Photo must be a small JPEG" }, { status: 400 })
-    await prisma.user.update({ where: { id: session.user.id }, data: { image: body.photo || null } })
+    const prev = (await prisma.user.findUnique({ where: { id: session.user.id }, select: { image: true } }))?.image
+    let image: string | null = null
+    if (body.photo) {
+      try {
+        image = await saveAvatar(session.user.id, body.photo, prev)
+      } catch (e) {
+        console.error("[settings] photo upload failed:", e)
+        return NextResponse.json({ error: "Couldn't save the photo. Try again." }, { status: 502 })
+      }
+    } else {
+      await removeAvatar(prev)
+    }
+    await prisma.user.update({ where: { id: session.user.id }, data: { image } })
   }
 
   // A Venmo handle goes into a link, so it is held to what Venmo allows.
