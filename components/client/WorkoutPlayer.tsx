@@ -9,7 +9,8 @@ import ExerciseHistorySheet from "@/components/ExerciseHistorySheet"
 import VideoPlayer, { type PlayerItem } from "@/components/VideoPlayer"
 import VideoThumb from "@/components/VideoThumb"
 import { summarizeEntry, type HistoryEntry } from "@/lib/training-format"
-import { formatClock, parseRestSeconds } from "@/lib/rest"
+import { formatClock, restSecondsFor } from "@/lib/rest"
+import { parseHold, type Hold } from "@/lib/hold"
 import Hint from "./Hint"
 import MoveWorkoutButton from "./MoveWorkoutButton"
 
@@ -19,6 +20,10 @@ export type PlayerExercise = {
   exerciseId: string | null
   name: string
   prescription: string | null
+  /** The coach's reps field as written ("8-12", "60s", "max"); a hold is read from here or the prescription. */
+  reps: string | null
+  /** The coach's rest field on this exercise, used when the prescription text doesn't say. */
+  restSeconds: number | null
   notes: string | null
   plannedSets: number | null
   videoUrl: string | null
@@ -102,7 +107,17 @@ export default function WorkoutPlayer({
   const [videoIndex, setVideoIndex] = useState<number | null>(null)
   // One exercise open at a time: the first not yet logged.
   const [openId, setOpenId] = useState<string | null>(initial.find((e) => !isLogged(e))?.id ?? initial[0]?.id ?? null)
-  const [rest, setRest] = useState<{ left: number; total: number } | null>(null)
+  // Both timers run off wall-clock timestamps, not a once-a-second tick, so a
+  // locked phone doesn't stall them: `left`/`elapsed` are recomputed from Date.now().
+  const [rest, setRest] = useState<{ endsAt: number; total: number; left: number } | null>(null)
+  const [hold, setHold] = useState<{
+    exerciseId: string
+    setIndex: number
+    mode: Hold["mode"]
+    target: number | null
+    startedAt: number
+    elapsed: number
+  } | null>(null)
 
   const videos: PlayerItem[] = exercises
     .filter((e) => e.videoUrl)
@@ -111,16 +126,78 @@ export default function WorkoutPlayer({
   const doneCount = exercises.filter(isLogged).length
 
   // ---- rest timer -------------------------------------------------------
+  const restEndsAt = rest?.endsAt
   useEffect(() => {
-    if (!rest) return
-    if (rest.left <= 0) {
-      navigator.vibrate?.([120, 60, 120])
-      const t = setTimeout(() => setRest(null), 2500)
-      return () => clearTimeout(t)
+    if (!restEndsAt) return
+    let doneTimer: ReturnType<typeof setTimeout> | undefined
+    const tick = () => {
+      const left = Math.ceil((restEndsAt - Date.now()) / 1000)
+      setRest((r) => (r && r.endsAt === restEndsAt ? { ...r, left } : r))
+      if (left <= 0) {
+        clearInterval(id)
+        navigator.vibrate?.([120, 60, 120])
+        doneTimer = setTimeout(() => setRest((r) => (r && r.endsAt === restEndsAt ? null : r)), 2500)
+      }
     }
-    const t = setTimeout(() => setRest((r) => (r ? { ...r, left: r.left - 1 } : r)), 1000)
-    return () => clearTimeout(t)
-  }, [rest])
+    const id = setInterval(tick, 250)
+    tick()
+    return () => {
+      clearInterval(id)
+      clearTimeout(doneTimer)
+    }
+  }, [restEndsAt])
+
+  const startRest = (e: PlayerExercise) => {
+    const seconds = restSecondsFor(e, defaultRestSeconds)
+    setRest({ endsAt: Date.now() + seconds * 1000, total: seconds, left: seconds })
+    navigator.vibrate?.(20)
+  }
+
+  // ---- hold timer (planks, hangs) -----------------------------------------
+  const holdStartedAt = hold?.startedAt
+  useEffect(() => {
+    if (!holdStartedAt || !hold) return
+    const { mode, target } = hold
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - holdStartedAt) / 1000)
+      setHold((h) => (h && h.startedAt === holdStartedAt ? { ...h, elapsed } : h))
+      if (mode === "down" && target !== null && elapsed >= target) {
+        clearInterval(id)
+        finishHoldRef.current(target)
+      }
+    }
+    const id = setInterval(tick, 250)
+    tick()
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [holdStartedAt])
+
+  const startHold = (e: PlayerExercise, i: number, h: Hold) => {
+    setRest(null)
+    setHold({ exerciseId: e.id, setIndex: i, mode: h.mode, target: h.seconds, startedAt: Date.now(), elapsed: 0 })
+    navigator.vibrate?.(20)
+  }
+
+  /** The hold ends: the seconds go in the set, the set ticks, and rest starts as usual. */
+  const finishHold = (seconds: number) => {
+    if (!hold) return
+    const e = latest.current.exercises.find((x) => x.id === hold.exerciseId)
+    setHold(null)
+    if (!e) return
+    navigator.vibrate?.([120, 60, 120])
+    const rows = rowsFor(e)
+    const logged = Math.max(seconds, 1)
+    const sets = rows.map((s, j) => {
+      if (j === hold.setIndex) return { ...s, reps: logged, done: true }
+      // Carry the time down to the next set, same as reps.
+      if (j === hold.setIndex + 1 && !s.done) return { ...s, weight: s.weight ?? rows[hold.setIndex].weight ?? null, reps: s.reps ?? logged }
+      return s
+    })
+    update(e.id, { sets })
+    startRest(e)
+  }
+  const finishHoldRef = useRef(finishHold)
+  finishHoldRef.current = finishHold
 
   // ---- autosave ---------------------------------------------------------
   const dirty = useRef(new Set<string>())
@@ -182,9 +259,11 @@ export default function WorkoutPlayer({
   const seedSets = (e: PlayerExercise): SetRow[] => {
     const planned = Math.min(Math.max(e.plannedSets ?? e.lastTime?.sets.length ?? 3, 1), 12)
     const last = e.lastTime?.sets ?? []
+    // A timed exercise starts at its prescribed seconds when there's no history.
+    const target = parseHold(e)?.seconds ?? null
     return Array.from({ length: planned }, (_, i) => ({
       weight: last[i]?.weight ?? last[last.length - 1]?.weight ?? null,
-      reps: last[i]?.reps ?? last[last.length - 1]?.reps ?? null,
+      reps: last[i]?.reps ?? last[last.length - 1]?.reps ?? target,
       rpe: null,
       done: false,
     }))
@@ -232,11 +311,7 @@ export default function WorkoutPlayer({
     })
     update(e.id, { sets })
 
-    if (next) {
-      const seconds = parseRestSeconds(e.prescription) ?? defaultRestSeconds
-      setRest({ left: seconds, total: seconds })
-      navigator.vibrate?.(20)
-    }
+    if (next) startRest(e)
   }
 
   const finish = async () => {
@@ -299,6 +374,7 @@ export default function WorkoutPlayer({
         {exercises.map((e, idx) => {
           const open = openId === e.id
           const logged = isLogged(e)
+          const timed = parseHold(e)
           return (
             <li key={e.id} className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
               <div className="flex items-center gap-3 p-4">
@@ -322,21 +398,28 @@ export default function WorkoutPlayer({
                 <div className="space-y-3 border-t border-app-border px-4 pb-4 pt-3">
                   {e.isCircuit && <p className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-app-accent">Circuit</p>}
                   {e.prescription && <p className="whitespace-pre-line text-sm">{e.prescription}</p>}
+                  {/* What the timers will do, so a wrong rest or hold is visible before the first set. */}
+                  <p className="text-xs font-semibold text-app-muted">
+                    {timed && (timed.mode === "down" ? `Hold ${formatClock(timed.seconds)} · ` : "Hold as long as you can · ")}
+                    Rest {formatClock(restSecondsFor(e, defaultRestSeconds))}
+                  </p>
                   {e.notes && <p className="whitespace-pre-line text-xs text-app-muted">{e.notes}</p>}
 
                   <button onClick={() => setHistoryFor(e)} className="block w-full rounded-xl bg-app-bg px-3 py-2 text-left text-xs text-app-muted">
                     {e.lastTime ? (
                       <>
                         <span className="font-semibold text-app-text">Last time ({fmtDay(e.lastTime.date, { month: "short", day: "numeric" })}):</span>{" "}
-                        {summarizeEntry(e.lastTime, units) || "done"} <span className="text-app-accent">· History ›</span>
+                        {summarizeEntry(e.lastTime, units, !!timed) || "done"} <span className="text-app-accent">· History ›</span>
                       </>
                     ) : (
                       <>First time logging this <span className="text-app-accent">· History ›</span></>
                     )}
                   </button>
 
-                  <Hint id="log-sets" done={e.sets.some((s) => s.done)}>
-                    Tick each set as you finish it. The next set copies your numbers, and your rest timer starts.
+                  <Hint id={timed ? "log-holds" : "log-sets"} done={e.sets.some((s) => s.done)}>
+                    {timed
+                      ? "Press ▶ when you start the hold. It times you, ticks the set when you stop, and your rest starts."
+                      : "Tick each set as you finish it. The next set copies your numbers, and your rest timer starts."}
                   </Hint>
 
                   {rowsFor(e).length > 0 ? (
@@ -344,26 +427,47 @@ export default function WorkoutPlayer({
                       <div className="grid grid-cols-[1.5rem_1fr_1fr_3rem] gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-app-muted">
                         <span>Set</span>
                         <span>{units}</span>
-                        <span>Reps</span>
-                        <span className="text-center">Done</span>
+                        <span>{timed ? "Sec" : "Reps"}</span>
+                        <span className="text-center">{timed ? "Start" : "Done"}</span>
                       </div>
-                      {rowsFor(e).map((s, i, rows) => (
-                        <div key={i} className="grid grid-cols-[1.5rem_1fr_1fr_3rem] items-center gap-2">
-                          <span className="font-display text-lg font-semibold text-app-muted">{i + 1}</span>
-                          <Stepper value={s.weight} step={units === "kg" ? 2.5 : 5} onChange={(v) => updateSet(e, i, { weight: v })} ariaLabel={`Set ${i + 1} weight`} />
-                          <Stepper value={s.reps} step={1} onChange={(v) => updateSet(e, i, { reps: v })} ariaLabel={`Set ${i + 1} reps`} />
-                          <button
-                            onClick={() => tickSet(e, i)}
-                            aria-label={`Set ${i + 1} done`}
-                            aria-pressed={!!s.done}
-                            className={`flex h-12 items-center justify-center rounded-xl border text-base ${
-                              s.done ? "border-app-good bg-app-good text-white" : "border-app-border text-app-muted"
-                            } ${i === rows.findIndex((x) => !x.done) ? "pulse-cta" : ""}`}
-                          >
-                            ✓
-                          </button>
-                        </div>
-                      ))}
+                      {rowsFor(e).map((s, i, rows) => {
+                        const running = hold?.exerciseId === e.id && hold.setIndex === i
+                        const isNext = i === rows.findIndex((x) => !x.done)
+                        return (
+                          <div key={i} className="grid grid-cols-[1.5rem_1fr_1fr_3rem] items-center gap-2">
+                            <span className="font-display text-lg font-semibold text-app-muted">{i + 1}</span>
+                            <Stepper value={s.weight} step={units === "kg" ? 2.5 : 5} onChange={(v) => updateSet(e, i, { weight: v })} ariaLabel={`Set ${i + 1} weight`} />
+                            <Stepper
+                              value={s.reps}
+                              step={timed ? 5 : 1}
+                              onChange={(v) => updateSet(e, i, { reps: v })}
+                              ariaLabel={`Set ${i + 1} ${timed ? "seconds" : "reps"}`}
+                            />
+                            {timed && !s.done ? (
+                              <button
+                                onClick={() => (running ? finishHold(hold!.elapsed) : startHold(e, i, timed))}
+                                aria-label={running ? `Stop set ${i + 1}` : `Start set ${i + 1}`}
+                                className={`flex h-12 items-center justify-center rounded-xl border text-base ${
+                                  running ? "border-app-accent bg-app-accent text-app-accent-text" : "border-app-border text-app-text"
+                                } ${isNext && !hold ? "pulse-cta" : ""}`}
+                              >
+                                {running ? "■" : "▶"}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => tickSet(e, i)}
+                                aria-label={`Set ${i + 1} done`}
+                                aria-pressed={!!s.done}
+                                className={`flex h-12 items-center justify-center rounded-xl border text-base ${
+                                  s.done ? "border-app-good bg-app-good text-white" : "border-app-border text-app-muted"
+                                } ${isNext ? "pulse-cta" : ""}`}
+                              >
+                                ✓
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
                       <div className="flex gap-2">
                         <button
                           onClick={() =>
@@ -387,7 +491,7 @@ export default function WorkoutPlayer({
                         isLogged(e) ? "" : "pulse-cta"
                       }`}
                     >
-                      Log sets (weight × reps)
+                      {timed ? "Log holds (seconds)" : "Log sets (weight × reps)"}
                     </button>
                   )}
 
@@ -454,14 +558,45 @@ export default function WorkoutPlayer({
       {/* Sticky stack above the tab bar: the rest countdown while it runs, finish always. */}
       {exercises.length > 0 && (
         <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 px-4">
-          {rest && (
+          {hold && (() => {
+            const ex = exercises.find((x) => x.id === hold.exerciseId)
+            const shown = hold.mode === "down" && hold.target !== null ? Math.max(hold.target - hold.elapsed, 0) : hold.elapsed
+            const pct = hold.mode === "down" && hold.target ? (shown / hold.target) * 100 : 100
+            return (
+              <div
+                role="timer"
+                aria-live="polite"
+                className="mx-auto mb-2 max-w-md overflow-hidden rounded-2xl border border-app-accent bg-app-surface shadow-lg"
+              >
+                <div className="flex items-center gap-3 px-4 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted">
+                      {ex?.name ?? "Hold"} · set {hold.setIndex + 1}{hold.mode === "up" ? " · max hold" : ""}
+                    </p>
+                    <p className="font-display text-5xl font-bold leading-none tabular-nums">{formatClock(shown)}</p>
+                  </div>
+                  <button
+                    onClick={() => finishHold(hold.elapsed)}
+                    aria-label="Stop hold"
+                    className="h-12 rounded-xl bg-app-accent px-5 text-sm font-semibold text-app-accent-text"
+                  >
+                    Stop
+                  </button>
+                </div>
+                <div className="h-1.5 bg-app-surface2">
+                  <div className="h-full bg-app-accent transition-[width] duration-300 ease-linear" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+                </div>
+              </div>
+            )
+          })()}
+          {rest && !hold && (
             <div className="mx-auto mb-2 max-w-md shadow-lg">
               <Hint id="rest-timer" done={rest.left <= 0}>
                 Rest counts down on its own. Add 30 seconds or skip it here, and your phone buzzes when you&rsquo;re up.
               </Hint>
             </div>
           )}
-          {rest && (
+          {rest && !hold && (
             <div
               role="timer"
               aria-live="polite"
@@ -475,7 +610,7 @@ export default function WorkoutPlayer({
                   </p>
                 </div>
                 <button
-                  onClick={() => setRest((r) => (r ? { left: r.left + 30, total: Math.max(r.total, r.left + 30) } : r))}
+                  onClick={() => setRest((r) => (r ? { endsAt: r.endsAt + 30_000, left: r.left + 30, total: Math.max(r.total, r.left + 30) } : r))}
                   aria-label="Add 30 seconds"
                   className="h-12 rounded-xl border border-app-border px-4 text-sm font-semibold text-app-text"
                 >

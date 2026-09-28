@@ -66,6 +66,8 @@ export default async function ClientWorkout({ params }: { params: { id: string }
           exerciseId: e.exerciseId,
           name: e.name ?? e.exercise?.name ?? "Exercise",
           prescription: e.prescription ?? ([e.sets && `${e.sets} sets`, e.reps && `${e.reps} reps`].filter(Boolean).join(" × ") || null),
+          reps: e.reps,
+          restSeconds: e.restSeconds,
           notes: e.notes,
           plannedSets: e.sets,
           videoUrl: e.exercise?.videoUrl ?? null,

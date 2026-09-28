@@ -17,15 +17,20 @@ export type HistoryEntry = {
   sets: { setNumber: number; reps: number | null; weight: number | null; rpe: number | null }[]
 }
 
-/** One-line summary of a history entry: "40 kg × 8 · 45 × 8 · RPE 7" or the result text. */
-export function summarizeEntry(h: Pick<HistoryEntry, "resultText" | "rpe" | "sets">, units = "lb") {
+/**
+ * One-line summary of a history entry: "40 kg × 8 · 45 × 8 · RPE 7" or the result text.
+ * For a timed exercise (plank, dead hang) the reps column holds seconds: "60s · 45s".
+ */
+export function summarizeEntry(h: Pick<HistoryEntry, "resultText" | "rpe" | "sets">, units = "lb", timed = false) {
   // Collapse repeats: "110 lb × 6 (×3) · 120 lb × 6"
   const sets: string[] = []
   let prev = ""
   let run = 0
   const push = () => prev && sets.push(run > 1 ? `${prev} (×${run})` : prev)
   for (const s of h.sets.filter((s) => s.reps !== null || s.weight !== null)) {
-    const txt = [s.weight !== null ? `${s.weight} ${units}` : null, s.reps !== null ? `${s.reps}` : null].filter(Boolean).join(" × ")
+    const txt = [s.weight !== null ? `${s.weight} ${units}` : null, s.reps !== null ? (timed ? `${s.reps}s` : `${s.reps}`) : null]
+      .filter(Boolean)
+      .join(" × ")
     if (txt === prev) run++
     else {
       push()
