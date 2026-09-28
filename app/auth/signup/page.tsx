@@ -17,6 +17,9 @@ export default function SignUp() {
     role: "CLIENT" as "COACH" | "CLIENT"
   })
   const [error, setError] = useState("")
+  // Bot checks (lib/signup-guard.ts): when the form opened, and a field only bots fill in.
+  const [startedAt] = useState(() => Date.now())
+  const [website, setWebsite] = useState("")
   const [loading, setLoading] = useState(false)
   // Coach link (<slug>.wod.coach): follows their first name until they edit it.
   const [slug, setSlug] = useState("")
@@ -76,6 +79,8 @@ export default function SignUp() {
           password: formData.password,
           role: formData.role,
           ...(formData.role === "COACH" && slug ? { slug } : {}),
+          startedAt,
+          website,
         }),
       })
 
@@ -141,6 +146,14 @@ export default function SignUp() {
     >
       <form className="space-y-4" onSubmit={handleSubmit}>
         {error && <AuthError>{error}</AuthError>}
+
+        {/* Hidden from people and screen readers; bots that fill every field fill this one. */}
+        <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}>
+          <label>
+            Website
+            <input type="text" name="website" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
+          </label>
+        </div>
 
         <div>
           <p className={authLabel}>I&rsquo;m a...</p>

@@ -4,11 +4,15 @@ import bcrypt from "bcryptjs"
 import { checkSlug } from "@/lib/coach-slug-db"
 import { suggestSlug } from "@/lib/coach-link"
 import { STARTER_AI_CENTS } from "@/lib/plans"
+import { signupProblem } from "@/lib/signup-guard"
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
     const { name, email, password, role, slug: requestedSlug } = body
+
+    const botProblem = await signupProblem(req, body)
+    if (botProblem) return NextResponse.json({ error: botProblem }, { status: 429 })
 
     if (!name || !email || !password) {
       return NextResponse.json(

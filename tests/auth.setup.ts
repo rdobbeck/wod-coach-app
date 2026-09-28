@@ -25,6 +25,7 @@ setup("authenticate as coach", async ({ page, request, baseURL }) => {
       email: TEST_EMAIL,
       password: TEST_PASSWORD,
       role: "COACH",
+      startedAt: Date.now() - 5_000, // the signup bot check wants a form that was open a moment
     },
     failOnStatusCode: false,
   })

@@ -908,3 +908,13 @@ model Payment {
   @@index([coachId, createdAt])
   @@index([clientId])
 }
+
+// Signup attempts per connection, for the bot limit in lib/signup-guard.ts.
+// Holds a salted hash of the IP, never the address itself; rows older than a day are cleared.
+model SignupAttempt {
+  id        String   @id @default(cuid())
+  ipHash    String
+  createdAt DateTime @default(now())
+
+  @@index([ipHash, createdAt])
+}
