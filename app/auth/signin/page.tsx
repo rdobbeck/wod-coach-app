@@ -19,6 +19,12 @@ export default function SignIn() {
     getProviders().then((p) => setDevLogin(!!p?.["dev-login"]))
   }, [])
 
+  // NextAuth sends failed sign-ins back here with ?error= (lib/auth.ts pages.error).
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("error")
+    if (code) setError(signInErrorMessage(code))
+  }, [])
+
   const handleDevLogin = (role: "COACH" | "CLIENT") => {
     setLoading(true)
     signIn("dev-login", { role, callbackUrl: role === "COACH" ? "/coach" : "/client" })
@@ -37,7 +43,9 @@ export default function SignIn() {
       })
 
       if (result?.error) {
-        setError("Invalid email, username or password")
+        // authorize() throws "Invalid credentials" for a wrong login; anything
+        // else is the server (usually the database) and worth another try.
+        setError(result.error === "Invalid credentials" ? "Invalid email, username or password" : signInErrorMessage("Default"))
         setLoading(false)
         return
       }
@@ -129,4 +137,20 @@ export default function SignIn() {
       )}
     </AuthShell>
   )
+}
+
+/** Plain-words versions of NextAuth's error codes. */
+function signInErrorMessage(code: string) {
+  switch (code) {
+    case "OAuthAccountNotLinked":
+      return "That email already has an account with a different sign-in. Use your email or username and password."
+    case "AccessDenied":
+      return "Google didn't let that sign-in through. Try again, or use your email and password."
+    case "SessionRequired":
+      return "Sign in to keep going."
+    case "Verification":
+      return "That sign-in link has expired. Ask your coach for a new one."
+    default:
+      return "We couldn't sign you in just now. Give it a moment and try again."
+  }
 }

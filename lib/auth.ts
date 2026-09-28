@@ -58,6 +58,9 @@ export const authOptions: NextAuthOptions = {
   ],
   pages: {
     signIn: '/auth/signin',
+    // Failures land on our sign-in page with ?error=, which explains them in
+    // plain words, instead of NextAuth's bare "Error" screen.
+    error: '/auth/signin',
   },
   debug: process.env.NODE_ENV === 'development',
   session: {
@@ -77,11 +80,24 @@ export const authOptions: NextAuthOptions = {
       return session
     },
     async jwt({ token, user }) {
-      const dbUser = await prisma.user.findFirst({
-        where: {
-          email: token.email!,
-        },
-      })
+      // Runs on every request. If the database hiccups (the Supabase pooler
+      // does), keep the session we already have instead of failing the whole
+      // request, which signed people out onto an error screen.
+      let dbUser
+      try {
+        dbUser = await prisma.user.findFirst({
+          where: {
+            email: token.email!,
+          },
+        })
+      } catch (e) {
+        console.error("[auth] user lookup failed, keeping the current session:", (e as Error).message)
+        if (user) {
+          token.id = user.id
+          token.role = (user as { role?: typeof token.role }).role ?? token.role
+        }
+        return token
+      }
 
       if (!dbUser) {
         if (user) {
