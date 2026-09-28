@@ -1,16 +1,15 @@
 import Link from "next/link"
-import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { bookingFor } from "@/lib/booking"
 import { callCreditsFor, creditsLabel } from "@/lib/call-credits"
+import { requireClient } from "@/lib/require-client"
 
 export const dynamic = "force-dynamic"
 
 /** Client picks a time for a video call with their coach, without leaving the app. */
 export default async function BookCall() {
-  const session = (await getServerSession(authOptions))!
+  const session = await requireClient()
   const link = await prisma.clientCoach.findFirst({
     where: { clientId: session.user.id, status: "ACTIVE" },
     orderBy: { createdAt: "asc" },

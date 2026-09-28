@@ -1,14 +1,11 @@
-import { getServerSession } from "next-auth"
-import { redirect } from "next/navigation"
-import { authOptions } from "@/lib/auth"
+import { requireClient } from "@/lib/require-client"
 import { prisma } from "@/lib/prisma"
 import { resolveTheme } from "@/lib/themes"
 import BottomNav from "@/components/client/BottomNav"
 
 /** Mobile shell for everything under /client: narrow column, bottom tabs, client's theme. */
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== "CLIENT") redirect("/")
+  const session = await requireClient()
   const [profile, unread] = await Promise.all([
     prisma.clientProfile.findUnique({ where: { userId: session.user.id }, select: { theme: true } }),
     prisma.message.count({ where: { receiverId: session.user.id, isRead: false } }),

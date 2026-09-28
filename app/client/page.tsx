@@ -1,5 +1,3 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { clientVisible, dayKey } from "@/lib/training"
 import { bookingFor } from "@/lib/booking"
@@ -7,11 +5,12 @@ import { callCreditsFor } from "@/lib/call-credits"
 import { counterForClient } from "@/lib/sessions/queries"
 import TodayView, { type DayWorkout } from "@/components/client/TodayView"
 import Tour from "@/components/client/Tour"
+import { requireClient } from "@/lib/require-client"
 
 const DAY = 86_400_000
 
 export default async function ClientToday() {
-  const session = (await getServerSession(authOptions))!
+  const session = await requireClient()
   const now = Date.now()
   const [workouts, profile, coachLink, note, fasts, compliance] = await Promise.all([
     prisma.workout.findMany({

@@ -1,11 +1,10 @@
 import Link from "next/link"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import PayOptions from "@/components/client/PayOptions"
 import { dollars, METHOD_LABEL, type Method } from "@/lib/pay/money"
 import { cardReadyFor, stripe, stripeConfigured } from "@/lib/pay/stripe"
 import { fulfillStripeSession } from "@/lib/pay/ledger"
+import { requireClient } from "@/lib/require-client"
 
 const STATUS: Record<string, { label: string; tone: string }> = {
   CONFIRMED: { label: "Paid", tone: "text-app-good" },
@@ -15,7 +14,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 }
 
 export default async function ClientPayPage({ searchParams }: { searchParams: { paid?: string; session_id?: string } }) {
-  const session = (await getServerSession(authOptions))!
+  const session = await requireClient()
   const link = await prisma.clientCoach.findFirst({
     where: { clientId: session.user.id, status: "ACTIVE" },
     select: { coachId: true, coach: { select: { name: true, coachProfile: { select: { venmoHandle: true, payInstructions: true } } } } },

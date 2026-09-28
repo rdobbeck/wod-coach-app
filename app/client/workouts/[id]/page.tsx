@@ -1,16 +1,15 @@
-import { getServerSession } from "next-auth"
 import { notFound } from "next/navigation"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { dayKey, getLastTimes } from "@/lib/training"
 import { signDownloads } from "@/lib/uploads"
 import WorkoutPlayer from "@/components/client/WorkoutPlayer"
+import { requireClient } from "@/lib/require-client"
 
 // Comments change outside this render, so never serve a cached copy.
 export const dynamic = "force-dynamic"
 
 export default async function ClientWorkout({ params }: { params: { id: string } }) {
-  const session = (await getServerSession(authOptions))!
+  const session = await requireClient()
   const workout = await prisma.workout.findUnique({
     where: { id: params.id },
     include: {

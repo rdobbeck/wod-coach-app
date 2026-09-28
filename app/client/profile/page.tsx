@@ -1,5 +1,3 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { bookingFor } from "@/lib/booking"
 import AccountSettings from "@/components/AccountSettings"
@@ -8,9 +6,10 @@ import AppearanceSetting from "@/components/client/AppearanceSetting"
 import FastingSettings from "@/components/client/FastingSettings"
 import SignOutButton from "@/components/client/SignOutButton"
 import { ReplayTourButton } from "@/components/client/Tour"
+import { requireClient } from "@/lib/require-client"
 
 export default async function ClientProfilePage() {
-  const session = (await getServerSession(authOptions))!
+  const session = await requireClient()
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     include: {
