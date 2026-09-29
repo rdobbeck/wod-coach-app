@@ -117,3 +117,48 @@ export function BuyButton({ body, label, className }: { body: Record<string, unk
     </button>
   )
 }
+
+/** Owner only: creates the plans and prices in the server's Stripe account (lib/stripe-catalog.ts). */
+export function CatalogSetup({ missing, live }: { missing: string[] | null; live: boolean }) {
+  const [busy, setBusy] = useState(false)
+  const [log, setLog] = useState<string[] | null>(null)
+  const [left, setLeft] = useState(missing)
+  const ready = left !== null && left.length === 0
+
+  const run = async () => {
+    setBusy(true)
+    const res = await fetch("/api/billing/catalog", { method: "POST" }).catch(() => null)
+    const d = res ? await res.json().catch(() => ({})) : {}
+    setBusy(false)
+    if (!res?.ok) return toast.error(d.error ?? "Couldn't set up the plans")
+    setLog(d.log)
+    setLeft(d.missing)
+    toast.success(d.missing?.length ? "Partly set up. Try again." : "Plans are set up. Checkout works now.")
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-[#4a443c]">
+        {left === null
+          ? "Couldn't reach Stripe to check the plans."
+          : ready
+            ? `All ${live ? "live" : "test"} plans and prices are in Stripe. Coaches can check out.`
+            : `${left.length} ${left.length === 1 ? "price is" : "prices are"} missing from your ${live ? "live" : "test"} Stripe account, so checkout will fail until you set them up.`}
+      </p>
+      <button
+        disabled={busy}
+        onClick={run}
+        className={`rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-60 ${ready ? "border border-[#ddd7cc] bg-white text-[#16181d]" : "bg-[#c1272d] text-white"}`}
+      >
+        {busy ? "Setting up…" : ready ? "Re-sync plans with Stripe" : "Set up Stripe plans"}
+      </button>
+      {log && (
+        <ul className="space-y-0.5 rounded-xl bg-[#faf8f4] p-3 font-mono text-xs text-[#4a443c]">
+          {log.map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}

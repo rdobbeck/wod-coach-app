@@ -4,9 +4,10 @@ import Link from "next/link"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import DashboardHeader from "@/components/DashboardHeader"
-import { BuyButton, ManageBillingButton, PlanPicker } from "@/components/coach/BillingActions"
+import { BuyButton, CatalogSetup, ManageBillingButton, PlanPicker } from "@/components/coach/BillingActions"
 import { PAID_PLANS, PLANS, activeClientCount, formatDollars, getCoachPlan } from "@/lib/plans"
 import { billingConfigured, stripeTestMode } from "@/lib/stripe-platform"
+import { missingPrices } from "@/lib/stripe-catalog"
 
 const card = "rounded-2xl border border-[#e4dfd5] bg-white p-5"
 const label = "font-display text-xs font-semibold uppercase tracking-[0.14em] text-[#857c70]"
@@ -27,6 +28,8 @@ export default async function BillingPage({ searchParams }: { searchParams: { do
     prisma.program.count({ where: { coachId: session.user.id, programType: "AI_GENERATED", createdAt: { gte: monthStart } } }),
   ])
   const { plan } = cp
+  // Only the owner sees (and can fix) whether the Stripe account has the plans.
+  const catalogMissing = cp.source === "owner" && billingConfigured() ? await missingPrices().catch(() => null) : undefined
   const setupPaid = profile?.subscription?.setupPaid ?? false
   const byok = profile?.aiProvider === "BRING_YOUR_OWN_KEY"
 
@@ -97,6 +100,15 @@ export default async function BillingPage({ searchParams }: { searchParams: { do
             </div>
           </div>
         </section>
+
+        {catalogMissing !== undefined && (
+          <section className={`${card} mt-6`}>
+            <p className={label}>Stripe plans (only you see this)</p>
+            <div className="mt-2">
+              <CatalogSetup missing={catalogMissing} live={!stripeTestMode()} />
+            </div>
+          </section>
+        )}
 
         {!billingConfigured() ? (
           <p className="mt-6 text-sm text-[#6b6257]">Paid plans are coming shortly.</p>
