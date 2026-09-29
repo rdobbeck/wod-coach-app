@@ -1,5 +1,6 @@
 'use client'
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -228,7 +229,10 @@ export default function CoachWorkout({
                 <span className={workout.isCompleted ? "font-semibold text-green-700" : "text-gray-600"}>{workout.isCompleted ? "Completed" : "Not completed"}</span>
               </p>
             </div>
-            <button onClick={() => setEditing(true)} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white">Edit</button>
+            <div className="flex gap-2">
+              <Link href={`/coach/clients/${clientId}/workouts/${workout.id}/train`} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white">Train</Link>
+              <button onClick={() => setEditing(true)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">Edit</button>
+            </div>
           </div>
           {workout.clientNotes && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><span className="font-semibold">Client note:</span> {workout.clientNotes}</p>}
           {[["Coach notes", workout.coachNotes], ["Notes", workout.description], ["Warm-up", workout.warmup]].map(([t, v]) =>

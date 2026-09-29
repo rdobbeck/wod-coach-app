@@ -139,7 +139,7 @@ test("the coach drags a session to a new day on the calendar", async ({ page }) 
 test("a plain click on a calendar session still opens it", async ({ page }) => {
   const w = await seed(`${PREFIX}Click Me`, today)
   await page.goto(`/coach/clients/${clientId}`)
-  await page.getByRole("link", { name: `${PREFIX}Click Me` }).click()
+  await page.getByRole("link", { name: `${PREFIX}Click Me`, exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/workouts/${w.id}$`))
 })
 

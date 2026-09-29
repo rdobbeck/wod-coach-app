@@ -90,6 +90,7 @@ export default function WorkoutPlayer({
   units,
   canMove,
   defaultRestSeconds = 90,
+  coaching,
 }: {
   workout: PlayerWorkout
   exercises: PlayerExercise[]
@@ -97,7 +98,10 @@ export default function WorkoutPlayer({
   canMove: boolean
   /** Used when the prescription doesn't mention rest; set by the coach. */
   defaultRestSeconds?: number
+  /** Set when the coach runs this session for the client in person: same screen, coach's navigation. */
+  coaching?: { clientId: string; clientName: string; exitHref: string }
 }) {
+  const exitHref = coaching?.exitHref ?? "/client"
   const router = useRouter()
   const [exercises, setExercises] = useState(initial)
   const [notes, setNotes] = useState(workout.notes)
@@ -320,14 +324,14 @@ export default function WorkoutPlayer({
     setFinishing(false)
     if (!ok) return toast.error("Couldn't save. Check your connection and try again.")
     toast.success("Workout complete. Nice work!")
-    router.push("/client")
+    router.push(exitHref)
     router.refresh()
   }
 
   return (
     <div className="space-y-4 pb-60">
       <div className="flex items-center justify-between">
-        <Link href="/client" className="text-sm font-semibold text-app-muted">‹ Today</Link>
+        <Link href={exitHref} className="text-sm font-semibold text-app-muted">{coaching ? "‹ Exit" : "‹ Today"}</Link>
         <span className="text-xs text-app-muted">
           {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status === "error" ? "Not saved, will retry" : ""}
         </span>
@@ -416,11 +420,13 @@ export default function WorkoutPlayer({
                     )}
                   </button>
 
-                  <Hint id={timed ? "log-holds" : "log-sets"} done={e.sets.some((s) => s.done)}>
-                    {timed
-                      ? "Press ▶ when you start the hold. It times you, ticks the set when you stop, and your rest starts."
-                      : "Tick each set as you finish it. The next set copies your numbers, and your rest timer starts."}
-                  </Hint>
+                  {!coaching && (
+                    <Hint id={timed ? "log-holds" : "log-sets"} done={e.sets.some((s) => s.done)}>
+                      {timed
+                        ? "Press ▶ when you start the hold. It times you, ticks the set when you stop, and your rest starts."
+                        : "Tick each set as you finish it. The next set copies your numbers, and your rest timer starts."}
+                    </Hint>
+                  )}
 
                   {rowsFor(e).length > 0 ? (
                     <div className="space-y-2">
@@ -538,7 +544,7 @@ export default function WorkoutPlayer({
       <CommentThread
         workoutId={workout.id}
         initial={workout.comments}
-        placeholder="Ask your coach, or attach a video of a set"
+        placeholder={coaching ? `Leave a note for ${coaching.clientName}` : "Ask your coach, or attach a video of a set"}
       />
 
       {exercises.length > 0 && (
@@ -550,14 +556,14 @@ export default function WorkoutPlayer({
             notesDirty.current = true
             schedule()
           }}
-          placeholder="How did it go? (optional note for your coach)"
+          placeholder={coaching ? "Session notes" : "How did it go? (optional note for your coach)"}
           className="block w-full rounded-xl border border-app-border bg-app-surface px-3 py-2 text-base text-app-text placeholder:text-app-muted/70"
         />
       )}
 
-      {/* Sticky stack above the tab bar: the rest countdown while it runs, finish always. */}
+      {/* Sticky stack above the tab bar (or the screen edge in coach mode): the rest countdown while it runs, finish always. */}
       {exercises.length > 0 && (
-        <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 px-4">
+        <div className={`fixed inset-x-0 z-20 px-4 ${coaching ? "bottom-[calc(1rem+env(safe-area-inset-bottom))]" : "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]"}`}>
           {hold && (() => {
             const ex = exercises.find((x) => x.id === hold.exerciseId)
             const shown = hold.mode === "down" && hold.target !== null ? Math.max(hold.target - hold.elapsed, 0) : hold.elapsed
@@ -589,7 +595,7 @@ export default function WorkoutPlayer({
               </div>
             )
           })()}
-          {rest && !hold && (
+          {rest && !hold && !coaching && (
             <div className="mx-auto mb-2 max-w-md shadow-lg">
               <Hint id="rest-timer" done={rest.left <= 0}>
                 Rest counts down on its own. Add 30 seconds or skip it here, and your phone buzzes when you&rsquo;re up.
@@ -645,6 +651,7 @@ export default function WorkoutPlayer({
       {videoIndex !== null && <VideoPlayer items={videos} startIndex={videoIndex} onClose={() => setVideoIndex(null)} />}
       {historyFor && (
         <ExerciseHistorySheet
+          clientId={coaching?.clientId}
           exerciseId={historyFor.exerciseId}
           name={historyFor.name}
           units={units}

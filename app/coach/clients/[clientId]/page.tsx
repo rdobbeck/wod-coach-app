@@ -11,6 +11,7 @@ import ProgramActions from "@/components/coach/ProgramActions"
 import FastingControl from "@/components/coach/FastingControl"
 import HistoryView from "@/components/client/HistoryView"
 import AiAssistant from "@/components/coach/AiAssistant"
+import TrainTodayButton from "@/components/coach/TrainTodayButton"
 import { spendMeter } from "@/lib/ai/spend"
 import { dayKey, getClientSnapshot, getHistoryOverview } from "@/lib/training"
 import { clockLabel, fastHours, fastingStreak, type FastEntry } from "@/lib/fasting"
@@ -214,6 +215,7 @@ export default async function ClientDetailPage({
           </div>
 
           <div className="mt-4 space-y-3">
+            <TrainTodayButton clientId={client.id} days={calendarDays} />
             <ClientActions clientId={client.id} canMoveWorkouts={profile?.canMoveWorkouts ?? true} hasPassword={!!client.hashedPassword} />
             <FastingControl
               clientId={client.id}
