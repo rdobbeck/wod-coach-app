@@ -19,6 +19,7 @@ test.beforeAll(async () => {
     where: { userId: clientId },
     data: { fastingOffered: true, fastingEnabled: true },
   })
+  await prisma.fastLog.deleteMany({ where: { userId: clientId } })
 })
 
 test.afterAll(async () => {
@@ -97,5 +98,50 @@ test("a client cannot switch on a timer their coach never offered", async ({ bro
     (await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).fastingEnabled
   ).toBe(false)
 
+  await ctx.close()
+})
+
+const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+
+async function freshFaster() {
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { fastingOffered: true, fastingEnabled: true, fastingProtocol: "16:8", fastingTargetHours: 16 } })
+  await prisma.fastLog.deleteMany({ where: { userId: clientId } })
+}
+
+test("a client can set when their fast actually started, and the timer counts from there", async ({ browser }) => {
+  await freshFaster()
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await ctx.newPage()
+  await signInAsClient(page)
+
+  await page.getByRole("button", { name: "Start fast" }).click()
+  await expect(page.getByRole("button", { name: "I ate" })).toBeVisible()
+
+  // They actually stopped eating six hours ago.
+  const sixAgo = new Date(Date.now() - 6 * 3_600_000)
+  sixAgo.setSeconds(0, 0)
+  await page.getByLabel("Started at").fill(hhmm(sixAgo))
+
+  await expect(page.getByText(/^6h 0[01]m$/)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/(10h 00m|9h 59m) to 16h/)).toBeVisible()
+
+  const fast = await prisma.fastLog.findFirstOrThrow({ where: { userId: clientId, endedAt: null } })
+  expect(Math.abs(fast.startedAt.getTime() - sixAgo.getTime())).toBeLessThan(60_000)
+  await ctx.close()
+})
+
+test("a fast cannot have started in the future or more than a day ago", async ({ browser }) => {
+  await freshFaster()
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await ctx.newPage()
+  await signInAsClient(page)
+  await page.request.post("/api/fasts", { data: { action: "start" } })
+
+  const future = await page.request.post("/api/fasts", { data: { action: "adjust", startedAt: new Date(Date.now() + 3_600_000).toISOString() } })
+  expect(future.status()).toBe(400)
+  const tooOld = await page.request.post("/api/fasts", { data: { action: "adjust", startedAt: new Date(Date.now() - 30 * 3_600_000).toISOString() } })
+  expect(tooOld.status()).toBe(400)
+  const fine = await page.request.post("/api/fasts", { data: { action: "adjust", startedAt: new Date(Date.now() - 2 * 3_600_000).toISOString() } })
+  expect(fine.ok()).toBe(true)
   await ctx.close()
 })

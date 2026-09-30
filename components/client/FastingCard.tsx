@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { clockLabel, fastHours, formatDuration, inEatingWindow, msUntil, type FastEntry } from "@/lib/fasting"
 
+const localClock = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+
 /**
  * Fasting status on Today: where the client is in their window right now, a live
  * timer for an open fast, and one button to start it or to log that they ate.
@@ -27,6 +29,7 @@ export default function FastingCard({
   const router = useRouter()
   const [now, setNow] = useState<Date | null>(null)
   const [busy, setBusy] = useState(false)
+  const [startInput, setStartInput] = useState(() => (openFast ? localClock(new Date(openFast.startedAt)) : ""))
 
   // Ticks once a second; rendered only in the browser so server and client agree.
   useEffect(() => {
@@ -42,17 +45,36 @@ export default function FastingCard({
   const progress = openFast ? Math.min(elapsed / target, 1) : 0
   const hitTarget = openFast && elapsed >= target
 
-  const act = async (action: "start" | "end") => {
+  const post = async (body: Record<string, unknown>) => {
     setBusy(true)
     const res = await fetch("/api/fasts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify(body),
     })
     setBusy(false)
-    if (!res.ok) return toast.error((await res.json().catch(() => ({}))).error ?? "Couldn't save that")
-    toast.success(action === "start" ? "Fast started" : `Fast logged: ${formatDuration(elapsed)}`)
+    if (!res.ok) {
+      toast.error((await res.json().catch(() => ({}))).error ?? "Couldn't save that")
+      return false
+    }
     router.refresh()
+    return true
+  }
+
+  const act = async (action: "start" | "end") => {
+    if (!(await post({ action }))) return
+    toast.success(action === "start" ? "Fast started" : `Fast logged: ${formatDuration(elapsed)}`)
+  }
+
+  // "Started at" is a clock time; it means today, or yesterday if that clock time hasn't happened yet today.
+  const adjustStart = async (clock: string) => {
+    setStartInput(clock)
+    if (!/^\d{2}:\d{2}$/.test(clock)) return
+    const [h, m] = clock.split(":").map(Number)
+    const start = new Date(now)
+    start.setHours(h, m, 0, 0)
+    if (start > now) start.setDate(start.getDate() - 1)
+    if (await post({ action: "adjust", startedAt: start.toISOString() })) toast.success(`Fast started at ${clockLabel(clock)}`)
   }
 
   const lastThree = recent.filter((f) => f.endedAt).slice(0, 3)
@@ -92,6 +114,20 @@ export default function FastingCard({
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-app-surface2">
           <div className={`h-full rounded-full ${hitTarget ? "bg-app-good" : "bg-app-accent"}`} style={{ width: `${progress * 100}%` }} />
         </div>
+      )}
+
+      {openFast && (
+        <label className="mt-3 flex items-center justify-between gap-3 text-sm text-app-muted">
+          <span>Started at</span>
+          <input
+            type="time"
+            aria-label="Started at"
+            value={startInput}
+            disabled={busy}
+            onChange={(e) => void adjustStart(e.target.value)}
+            className="rounded-xl border border-app-border bg-app-bg px-3 py-1.5 text-base text-app-text"
+          />
+        </label>
       )}
 
       <div className="mt-4 flex gap-2">
