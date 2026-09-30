@@ -43,6 +43,8 @@ export function checkoutParams(o: {
       },
     ],
     metadata,
+    // Codes live in the coach's Stripe dashboard (Coupons -> Promotion codes); the ledger records what was actually charged.
+    allow_promotion_codes: true,
     payment_intent_data: { description: p.name, metadata },
     ...(o.clientId ? { client_reference_id: o.clientId } : {}),
     ...(o.email ? { customer_email: o.email } : {}),

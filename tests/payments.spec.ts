@@ -89,6 +89,14 @@ test("checkout: the amount is the product's, and the payment can be traced back"
   expect(() => checkoutParams({ product: { id: "x", name: "x", description: null, priceCents: 5, sessions: 1 }, coachId: "c", origin: "https://wod.coach", successPath: "/p", cancelPath: "/p" })).toThrow(/range/)
 })
 
+test("checkout: the client can enter a promo code the coach made in Stripe", () => {
+  const p = checkoutParams({
+    product: { id: "prod1", name: "10-session package", description: null, priceCents: 100_000, sessions: 10 },
+    coachId: "coach1", origin: "https://wod.coach", successPath: "/p", cancelPath: "/p",
+  })
+  expect(p.allow_promotion_codes).toBe(true)
+})
+
 // ---------- recording a Stripe payment ----------
 
 test("a paid Stripe session is recorded once, clears payment due, and names the client", async () => {
