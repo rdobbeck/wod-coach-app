@@ -9,7 +9,8 @@ import { localDayKey } from "@/components/client/MoveWorkoutButton"
 export default function TrainTodayButton({ clientId, days }: { clientId: string; days: CalDay[] }) {
   const [today, setToday] = useState<string | null>(null)
   useEffect(() => setToday(localDayKey()), [])
-  const session = days.find((d) => d.key === today)?.items.find((w) => w.status === "planned" || w.status === "done")
+  // Any real session on the coach's local day. The server's "missed" is UTC-based, so late in the evening today's session already carries it.
+  const session = days.find((d) => d.key === today)?.items.find((w) => w.status !== "draft" && w.status !== "rest")
   if (!session) return null
   return (
     <Link
