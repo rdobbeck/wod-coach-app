@@ -97,6 +97,16 @@ test("checkout: the client can enter a promo code the coach made in Stripe", () 
   expect(p.allow_promotion_codes).toBe(true)
 })
 
+test("checkout: a product linked to Stripe is sent as that product, so product-only coupons apply", () => {
+  const base = { coachId: "coach1", origin: "https://wod.coach", successPath: "/p", cancelPath: "/p" }
+  const linked = checkoutParams({ ...base, product: { id: "prod1", name: "First session", description: "Assessment", priceCents: 14_000, sessions: 1, stripeProductId: "prod_stripe123" } })
+  expect(linked.line_items![0].price_data).toMatchObject({ product: "prod_stripe123", unit_amount: 14_000 })
+  expect(linked.line_items![0].price_data!.product_data).toBeUndefined()
+  // Without a link the inline name still works, as before.
+  const inline = checkoutParams({ ...base, product: { id: "prod2", name: "Gym pod session", description: null, priceCents: 14_000, sessions: 1 } })
+  expect(inline.line_items![0].price_data!.product_data).toMatchObject({ name: "Gym pod session" })
+})
+
 // ---------- recording a Stripe payment ----------
 
 test("a paid Stripe session is recorded once, clears payment due, and names the client", async () => {

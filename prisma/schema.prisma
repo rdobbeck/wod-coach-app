@@ -897,6 +897,7 @@ model Product {
   description String?
   priceCents  Int
   sessions    Int      @default(1) // how many sessions it covers, for display
+  stripeProductId String? // set by scripts/stripe-products.ts; lets Stripe coupons target one product
   active      Boolean  @default(true)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())

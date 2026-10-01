@@ -1,7 +1,15 @@
 import type Stripe from "stripe"
 import { MAX_CENTS, MIN_CENTS } from "./money"
 
-export type ProductLike = { id: string; name: string; description: string | null; priceCents: number; sessions: number }
+export type ProductLike = {
+  id: string
+  name: string
+  description: string | null
+  priceCents: number
+  sessions: number
+  /** The matching Product in the coach's Stripe account, so coupons limited to a product can recognise it. */
+  stripeProductId?: string | null
+}
 
 /**
  * The Stripe Checkout request for one product. The amount comes from the
@@ -38,7 +46,9 @@ export function checkoutParams(o: {
         price_data: {
           currency: "usd",
           unit_amount: p.priceCents,
-          product_data: { name: p.name, ...(p.description ? { description: p.description.slice(0, 500) } : {}) },
+          ...(p.stripeProductId
+            ? { product: p.stripeProductId }
+            : { product_data: { name: p.name, ...(p.description ? { description: p.description.slice(0, 500) } : {}) } }),
         },
       },
     ],
