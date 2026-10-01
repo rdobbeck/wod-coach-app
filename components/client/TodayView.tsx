@@ -99,7 +99,27 @@ function SessionCard({
   )
 }
 
-/** Book a video call with the coach. Only rendered when they have a booking link. */
+/** Book an in-person session: pick where, then when, or text the coach. */
+function BookSessionCard({ coachName }: { coachName: string | null }) {
+  return (
+    <Link href="/client/book/session" className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3.5">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-app-surface2">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" />
+          <circle cx="12" cy="9.5" r="2.5" />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-xl font-bold leading-tight">Book a session</span>
+        <span className="block text-sm text-app-muted">Pick where to train with {coachName ?? "your coach"}, then a time</span>
+      </span>
+      <span className="shrink-0 text-app-muted" aria-hidden="true">
+        &rarr;
+      </span>
+    </Link>
+  )
+}
+
 /** A way to pay or buy sessions, for clients the calendar counter does not cover. */
 function PayCard() {
   return (
@@ -121,6 +141,7 @@ function PayCard() {
   )
 }
 
+/** Book a video call with the coach. Only rendered when they have a booking link. */
 function BookCallCard({ coachName, callsLeft, nudge }: { coachName: string | null; callsLeft: number | null; nudge?: boolean }) {
   return (
     <Link
@@ -200,6 +221,7 @@ export default function TodayView({
   latestNote,
   fasting,
   canBook,
+  canBookSession,
   callsLeft,
   sessions,
   canPay,
@@ -212,6 +234,8 @@ export default function TodayView({
   latestNote: Note | null
   fasting: Fasting | null
   canBook: boolean
+  /** The coach has places to train or a number to text, so sessions can be booked. */
+  canBookSession: boolean
   /** Free calls left this month, or null when the coach has no limit. */
   callsLeft: number | null
   /** From the coach's calendar; null when none of the client's sessions are on it. */
@@ -441,6 +465,8 @@ export default function TodayView({
           )}
         </section>
       )}
+
+      {onToday && canBookSession && <BookSessionCard coachName={coachName} />}
 
       {onToday && canPay && !sessions && <PayCard />}
 

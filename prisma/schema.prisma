@@ -81,6 +81,7 @@ model User {
   pushSubscriptions     PushSubscription[]
   callsBooked           CallBooking[]      @relation("ClientCalls")
   callsCoached          CallBooking[]      @relation("CoachCalls")
+  sessionLocations      SessionLocation[]
   Attachment            Attachment[]
 }
 
@@ -131,6 +132,9 @@ model CoachProfile {
   bookingUrl             String?
   // Free calls each client gets per calendar month. 0 means unlimited.
   monthlyCallCredits     Int     @default(2)
+  // Where a client can text to set up a session instead of booking online.
+  // Stored as digits only; shown on the client's Book a session page.
+  textNumber             String?
   defaultCanMoveWorkouts Boolean @default(true)
 
   // Coach's own link: <slug>.wod.coach, picked at signup (lib/coach-link.ts)
@@ -217,6 +221,22 @@ model Attachment {
   uploader User?          @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
 
   @@index([commentId])
+}
+
+// A place the coach trains clients in person, with its own scheduling link.
+// The client picks the place first, then a time on that link. A coach with no
+// places (and no text number) has no "Book a session" card.
+model SessionLocation {
+  id        String   @id @default(cuid())
+  coachId   String
+  label     String // e.g. "Gym Pod", "Off-site (I come to you)"
+  url       String // normalised by lib/booking.ts, so it can be embedded
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@index([coachId, sortOrder])
 }
 
 // A video call a client booked with their coach, mirrored from the booking

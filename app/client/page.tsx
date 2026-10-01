@@ -29,7 +29,7 @@ export default async function ClientToday() {
     prisma.clientProfile.findUnique({ where: { userId: session.user.id } }),
     prisma.clientCoach.findFirst({
       where: { clientId: session.user.id, status: "ACTIVE" },
-      include: { coach: { select: { name: true, coachProfile: { select: { bookingUrl: true } } } } },
+      include: { coach: { select: { name: true, coachProfile: { select: { bookingUrl: true, textNumber: true } } } } },
     }),
     // Most recent coach comment on any of this client's workouts.
     prisma.workoutComment.findFirst({
@@ -51,6 +51,10 @@ export default async function ClientToday() {
 
   // Booking, and how many free calls are left, if the coach offers booking.
   const canBook = !!bookingFor(coachLink?.coach.coachProfile?.bookingUrl)
+  // In-person sessions: any place to train, or a number to text, shows the card.
+  const canBookSession =
+    !!coachLink &&
+    (!!coachLink.coach.coachProfile?.textNumber || (await prisma.sessionLocation.count({ where: { coachId: coachLink.coachId } })) > 0)
   const credits = canBook && coachLink ? await callCreditsFor(session.user.id, coachLink.coachId) : null
   const callsLeft = credits && !credits.unlimited ? credits.left : null
 
@@ -96,6 +100,7 @@ export default async function ClientToday() {
         canMove={canMove}
         compliance={percent}
         canBook={canBook}
+        canBookSession={canBookSession}
         callsLeft={callsLeft}
         sessions={sessions}
         canPay={canPay}

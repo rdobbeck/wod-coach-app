@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withAlert } from "@/lib/alert"
-import { bookingFor } from "@/lib/booking"
+import { bookingFor, normalizePhone } from "@/lib/booking"
 import { checkSlug } from "@/lib/coach-slug-db"
 import { removeAvatar, saveAvatar } from "@/lib/avatars"
 
@@ -27,6 +27,10 @@ async function handlePATCH(req: Request) {
     photo?: string
     venmoHandle?: string
     payInstructions?: string
+    /** Places the coach trains clients, in order; replaces the whole list. [] clears it. */
+    sessionLocations?: { label?: string; url?: string }[]
+    /** Where clients text to set up a session; "" clears it. */
+    textNumber?: string
   }
 
   let slug: string | undefined
@@ -72,6 +76,31 @@ async function handlePATCH(req: Request) {
     venmoHandle = h || null
   }
 
+  // Places to train: each needs a name and an embeddable scheduling link.
+  let locations: { label: string; url: string }[] | undefined
+  if (Array.isArray(body.sessionLocations)) {
+    if (body.sessionLocations.length > 8) return NextResponse.json({ error: "Up to 8 places." }, { status: 400 })
+    locations = []
+    for (const row of body.sessionLocations) {
+      const label = typeof row?.label === "string" ? row.label.trim().slice(0, 40) : ""
+      const url = typeof row?.url === "string" ? bookingFor(row.url)?.url : undefined
+      if (!label && !row?.url?.trim()) continue // an empty row is just unused
+      if (!label) return NextResponse.json({ error: "Give every place a name." }, { status: 400 })
+      if (!url) return NextResponse.json({ error: `"${label}" needs a secure (https) scheduling link.` }, { status: 400 })
+      locations.push({ label, url })
+    }
+  }
+
+  let textNumber: string | null | undefined
+  if (typeof body.textNumber === "string") {
+    if (body.textNumber.trim()) {
+      textNumber = normalizePhone(body.textNumber)
+      if (!textNumber) return NextResponse.json({ error: "That doesn't look like a phone number." }, { status: 400 })
+    } else {
+      textNumber = null
+    }
+  }
+
   const rest = Number(body.defaultRestSeconds)
   const data = {
     ...(body.defaultUnits === "lb" || body.defaultUnits === "kg" ? { defaultUnits: body.defaultUnits } : {}),
@@ -88,14 +117,23 @@ async function handlePATCH(req: Request) {
       : {}),
     ...(slug ? { slug } : {}),
     ...(venmoHandle !== undefined ? { venmoHandle } : {}),
+    ...(textNumber !== undefined ? { textNumber } : {}),
     ...(typeof body.payInstructions === "string" ? { payInstructions: body.payInstructions.trim().slice(0, 600) || null } : {}),
     ...(typeof body.brandName === "string" ? { brandName: body.brandName.trim().slice(0, 60) || null } : {}),
     ...(specialties ? { specialties } : {}),
     ...(certifications ? { certifications } : {}),
     ...(body.yearsExp !== undefined && (years === null || (Number.isInteger(years) && years >= 0 && years <= 60)) ? { yearsExp: years } : {}),
   }
+  if (locations) {
+    // The list is replaced whole, so the order on the page is the order saved.
+    await prisma.$transaction([
+      prisma.sessionLocation.deleteMany({ where: { coachId: session.user.id } }),
+      prisma.sessionLocation.createMany({ data: locations.map((l, i) => ({ coachId: session.user.id, ...l, sortOrder: i })) }),
+    ])
+  }
+
   if (!Object.keys(data).length) {
-    if (typeof body.photo === "string") return NextResponse.json({ ok: true })
+    if (typeof body.photo === "string" || locations) return NextResponse.json({ ok: true })
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
   }
 

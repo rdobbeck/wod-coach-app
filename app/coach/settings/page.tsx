@@ -7,9 +7,11 @@ import DashboardHeader from "@/components/DashboardHeader"
 import AccountSettings from "@/components/AccountSettings"
 import PushToggle from "@/components/PushToggle"
 import CoachDefaults from "@/components/coach/CoachDefaults"
+import SessionLocations from "@/components/coach/SessionLocations"
 import CoachLink from "@/components/coach/CoachLink"
 import CoachPublicProfile from "@/components/coach/CoachPublicProfile"
 import { brandDomainLive, coachLinkUrl } from "@/lib/coach-link"
+import { formatPhone } from "@/lib/booking"
 import SignOutButton from "@/components/client/SignOutButton"
 
 export default async function CoachSettingsPage() {
@@ -18,7 +20,11 @@ export default async function CoachSettingsPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: { coachProfile: true, clients: { where: { status: "ACTIVE" }, select: { id: true } } },
+    include: {
+      coachProfile: true,
+      clients: { where: { status: "ACTIVE" }, select: { id: true } },
+      sessionLocations: { orderBy: { sortOrder: "asc" }, select: { id: true, label: true, url: true } },
+    },
   })
   const coach = user?.coachProfile
 
@@ -55,6 +61,8 @@ export default async function CoachSettingsPage() {
             bookingUrl={coach?.bookingUrl ?? ""}
             monthlyCallCredits={coach?.monthlyCallCredits ?? 2}
           />
+
+          <SessionLocations locations={user?.sessionLocations ?? []} textNumber={formatPhone(coach?.textNumber)} />
 
           <div className="rounded-2xl border border-[#e4dfd5] bg-white p-4">
             <p className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-[#857c70]">Plan &amp; billing</p>

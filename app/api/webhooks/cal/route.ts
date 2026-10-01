@@ -3,6 +3,7 @@ import { headers } from "next/headers"
 import crypto from "crypto"
 import { prisma } from "@/lib/prisma"
 import { notifyUser } from "@/lib/notify"
+import { bookingSlug } from "@/lib/booking"
 
 /**
  * Cal.com booking webhook.
@@ -12,12 +13,16 @@ import { notifyUser } from "@/lib/notify"
  * secret this route refuses everything rather than trusting the caller.
  *
  * A booking here is what spends a client's monthly free call. The credit is
- * counted from these rows, so a cancellation returns it automatically.
+ * counted from these rows, so a cancellation returns it automatically. A
+ * session booked at one of the coach's places (SessionLocation) comes through
+ * the same webhook and is ignored: those are counted from the coach's calendar.
  */
 type CalPayload = {
   triggerEvent?: string
   payload?: {
     uid?: string
+    /** The event type's slug, e.g. "check-in" or "gym-pod". */
+    type?: string
     title?: string
     startTime?: string
     endTime?: string
@@ -75,6 +80,12 @@ export async function POST(req: Request) {
 
   const startsAt = p.startTime ? new Date(p.startTime) : new Date()
   const coachId = client.coaches[0].coachId
+
+  if (p.type) {
+    const places = await prisma.sessionLocation.findMany({ where: { coachId }, select: { url: true } })
+    const sessionSlugs = new Set(places.map((l) => bookingSlug(l.url)).filter(Boolean))
+    if (sessionSlugs.has(p.type.toLowerCase())) return ok({ ignored: "session booking" })
+  }
 
   await prisma.callBooking.upsert({
     where: { externalId: p.uid },

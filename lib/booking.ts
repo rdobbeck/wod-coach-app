@@ -40,3 +40,38 @@ export function bookingFor(raw: string | null | undefined): Booking | null {
 
   return { url: url.toString(), embedUrl }
 }
+
+/** The event slug at the end of a booking link: "gym-pod" for cal.com/you/gym-pod. */
+export function bookingSlug(raw: string | null | undefined): string | null {
+  const b = bookingFor(raw)
+  if (!b) return null
+  const parts = new URL(b.url).pathname.replace(/\/+$/, "").replace(/\/embed$/, "").split("/").filter(Boolean)
+  return parts.length ? parts[parts.length - 1].toLowerCase() : null
+}
+
+/**
+ * A phone number as E.164 digits ("+17734917926"), or null if it isn't one.
+ * Only North American numbers are assumed when no country code is given.
+ */
+export function normalizePhone(raw: string | null | undefined): string | null {
+  const digits = (raw ?? "").replace(/[^\d]/g, "")
+  if (digits.length === 10) return `+1${digits}`
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`
+  if (digits.length >= 11 && digits.length <= 15 && (raw ?? "").trim().startsWith("+")) return `+${digits}`
+  return null
+}
+
+/** Opens the phone's messaging app with the coach's number (and a first line) filled in. */
+export function smsHref(phone: string | null | undefined, body?: string): string | null {
+  const n = normalizePhone(phone)
+  if (!n) return null
+  // "?&body=" is the form both iOS and Android honour.
+  return body ? `sms:${n}?&body=${encodeURIComponent(body)}` : `sms:${n}`
+}
+
+/** "(773) 491-7926" for a stored +1 number; other countries show as stored. */
+export function formatPhone(stored: string | null | undefined): string {
+  if (!stored) return ""
+  const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(stored)
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : stored
+}

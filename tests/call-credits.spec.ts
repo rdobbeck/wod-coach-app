@@ -51,6 +51,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await prisma.callBooking.deleteMany({ where: { clientId } })
+  await prisma.sessionLocation.deleteMany({ where: { coachId } })
   await prisma.coachProfile.update({ where: { userId: coachId }, data: { bookingUrl: null } })
   await prisma.$disconnect()
 })
@@ -137,4 +138,26 @@ test("booking through the webhook spends a call, cancelling returns it", async (
   expect((await callCreditsFor(clientId, coachId)).left).toBe(1)
 
   await ctx.close()
+})
+
+test("a session booked at one of the coach's places is not a call", async ({ page }) => {
+  await prisma.sessionLocation.create({
+    data: { coachId, label: "Gym Pod", url: "https://cal.com/dobbeck-training-systems/gym-pod", sortOrder: 0 },
+  })
+  const { start } = monthRange()
+  const when = new Date(start.getTime() + 15 * 86_400_000)
+
+  // Cal sends the event type's slug as `type`.
+  const session = { ...booking("cal-pod-1", when), payload: { ...booking("cal-pod-1", when).payload, type: "gym-pod", title: "Gym Pod 60-min session" } }
+  const res = await calWebhook(page, session)
+  expect(res.ok()).toBe(true)
+  expect(await res.json()).toEqual({ ignored: "session booking" })
+  expect((await callCreditsFor(clientId, coachId)).left).toBe(2)
+
+  // A check-in still spends a call.
+  const call = { ...booking("cal-chk-1", when), payload: { ...booking("cal-chk-1", when).payload, type: "check-in" } }
+  await calWebhook(page, call)
+  expect((await callCreditsFor(clientId, coachId)).left).toBe(1)
+
+  await prisma.sessionLocation.deleteMany({ where: { coachId } })
 })
