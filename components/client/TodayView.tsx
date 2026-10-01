@@ -197,6 +197,27 @@ function BreathwodCard() {
   )
 }
 
+/** Ryan's partner deals and the gear list, inside the app so nobody has to go hunting. */
+function GearCard() {
+  return (
+    <Link href="/client/gear" className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3.5">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-app-surface2">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M3 8h18l-1.5 12h-15z" />
+          <path d="M8 8V6a4 4 0 0 1 8 0v2" />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-xl font-bold leading-tight">Gear and partner deals</span>
+        <span className="block text-sm text-app-muted">Discounts on what I actually use</span>
+      </span>
+      <span className="shrink-0 text-app-muted" aria-hidden="true">
+        &rarr;
+      </span>
+    </Link>
+  )
+}
+
 /** How far either side of this week the client can page. Matches what Today loads. */
 const WEEKS_BACK = 2
 const WEEKS_AHEAD = 11
@@ -481,6 +502,8 @@ export default function TodayView({
       )}
 
       {onToday && <BreathwodCard />}
+
+      {onToday && <GearCard />}
 
       {onToday && missed.length > 0 && (
         <section className="space-y-3">

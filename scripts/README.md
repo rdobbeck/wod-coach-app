@@ -92,3 +92,11 @@ ExerciseLibrary (app table — yours to curate)
 ```
 
 No CoachRx credentials are stored. The script observes a request that your authenticated browser is already making.
+
+## sync-gear.ts
+
+Copies the ryandobbeck.com gear catalog (`~/Documents/affiliate-gear/catalog.json`) into `data/gear.json`, which `/client/gear` renders. Partners first (Equip Foods, NUNORM, Victory Grips), then the other partner programs, then every Amazon pick by category. Staged catalog items are dropped. Rerun after any catalog edit and commit the JSON:
+
+```
+npx tsx scripts/sync-gear.ts
+```
