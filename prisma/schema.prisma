@@ -135,6 +135,9 @@ model CoachProfile {
   // Where a client can text to set up a session instead of booking online.
   // Stored as digits only; shown on the client's Book a session page.
   textNumber             String?
+  // JSON feed of the group classes the coach teaches (lib/classes.ts), listed
+  // on the client's Book a session page with a booking link per class.
+  classFeedUrl           String?
   defaultCanMoveWorkouts Boolean @default(true)
 
   // Coach's own link: <slug>.wod.coach, picked at signup (lib/coach-link.ts)

@@ -2,6 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { bookingFor, smsHref } from "@/lib/booking"
+import { classDateLabel, loadClasses } from "@/lib/classes"
 import { requireClient } from "@/lib/require-client"
 
 export const dynamic = "force-dynamic"
@@ -21,7 +22,7 @@ export default async function BookSession({ searchParams }: { searchParams: { at
         select: {
           name: true,
           email: true,
-          coachProfile: { select: { textNumber: true } },
+          coachProfile: { select: { textNumber: true, classFeedUrl: true, calendarTz: true } },
           sessionLocations: { orderBy: { sortOrder: "asc" }, select: { id: true, label: true, url: true } },
         },
       },
@@ -31,7 +32,8 @@ export default async function BookSession({ searchParams }: { searchParams: { at
   const coachName = link?.coach.name ?? link?.coach.email ?? "your coach"
   const firstName = coachName.split(" ")[0]
   const text = smsHref(link?.coach.coachProfile?.textNumber, `Hi ${firstName}, I'd like to set up a session.`)
-  if (!places.length && !text) redirect("/client")
+  const classes = await loadClasses(link?.coach.coachProfile?.classFeedUrl, link?.coach.coachProfile?.calendarTz ?? "America/Chicago")
+  if (!places.length && !text && !classes) redirect("/client")
 
   const chosen = places.find((p) => p.id === searchParams.at) ?? null
   const booking = chosen ? bookingFor(chosen.url) : null
@@ -111,6 +113,67 @@ export default async function BookSession({ searchParams }: { searchParams: { at
         >
           Text {firstName} to set up a time
         </a>
+      )}
+
+      {classes && !chosen && (
+        <section data-testid="classes" className="space-y-3 pt-2">
+          <h2 className="font-display text-2xl font-bold leading-tight">
+            Classes with {firstName}
+            {classes.gym.name ? <span className="block text-sm font-normal text-app-muted">at {classes.gym.name}</span> : null}
+          </h2>
+          {classes.classes.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-app-border p-5 text-sm text-app-muted">No classes on the schedule yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {classes.classes.map((c) => (
+                <li
+                  key={`${c.date}-${c.start}`}
+                  data-testid="class"
+                  className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold">
+                      {classDateLabel(c.date)} · {c.start}
+                      {c.end ? ` to ${c.end}` : ""}
+                    </span>
+                    <span className="block text-sm text-app-muted">{c.title}</span>
+                  </span>
+                  {c.bookUrl ? (
+                    <a
+                      href={c.bookUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 rounded-xl bg-app-accent px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Book
+                    </a>
+                  ) : classes.gym.scheduleUrl ? (
+                    <a
+                      href={classes.gym.scheduleUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 rounded-xl border border-app-border px-4 py-2 text-sm font-semibold text-app-text"
+                    >
+                      Schedule
+                    </a>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-sm text-app-muted">
+            Booking runs through {classes.gym.name ? `${classes.gym.name}'s` : "the gym's"} own system.
+            {text ? (
+              <>
+                {" "}
+                <a href={text} className="font-semibold text-app-text">
+                  Text {firstName}
+                </a>{" "}
+                to confirm you&rsquo;re coming.
+              </>
+            ) : null}
+          </p>
+        </section>
       )}
     </div>
   )

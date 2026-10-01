@@ -62,7 +62,7 @@ export default async function CoachSettingsPage() {
             monthlyCallCredits={coach?.monthlyCallCredits ?? 2}
           />
 
-          <SessionLocations locations={user?.sessionLocations ?? []} textNumber={formatPhone(coach?.textNumber)} />
+          <SessionLocations locations={user?.sessionLocations ?? []} textNumber={formatPhone(coach?.textNumber)} classFeedUrl={coach?.classFeedUrl ?? ""} />
 
           <div className="rounded-2xl border border-[#e4dfd5] bg-white p-4">
             <p className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-[#857c70]">Plan &amp; billing</p>

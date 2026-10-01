@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withAlert } from "@/lib/alert"
 import { bookingFor, normalizePhone } from "@/lib/booking"
+import { classFeedUrlOk } from "@/lib/classes"
 import { checkSlug } from "@/lib/coach-slug-db"
 import { removeAvatar, saveAvatar } from "@/lib/avatars"
 
@@ -31,6 +32,8 @@ async function handlePATCH(req: Request) {
     sessionLocations?: { label?: string; url?: string }[]
     /** Where clients text to set up a session; "" clears it. */
     textNumber?: string
+    /** JSON feed of the group classes the coach teaches; "" clears it. */
+    classFeedUrl?: string
   }
 
   let slug: string | undefined
@@ -101,6 +104,16 @@ async function handlePATCH(req: Request) {
     }
   }
 
+  let classFeedUrl: string | null | undefined
+  if (typeof body.classFeedUrl === "string") {
+    if (body.classFeedUrl.trim()) {
+      classFeedUrl = classFeedUrlOk(body.classFeedUrl)
+      if (!classFeedUrl) return NextResponse.json({ error: "The class schedule feed needs to be a secure (https) web address." }, { status: 400 })
+    } else {
+      classFeedUrl = null
+    }
+  }
+
   const rest = Number(body.defaultRestSeconds)
   const data = {
     ...(body.defaultUnits === "lb" || body.defaultUnits === "kg" ? { defaultUnits: body.defaultUnits } : {}),
@@ -118,6 +131,7 @@ async function handlePATCH(req: Request) {
     ...(slug ? { slug } : {}),
     ...(venmoHandle !== undefined ? { venmoHandle } : {}),
     ...(textNumber !== undefined ? { textNumber } : {}),
+    ...(classFeedUrl !== undefined ? { classFeedUrl } : {}),
     ...(typeof body.payInstructions === "string" ? { payInstructions: body.payInstructions.trim().slice(0, 600) || null } : {}),
     ...(typeof body.brandName === "string" ? { brandName: body.brandName.trim().slice(0, 60) || null } : {}),
     ...(specialties ? { specialties } : {}),

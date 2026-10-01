@@ -13,10 +13,11 @@ const blank = (): Row => ({ id: `new-${Math.random().toString(36).slice(2)}`, la
  * link, so the client picks the place first and then a time on that link. The
  * text number is the "just text me" way of setting up a session.
  */
-export default function SessionLocations({ locations, textNumber }: { locations: Row[]; textNumber: string }) {
+export default function SessionLocations({ locations, textNumber, classFeedUrl }: { locations: Row[]; textNumber: string; classFeedUrl: string }) {
   const router = useRouter()
   const [rows, setRows] = useState<Row[]>(locations.length ? locations : [blank()])
   const [phone, setPhone] = useState(textNumber)
+  const [feed, setFeed] = useState(classFeedUrl)
   const [busy, setBusy] = useState(false)
 
   const edit = (id: string, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)))
@@ -27,14 +28,14 @@ export default function SessionLocations({ locations, textNumber }: { locations:
     const res = await fetch("/api/coach/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionLocations: rows.map(({ label, url }) => ({ label, url })), textNumber: phone }),
+      body: JSON.stringify({ sessionLocations: rows.map(({ label, url }) => ({ label, url })), textNumber: phone, classFeedUrl: feed }),
     })
     setBusy(false)
     if (!res.ok) {
       const { error } = (await res.json().catch(() => ({}))) as { error?: string }
       return toast.error(error ?? "Couldn't save")
     }
-    const any = rows.some((r) => r.label.trim() || r.url.trim()) || phone.trim()
+    const any = rows.some((r) => r.label.trim() || r.url.trim()) || phone.trim() || feed.trim()
     toast.success(any ? "Clients can book a session" : "Session booking hidden from clients")
     router.refresh()
   }
@@ -101,6 +102,22 @@ export default function SessionLocations({ locations, textNumber }: { locations:
         />
         <p className="mt-1 text-xs text-[#857c70]">
           Shown as a &ldquo;Text me to set up a time&rdquo; button next to the places. Leave it empty to hide it.
+        </p>
+      </div>
+
+      <div className="mt-4">
+        <p className="text-sm text-[#6b6257]">Class schedule feed</p>
+        <input
+          type="url"
+          inputMode="url"
+          value={feed}
+          onChange={(e) => setFeed(e.target.value)}
+          placeholder="https://raw.githubusercontent.com/you/classes/main/docs/classes.json"
+          className="mt-1 w-full rounded-xl border border-[#ddd7cc] px-3 py-2 text-base text-[#16181d]"
+        />
+        <p className="mt-1 text-xs text-[#857c70]">
+          Group classes you teach, as a JSON feed of weeks and classes. They&rsquo;re listed under the places, each with its
+          own booking link. Leave it empty if you don&rsquo;t teach classes.
         </p>
       </div>
 
