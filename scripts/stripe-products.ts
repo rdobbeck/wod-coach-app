@@ -13,13 +13,14 @@ const FIRST_SESSION = "first session"
 type CouponPlan = {
   name: string
   coupon: Omit<Stripe.CouponCreateParams, "name" | "applies_to"> & { appliesToFirstSession?: boolean }
-  codes: { code: string; firstTimeOnly?: boolean }[]
+  codes: { code: string; firstTimeOnly?: boolean; expiresInDays?: number }[]
 }
 const PLAN: CouponPlan[] = [
   { name: "10% off", coupon: { percent_off: 10, duration: "once" }, codes: [{ code: "FRIEND10" }, { code: "MAGMILE" }] },
   { name: "Referral: first session $50", coupon: { amount_off: 9_000, currency: "usd", duration: "once", appliesToFirstSession: true }, codes: [{ code: "REFER50", firstTimeOnly: true }] },
   { name: "Group session credit", coupon: { amount_off: 2_500, currency: "usd", duration: "once", appliesToFirstSession: true }, codes: [{ code: "GROUP25" }] },
-  { name: "Welcome back 15%", coupon: { percent_off: 15, duration: "once" }, codes: [] },
+  // Past-client email went out 2026-10-01; the code expires 30 days after that run.
+  { name: "Welcome back 15%", coupon: { percent_off: 15, duration: "once" }, codes: [{ code: "COMEBACK", expiresInDays: 30 }] },
 ]
 
 const email = process.argv[2]
@@ -90,12 +91,18 @@ async function main() {
         console.log(`  keep    code   ${c.code.padEnd(10)} on ${have.coupon.name ?? have.coupon.id}`)
         continue
       }
-      console.log(`  create  code   ${c.code.padEnd(10)} on ${plan.name}${c.firstTimeOnly ? ", first-time customers only" : ""}`)
+      const expiresAt = c.expiresInDays ? Math.floor(Date.now() / 1000) + c.expiresInDays * 86_400 : undefined
+      console.log(
+        `  create  code   ${c.code.padEnd(10)} on ${plan.name}${c.firstTimeOnly ? ", first-time customers only" : ""}${
+          expiresAt ? `, expires ${new Date(expiresAt * 1000).toISOString().slice(0, 10)}` : ""
+        }`
+      )
       if (apply && coupon) {
         await stripe.promotionCodes.create({
           coupon: coupon.id,
           code: c.code,
           ...(c.firstTimeOnly ? { restrictions: { first_time_transaction: true } } : {}),
+          ...(expiresAt ? { expires_at: expiresAt } : {}),
         })
       }
     }
