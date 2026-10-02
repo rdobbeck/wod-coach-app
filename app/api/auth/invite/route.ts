@@ -19,6 +19,8 @@ async function handlePOST(req: Request) {
     data: { hashedPassword: await bcrypt.hash(password, 12), emailVerified: new Date() },
   })
   await prisma.verificationToken.deleteMany({ where: { identifier: invite.identifier } })
+  // An invite is the coach asking them back: a past client becomes current again. Paused stays paused.
+  await prisma.clientCoach.updateMany({ where: { clientId: userId, status: "INACTIVE" }, data: { status: "ACTIVE", endDate: null } })
   return NextResponse.json({ email: user.email })
 }
 
