@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3011",
-    "build": "next build",
+    "build": "tsx scripts/check-db-schema.ts && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
