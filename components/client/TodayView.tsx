@@ -123,6 +123,28 @@ function BookSessionCard({ coachName, nudge }: { coachName: string | null; nudge
   )
 }
 
+/** Book a group class the coach teaches, from their class feed. */
+function BookClassCard({ coachName }: { coachName: string | null }) {
+  return (
+    <Link href="/client/book/class" className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3.5">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-app-surface2">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <circle cx="9" cy="7" r="3" />
+          <circle cx="17" cy="9" r="2.5" />
+          <path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M14 14.5a4 4 0 0 1 7 2.5v3" />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-xl font-bold leading-tight">Book a class</span>
+        <span className="block text-sm text-app-muted">Classes {coachName ?? "your coach"} is coaching this week and next</span>
+      </span>
+      <span className="shrink-0 text-app-muted" aria-hidden="true">
+        &rarr;
+      </span>
+    </Link>
+  )
+}
+
 /** A way to pay or buy sessions, for clients the calendar counter does not cover. */
 function PayCard() {
   return (
@@ -246,6 +268,7 @@ export default function TodayView({
   fasting,
   canBook,
   canBookSession,
+  canBookClass,
   callsLeft,
   sessions,
   canPay,
@@ -260,6 +283,8 @@ export default function TodayView({
   canBook: boolean
   /** The coach has places to train or a number to text, so sessions can be booked. */
   canBookSession: boolean
+  /** The coach has a class feed, so group classes can be booked. */
+  canBookClass: boolean
   /** Free calls left this month, or null when the coach has no limit. */
   callsLeft: number | null
   /** From the coach's calendar; null when none of the client's sessions are on it. */
@@ -493,6 +518,8 @@ export default function TodayView({
 
       {/* Only one card pulses: Pay now when money is owed (on the sessions card), else Book a session while nothing is on the coach's calendar. */}
       {onToday && canBookSession && <BookSessionCard coachName={coachName} nudge={bookSessionNudge} />}
+
+      {onToday && canBookClass && <BookClassCard coachName={coachName} />}
 
       {onToday && canPay && !sessions && <PayCard />}
 

@@ -51,12 +51,12 @@ export default async function ClientToday() {
 
   // Booking, and how many free calls are left, if the coach offers booking.
   const canBook = !!bookingFor(coachLink?.coach.coachProfile?.bookingUrl)
-  // In-person sessions: any place to train, a number to text, or classes to list shows the card.
+  // In-person sessions: any place to train, or a number to text, shows the card.
   const canBookSession =
     !!coachLink &&
-    (!!coachLink.coach.coachProfile?.textNumber ||
-      !!coachLink.coach.coachProfile?.classFeedUrl ||
-      (await prisma.sessionLocation.count({ where: { coachId: coachLink.coachId } })) > 0)
+    (!!coachLink.coach.coachProfile?.textNumber || (await prisma.sessionLocation.count({ where: { coachId: coachLink.coachId } })) > 0)
+  // Group classes: the coach points the app at their class feed.
+  const canBookClass = !!coachLink?.coach.coachProfile?.classFeedUrl
   const credits = canBook && coachLink ? await callCreditsFor(session.user.id, coachLink.coachId) : null
   const callsLeft = credits && !credits.unlimited ? credits.left : null
 
@@ -103,6 +103,7 @@ export default async function ClientToday() {
         compliance={percent}
         canBook={canBook}
         canBookSession={canBookSession}
+        canBookClass={canBookClass}
         callsLeft={callsLeft}
         sessions={sessions}
         canPay={canPay}

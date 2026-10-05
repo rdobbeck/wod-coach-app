@@ -92,6 +92,16 @@ test("helpers: feed address rules and upcoming-class filtering", () => {
   expect(upcomingClasses({ weeks: [{ classes: [{ date: "soon", start: "9" }] }] }, plus(0)).classes).toEqual([])
 })
 
+test("no feed means no class card and the class page sends them back", async ({ browser }) => {
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await ctx.newPage()
+  await signInAsClient(page)
+  await expect(page.getByRole("link", { name: /Book a class/ })).toBeHidden()
+  await page.goto("/client/book/class")
+  await page.waitForURL(/\/client$/)
+  await ctx.close()
+})
+
 test("coach sets the feed; the client sees upcoming classes with booking links", async ({ page, browser }) => {
   const path = `/ryan-${Date.now()}.json`
   feeds.set(path, ryanFeed())
@@ -107,8 +117,8 @@ test("coach sets the feed; the client sees upcoming classes with booking links",
   const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const clientPage = await ctx.newPage()
   await signInAsClient(clientPage)
-  await clientPage.getByRole("link", { name: /Book a session/ }).click()
-  await clientPage.waitForURL(/\/client\/book\/session$/)
+  await clientPage.getByRole("link", { name: /Book a class/ }).click()
+  await clientPage.waitForURL(/\/client\/book\/class$/)
 
   const classes = clientPage.getByTestId("classes")
   await expect(classes).toContainText("at MagMile CrossFit")
@@ -132,8 +142,8 @@ test("a feed that is down or broken shows the empty state and nothing else break
   const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
   const page = await ctx.newPage()
   await signInAsClient(page)
-  await page.getByRole("link", { name: /Book a session/ }).click()
-  await page.waitForURL(/\/client\/book\/session$/)
+  await page.getByRole("link", { name: /Book a class/ }).click()
+  await page.waitForURL(/\/client\/book\/class$/)
   await expect(page.getByTestId("classes")).toContainText("No classes on the schedule yet")
   await expect(page.getByTestId("class")).toHaveCount(0)
 
