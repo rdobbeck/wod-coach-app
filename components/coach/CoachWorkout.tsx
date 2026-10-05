@@ -49,13 +49,15 @@ function ExercisePicker({ onPick, placeholder = "Add exercise: search the librar
   const [creating, setCreating] = useState(false)
   useEffect(() => {
     if (q.trim().length < 2) return setResults([])
+    const ctrl = new AbortController()
     const t = setTimeout(() => {
-      fetch(`/api/exercises/search?q=${encodeURIComponent(q)}`)
+      fetch(`/api/exercises/search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
         .then((r) => r.json())
         .then((d) => setResults(d.results ?? []))
-        .catch(() => setResults([]))
+        .catch((e) => { if (e.name !== "AbortError") setResults([]) })
     }, 250)
-    return () => clearTimeout(t)
+    // Abort on the next keystroke so a slow "front" reply can't land on top of "front squat".
+    return () => { clearTimeout(t); ctrl.abort() }
   }, [q])
   const pick = (e: Picked) => {
     onPick(e)
