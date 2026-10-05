@@ -757,6 +757,21 @@
           "category": "training_gear",
           "priceBand": "$$$",
           "featured": false
+        },
+        {
+          "id": "rogue-individual-pullup-system",
+          "name": "Rogue Individual Pull-up System (IPS)",
+          "brand": "Rogue",
+          "blurb": "A pull-up bar on straps. Loop it over a beam, a rafter, or a sturdy tree branch and you can do pull-ups anywhere, no drilling.",
+          "imageUrl": "https://assets.roguefitness.com/f_auto,q_auto,c_limit,w_1600,b_rgb:ffffff/v1/catalog/Bodyweight%20and%20Gymnastics/Pull-up%20Systems%20/XX513/XX513-H_lo0ovd.png",
+          "url": "https://www.roguefitness.com/rogue-individual-pullup-system",
+          "cta": "Shop at Rogue",
+          "code": null,
+          "deal": null,
+          "source": "rogue",
+          "category": "training_gear",
+          "priceBand": "$$",
+          "featured": false
         }
       ]
     },
@@ -1908,5 +1923,5 @@
   "disclaimers": {
     "nutrition": "Always check with your doctor before adding new supplements."
   },
-  "updated": "2026-09-08"
+  "updated": "2026-10-05"
 }
