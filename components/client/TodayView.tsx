@@ -100,9 +100,12 @@ function SessionCard({
 }
 
 /** Book an in-person session: pick where, then when, or text the coach. */
-function BookSessionCard({ coachName }: { coachName: string | null }) {
+function BookSessionCard({ coachName, nudge }: { coachName: string | null; nudge?: boolean }) {
   return (
-    <Link href="/client/book/session" className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-3.5">
+    <Link
+      href="/client/book/session"
+      className={`flex items-center gap-3 rounded-2xl border bg-app-surface px-4 py-3.5 ${nudge ? "pulse-cta border-app-accent/60" : "border-app-border"}`}
+    >
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-app-surface2">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" />
@@ -306,6 +309,7 @@ export default function TodayView({
   if (!today || !selected) return null
 
   const todays = items.filter((w) => w.day === today)
+  const bookSessionNudge = canBookSession && !sessions?.next && !sessions?.paymentDue
   const upcoming = items.find((w) => w.day > today && !w.isRest)
   const weekAgo = localDayKey(new Date(Date.now() - 7 * 86_400_000))
   const missed = items.filter((w) => w.day < today && w.day >= weekAgo && !w.isCompleted && !w.isRest)
@@ -487,7 +491,8 @@ export default function TodayView({
         </section>
       )}
 
-      {onToday && canBookSession && <BookSessionCard coachName={coachName} />}
+      {/* Only one card pulses: Pay now when money is owed (on the sessions card), else Book a session while nothing is on the coach's calendar. */}
+      {onToday && canBookSession && <BookSessionCard coachName={coachName} nudge={bookSessionNudge} />}
 
       {onToday && canPay && !sessions && <PayCard />}
 
@@ -497,7 +502,7 @@ export default function TodayView({
           callsLeft={callsLeft}
           // Unused free calls in the last ten days of the month are about to
           // disappear, which is the one time this card should ask for a tap.
-          nudge={!!callsLeft && callsLeft > 0 && Number(today.slice(8)) >= 21}
+          nudge={!bookSessionNudge && !sessions?.paymentDue && !!callsLeft && callsLeft > 0 && Number(today.slice(8)) >= 21}
         />
       )}
 
