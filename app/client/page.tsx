@@ -51,18 +51,20 @@ export default async function ClientToday() {
 
   // Booking, and how many free calls are left, if the coach offers booking.
   const canBook = !!bookingFor(coachLink?.coach.coachProfile?.bookingUrl)
-  // In-person sessions: any place to train, or a number to text, shows the card.
-  const canBookSession =
-    !!coachLink &&
-    (!!coachLink.coach.coachProfile?.textNumber || (await prisma.sessionLocation.count({ where: { coachId: coachLink.coachId } })) > 0)
   // Group classes: the coach points the app at their class feed.
   const canBookClass = !!coachLink?.coach.coachProfile?.classFeedUrl
-  const credits = canBook && coachLink ? await callCreditsFor(session.user.id, coachLink.coachId) : null
+  // These depend only on the coach link, so they run together rather than one after another.
+  const [locationCount, credits, counter, productCount] = await Promise.all([
+    coachLink && !coachLink.coach.coachProfile?.textNumber ? prisma.sessionLocation.count({ where: { coachId: coachLink.coachId } }) : 0,
+    canBook && coachLink ? callCreditsFor(session.user.id, coachLink.coachId) : null,
+    // Where they are with their sessions, read from the coach's calendar.
+    counterForClient(session.user.id),
+    coachLink ? prisma.product.count({ where: { coachId: coachLink.coachId, active: true } }) : 0,
+  ])
+  // In-person sessions: any place to train, or a number to text, shows the card.
+  const canBookSession = !!coachLink && (!!coachLink.coach.coachProfile?.textNumber || locationCount > 0)
   const callsLeft = credits && !credits.unlimited ? credits.left : null
-
-  // Where they are with their sessions, read from the coach's calendar.
-  const counter = await counterForClient(session.user.id)
-  const canPay = coachLink ? (await prisma.product.count({ where: { coachId: coachLink.coachId, active: true } })) > 0 : false
+  const canPay = productCount > 0
   const sessions = counter
     ? {
         used: counter.used,
