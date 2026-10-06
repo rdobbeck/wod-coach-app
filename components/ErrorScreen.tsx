@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 /** Friendly crash screen; reports to Ryan's phone once per mount. */
 export default function ErrorScreen({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  // The report form is a client page, so only offer it where a client crashed.
+  const [isClientPage, setIsClientPage] = useState(false)
+  useEffect(() => setIsClientPage(location.pathname.startsWith("/client")), [])
   useEffect(() => {
     fetch("/api/report-error", {
       method: "POST",
@@ -18,6 +21,11 @@ export default function ErrorScreen({ error, reset }: { error: Error & { digest?
       <p className="text-sm text-gray-600">Your coach has been notified. Try again. Anything you logged is saved.</p>
       <button onClick={reset} className="w-full rounded-xl bg-primary-600 py-3 font-semibold text-white">Try again</button>
       <a href="/client" className="text-sm font-semibold text-primary-600">Back to Today</a>
+      {isClientPage && (
+        <a href={`/client/report?from=${encodeURIComponent(location.pathname)}`} className="text-sm font-semibold text-gray-600 underline">
+          Tell Ryan what happened
+        </a>
+      )}
     </div>
   )
 }

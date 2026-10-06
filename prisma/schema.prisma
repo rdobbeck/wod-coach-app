@@ -83,6 +83,7 @@ model User {
   callsCoached          CallBooking[]      @relation("CoachCalls")
   sessionLocations      SessionLocation[]
   Attachment            Attachment[]
+  bugReports            BugReport[]
 }
 
 model VerificationToken {
@@ -224,6 +225,29 @@ model Attachment {
   uploader User?          @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
 
   @@index([commentId])
+}
+
+// A problem a client reported from inside the app, with the page they were on,
+// their device, and any screenshots they attached. Screenshots live in the
+// private `client-uploads` bucket (paths only); the coach views them through
+// short-lived signed URLs on /coach/bugs. resolvedAt is set when the coach
+// marks it handled; the daily digest nags about the ones still open.
+model BugReport {
+  id          String    @id @default(cuid())
+  userId      String
+  body        String    @db.Text
+  path        String? // the page they were on when they opened the form
+  userAgent   String?
+  viewport    String? // e.g. "390x844"
+  installed   Boolean   @default(false) // opened from the Home Screen app, not the browser
+  screenshots String[] // storage paths in the client-uploads bucket
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([resolvedAt, createdAt])
+  @@index([userId])
 }
 
 // A place the coach trains clients in person, with its own scheduling link.
@@ -897,17 +921,17 @@ model ClientAlias {
 // What a client can buy. Prices are the coach's to change; a payment keeps its
 // own copy of the description and amount, so editing a product never rewrites history.
 model Product {
-  id          String   @id @default(cuid())
-  coachId     String
-  name        String
-  description String?
-  priceCents  Int
-  sessions    Int      @default(1) // how many sessions it covers, for display
+  id              String   @id @default(cuid())
+  coachId         String
+  name            String
+  description     String?
+  priceCents      Int
+  sessions        Int      @default(1) // how many sessions it covers, for display
   stripeProductId String? // set by scripts/stripe-products.ts; lets Stripe coupons target one product
-  active      Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  active          Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([coachId, active])
 }

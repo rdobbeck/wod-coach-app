@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { bookingFor } from "@/lib/booking"
 import AccountSettings from "@/components/AccountSettings"
@@ -57,6 +58,14 @@ export default async function ClientProfilePage() {
       )}
 
       <ReplayTourButton canBook={canBook} canMove={p?.canMoveWorkouts ?? true} />
+
+      <Link
+        href="/client/report?from=/client/profile"
+        className="block w-full rounded-xl border border-app-border px-4 py-3 text-center text-sm font-semibold text-app-text"
+        data-testid="report-problem"
+      >
+        Report a problem
+      </Link>
 
       <p className="text-xs text-app-muted">Need something changed? Message your coach.</p>
       <SignOutButton />

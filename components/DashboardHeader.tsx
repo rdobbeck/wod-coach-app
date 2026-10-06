@@ -16,6 +16,7 @@ const coachNav = [
   { href: "/coach/payments", label: "Payments" },
   { href: "/coach/programs", label: "Programs" },
   { href: "/coach/library", label: "Library" },
+  { href: "/coach/bugs", label: "Bugs" },
   { href: "/coach/settings", label: "Settings" },
 ]
 

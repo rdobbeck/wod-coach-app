@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { openBugReports } from "@/lib/bug-reports"
 import { clientVisible, dayKey, fromDayKey } from "@/lib/training"
 import { BRAND_DOMAIN, brandDomainLive, coachLinkUrl, coachLinkHost } from "@/lib/coach-link"
 import DashboardHeader from "@/components/DashboardHeader"
@@ -131,8 +132,19 @@ export default async function CoachDashboard() {
   const missedWeek = roster.reduce((n, r) => n + r.missed.length, 0)
   const unreadTotal = unread.reduce((n, u) => n + u._count, 0)
 
+  // Problems clients reported and nobody has resolved. Stays at the top until it is handled.
+  const bugs = await openBugReports(coachId)
+
   // ---- what needs the coach, most urgent first ----------------------------
   const attention: Attention[] = [
+    ...bugs.map((b) => ({
+      key: `bug-${b.id}`,
+      tone: "red" as const,
+      title: `${b.user.name ?? b.user.email ?? "A client"} reported a problem`,
+      detail: `${b.body ? `"${b.body.slice(0, 90)}${b.body.length > 90 ? "…" : ""}"` : "Screenshot only"} · ${ago(b.createdAt)}`,
+      href: "/coach/bugs",
+      cta: "Look",
+    })),
     ...drafts.map((p) => ({
       key: `draft-${p.id}`,
       tone: "ink" as const,
