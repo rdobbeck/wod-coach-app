@@ -46,6 +46,7 @@ async function seedSession(name: string, opts: { owner?: string; done?: boolean;
 }
 
 async function cleanup() {
+  await prisma.aiThread.deleteMany({ where: { clientId } })
   await prisma.aiChangeSet.deleteMany({ where: { clientId } })
   await prisma.aiUsage.deleteMany({ where: { coachId } })
   await prisma.workout.deleteMany({ where: { clientId: { in: [clientId, otherId].filter(Boolean) }, name: { startsWith: PREFIX } } })
@@ -175,6 +176,32 @@ test("apply records who applied, and undo is open to the applier and to any coac
   expect(undo2.status()).toBe(200)
   await ctx.close()
   await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+})
+
+test("threads: saved per person and client, trimmed, cleaned, and cleared", async ({ page, browser }) => {
+  const msg = (i: number) => ({ role: i % 2 ? "assistant" : "user", text: `m${i}` })
+  // Junk is refused.
+  expect((await page.request.put("/api/ai/assist/thread", { data: { clientId, messages: "nope" } })).status()).toBe(400)
+  // 30 messages in, last 20 kept; unknown fields and failed messages dropped; text trimmed to 4000.
+  const long = Array.from({ length: 30 }, (_, i) => ({ ...msg(i), bogus: 1, text: i === 29 ? "x".repeat(5000) : `m${i}` }))
+  long.push({ role: "assistant", text: "broken", failed: true } as never)
+  const put = await page.request.put("/api/ai/assist/thread", { data: { clientId, messages: long } })
+  expect(put.status(), await put.text()).toBe(200)
+  const got = await (await page.request.get(`/api/ai/assist/thread?clientId=${clientId}`)).json()
+  expect(got.messages.length).toBe(20)
+  expect(got.messages[0].text).toBe("m10")
+  expect(got.messages[19].text.length).toBe(4000)
+  expect("bogus" in got.messages[0]).toBe(false)
+  // The client's thread about the same training is separate.
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  const { ctx, page: cp } = await clientContext(browser)
+  const theirs = await (await cp.request.get(`/api/ai/assist/thread?clientId=${clientId}`)).json()
+  expect(theirs.messages).toEqual([])
+  await ctx.close()
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+  // Clear.
+  expect((await page.request.delete(`/api/ai/assist/thread?clientId=${clientId}`)).status()).toBe(200)
+  expect((await (await page.request.get(`/api/ai/assist/thread?clientId=${clientId}`)).json()).messages).toEqual([])
 })
 
 // ---------- reading the model's answer ----------
