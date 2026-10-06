@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { detectBrowser, shouldShowInstallStep, type InstallBrowser } from "@/lib/install-prompt"
+import { getPushState } from "@/lib/push-client"
 import { InstallStepBody, arrowAtBottom } from "./InstallStep"
 import { NotificationsStepBody } from "./NotificationsPrompt"
 import { CallsVisual, LoggingVisual, NotificationVisual, RestVisual, TabsVisual, VideoVisual, WeekVisual } from "./TourVisuals"
@@ -30,7 +31,21 @@ const TABS = [
   ["Settings", "Make it look and work how you want"],
 ]
 
-function buildSteps({ coachName, canBook, canMove, install }: { coachName: string; canBook: boolean; canMove: boolean; install: InstallBrowser | null }): Step[] {
+function buildSteps({
+  coachName,
+  canBook,
+  canMove,
+  install,
+  notifyAfterInstall,
+}: {
+  coachName: string
+  canBook: boolean
+  canMove: boolean
+  install: InstallBrowser | null
+  // iPhone in the browser: Apple only lets Home Screen apps ask, so the ask
+  // waits for the installed app (NotificationsPrompt) instead of a slide here.
+  notifyAfterInstall: boolean
+}): Step[] {
   const steps: Step[] = [
     {
       id: "tabs",
@@ -130,12 +145,12 @@ function buildSteps({ coachName, canBook, canMove, install }: { coachName: strin
     })
   }
 
-  steps.push({
+  if (!notifyAfterInstall) steps.push({
     id: "notifications",
     title: "Turn on notifications",
     icon: <Icon><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M13.7 21a2 2 0 0 1-3.4 0" /></Icon>,
     visual: <NotificationVisual coachName={coachName} />,
-    body: <NotificationsStepBody installNext={!!install} />,
+    body: <NotificationsStepBody />,
   })
 
   if (install && install !== "desktop") {
@@ -143,7 +158,7 @@ function buildSteps({ coachName, canBook, canMove, install }: { coachName: strin
       id: "install",
       title: "Put WOD on your Home Screen",
       icon: <Icon><rect x="6" y="2" width="12" height="20" rx="3" /><path d="M11 18h2" /></Icon>,
-      body: <InstallStepBody browser={install} />,
+      body: <InstallStepBody browser={install} notifyAfter={notifyAfterInstall} />,
       raise: arrowAtBottom(install),
     })
   }
@@ -156,21 +171,30 @@ export function TourDeck({
   canBook,
   canMove,
   onDone,
+  onReachEnd,
 }: {
   coachName?: string
   canBook: boolean
   canMove: boolean
   onDone: (completed: boolean) => void
+  /** Reaching the last slide counts as seen: on a phone they often leave from there to install. */
+  onReachEnd?: () => void
 }) {
   // Decided after mount: it depends on the browser, and the server can't know.
   const [install, setInstall] = useState<InstallBrowser | null>(null)
+  const [notifyAfterInstall, setNotifyAfterInstall] = useState(false)
   useEffect(() => {
     if (shouldShowInstallStep()) setInstall(detectBrowser())
+    getPushState().then((s) => setNotifyAfterInstall(s === "needs-install"), () => {})
   }, [])
-  const steps = buildSteps({ coachName, canBook, canMove, install })
+  const steps = buildSteps({ coachName, canBook, canMove, install, notifyAfterInstall })
   const [i, setI] = useState(0)
   const step = steps[i]
   const last = i === steps.length - 1
+
+  useEffect(() => {
+    if (last) onReachEnd?.()
+  }, [last, onReachEnd])
 
   const close = useCallback((completed: boolean) => onDone(completed), [onDone])
 
@@ -244,12 +268,14 @@ const remember = (seen: boolean) =>
 /** Opens itself once, on a client's first visit to Today. */
 export default function Tour({ seen, coachName, canBook, canMove }: { seen: boolean; coachName?: string; canBook: boolean; canMove: boolean }) {
   const [open, setOpen] = useState(!seen)
+  const markSeen = useCallback(() => remember(true), [])
   if (!open) return null
   return (
     <TourDeck
       coachName={coachName}
       canBook={canBook}
       canMove={canMove}
+      onReachEnd={markSeen}
       onDone={() => {
         setOpen(false)
         // Skipping counts as seen too, so it never ambushes them twice.

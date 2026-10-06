@@ -53,7 +53,10 @@ const STEPS: Record<Exclude<InstallBrowser, "desktop">, [React.ReactNode, React.
 /** True when the arrow sits at the bottom, so the tour card has to move up out of its way. */
 export const arrowAtBottom = (browser: InstallBrowser) => ARROW_SPOTS[browser]?.dir === "down"
 
-export function InstallStepBody({ browser }: { browser: Exclude<InstallBrowser, "desktop"> }) {
+export function InstallStepBody({ browser, notifyAfter = false }: { browser: Exclude<InstallBrowser, "desktop">; notifyAfter?: boolean }) {
+  const why = notifyAfter
+    ? "Open it in one tap, full screen. When you open it from the icon, tap Turn on so you hear the moment your coach replies."
+    : "Open it in one tap, full screen, and get notified the moment your coach replies."
   // Chrome's prompt can arrive after the tour opens; re-render when it does.
   const [, refresh] = useReducer((n: number) => n + 1, 0)
   const [busy, setBusy] = useState(false)
@@ -66,7 +69,7 @@ export function InstallStepBody({ browser }: { browser: Exclude<InstallBrowser, 
   if (browser.startsWith("android") && canPromptInstall()) {
     return (
       <>
-        <p>Open it in one tap, full screen, and get notified the moment your coach replies.</p>
+        <p>{why}</p>
         <button
           disabled={busy}
           onClick={async () => {
@@ -86,7 +89,7 @@ export function InstallStepBody({ browser }: { browser: Exclude<InstallBrowser, 
   const spot = ARROW_SPOTS[browser]
   return (
     <>
-      <p>Open it in one tap, full screen, and get notified the moment your coach replies.</p>
+      <p>{why}</p>
       <ol className="mt-4 space-y-3">
         {STEPS[browser].map(([icon, text], n) => (
           <li key={n} className="flex items-center gap-3">
