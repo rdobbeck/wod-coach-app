@@ -76,7 +76,11 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
   const end = useRef<HTMLDivElement>(null)
   const first = clientName.split(" ")[0] || "this client"
 
-  useEffect(() => end.current?.scrollIntoView({ block: "end" }), [msgs, busy, open])
+  // Braces matter: newer Chrome returns a value from scrollIntoView, and an
+  // effect that returns it would hand React a "cleanup" that is not a function.
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "end" })
+  }, [msgs, busy, open])
   useEffect(() => {
     try {
       if (localStorage.getItem("ai-auto-load") === "off") setAuto(false)

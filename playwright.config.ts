@@ -5,7 +5,7 @@ import { config as loadEnv } from "dotenv"
 loadEnv({ path: ".env.local", override: true })
 loadEnv({ path: ".env" })
 
-const PORT = 3011
+const PORT = Number(process.env.PW_PORT) || 3011
 const BASE_URL = `http://localhost:${PORT}`
 
 export default defineConfig({
@@ -37,7 +37,7 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: "npm run dev",
+    command: `npx next dev -p ${PORT}`,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
