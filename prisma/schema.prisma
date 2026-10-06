@@ -428,6 +428,9 @@ model ExerciseLibrary {
   videoUrl     String?
   thumbnailUrl String?
   instructions String?   @db.Text
+  // What a set measures when the coach's target names no unit: "distance" for
+  // carries and sleds; null = reps. A unit in the target always wins (lib/hold.ts).
+  tracking     String?
   isCustom     Boolean   @default(false)
   createdBy    String?
   coachrxId    String?   @unique @map("coachrx_id")

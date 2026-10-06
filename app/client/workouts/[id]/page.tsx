@@ -16,7 +16,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
       program: { select: { name: true, isDraft: true } },
       exercises: {
         orderBy: { order: "asc" },
-        include: { exercise: { select: { id: true, name: true, videoUrl: true } } },
+        include: { exercise: { select: { id: true, name: true, videoUrl: true, tracking: true } } },
       },
       logs: {
         where: { userId: session.user.id },
@@ -67,6 +67,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
           name: e.name ?? e.exercise?.name ?? "Exercise",
           prescription: e.prescription ?? ([e.sets && `${e.sets} sets`, e.reps && `${e.reps} reps`].filter(Boolean).join(" × ") || null),
           reps: e.reps,
+          libraryTracking: e.exercise?.tracking ?? null,
           restSeconds: e.restSeconds,
           notes: e.notes,
           plannedSets: e.sets,

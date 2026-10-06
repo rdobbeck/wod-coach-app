@@ -18,17 +18,27 @@ export type HistoryEntry = {
 }
 
 /**
- * One-line summary of a history entry: "40 kg × 8 · 45 × 8 · RPE 7" or the result text.
- * For a timed exercise (plank, dead hang) the reps column holds seconds: "60s · 45s".
+ * What a set's reps column holds: reps, seconds (plank, dead hang) or a
+ * distance in the coach's unit (carry, sled). Null unit = the coach wrote none.
  */
-export function summarizeEntry(h: Pick<HistoryEntry, "resultText" | "rpe" | "sets">, units = "lb", timed = false) {
+export type SetMeasure = "reps" | "seconds" | { distance: string | null }
+
+/** A reps-column value with its unit: "8", "60s", "30 m". */
+export const formatSetValue = (n: number, measure: SetMeasure = "reps") =>
+  measure === "seconds" ? `${n}s` : typeof measure === "object" && measure.distance ? `${n} ${measure.distance}` : `${n}`
+
+/**
+ * One-line summary of a history entry: "40 kg × 8 · 45 × 8 · RPE 7" or the result text.
+ * Timed sets read "60s · 45s"; distance sets "90 lb × 30 m (×3)".
+ */
+export function summarizeEntry(h: Pick<HistoryEntry, "resultText" | "rpe" | "sets">, units = "lb", measure: SetMeasure = "reps") {
   // Collapse repeats: "110 lb × 6 (×3) · 120 lb × 6"
   const sets: string[] = []
   let prev = ""
   let run = 0
   const push = () => prev && sets.push(run > 1 ? `${prev} (×${run})` : prev)
   for (const s of h.sets.filter((s) => s.reps !== null || s.weight !== null)) {
-    const txt = [s.weight !== null ? `${s.weight} ${units}` : null, s.reps !== null ? (timed ? `${s.reps}s` : `${s.reps}`) : null]
+    const txt = [s.weight !== null ? `${s.weight} ${units}` : null, s.reps !== null ? formatSetValue(s.reps, measure) : null]
       .filter(Boolean)
       .join(" × ")
     if (txt === prev) run++
