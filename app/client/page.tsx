@@ -7,6 +7,8 @@ import TodayView, { type DayWorkout } from "@/components/client/TodayView"
 import Tour from "@/components/client/Tour"
 import NotificationsPrompt from "@/components/client/NotificationsPrompt"
 import { requireClient } from "@/lib/require-client"
+import AiAssistant from "@/components/coach/AiAssistant"
+import { spendMeter } from "@/lib/ai/spend"
 
 const DAY = 86_400_000
 
@@ -96,6 +98,8 @@ export default async function ClientToday() {
   }))
 
   const canMove = profile?.canMoveWorkouts ?? true
+  // Ask AI on the client's own training, when their coach switched it on. The meter is the coach's; the panel hides it for clients.
+  const aiMeter = profile?.canAskAi && coachLink ? await spendMeter(coachLink.coachId) : null
 
   return (
     <>
@@ -135,6 +139,7 @@ export default async function ClientToday() {
       />
       {/* Only once the tour is behind them, so the two never stack. */}
       {profile?.tourSeenAt && <NotificationsPrompt />}
+      {aiMeter && <AiAssistant clientId={session.user.id} clientName={session.user.name ?? ""} meter={aiMeter} viewer="client" />}
     </>
   )
 }
