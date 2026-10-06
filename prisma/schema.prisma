@@ -185,6 +185,7 @@ model ClientProfile {
   equipment            String[]
   preferredWorkoutDays String[]
   canMoveWorkouts      Boolean   @default(true) // client may reschedule their own workouts
+  canAskAi             Boolean   @default(false) // client may use Ask AI on their own training (spends the coach's allowance)
   units                String    @default("lb") // "lb" | "kg"
   theme                String    @default("dark") // client app look: "dark" (Gym Floor) | "light" (Chalk)
   phone                String?
@@ -858,12 +859,26 @@ model AiChangeSet {
   id        String    @id @default(cuid())
   coachId   String
   clientId  String
+  appliedById String? // who clicked Apply: the coach or the client; null = coach (rows from before this column)
   request   String    @db.Text
   applied   Json // [{ action, workoutId, exerciseId?, before?, after? }]
   createdAt DateTime  @default(now())
   undoneAt  DateTime?
 
   @@index([clientId, createdAt])
+}
+
+// One Ask AI conversation per person per client, so the panel survives a
+// reload. `messages` is the panel's own Msg[]; see components/coach/AiAssistant.tsx.
+model AiThread {
+  id        String   @id @default(cuid())
+  userId    String
+  clientId  String
+  messages  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, clientId])
 }
 
 // ============================================
