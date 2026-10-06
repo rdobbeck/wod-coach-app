@@ -216,6 +216,19 @@ test("threads: saved per person and client, trimmed, cleaned, and cleared", asyn
   expect((await (await page.request.get(`/api/ai/assist/thread?clientId=${clientId}`)).json()).messages).toEqual([])
 })
 
+test("the coach switches Ask AI on and off per client", async ({ page }) => {
+  const res = await page.request.patch(`/api/clients/${clientId}/settings`, { data: { canAskAi: true } })
+  expect(res.status()).toBe(200)
+  expect((await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).canAskAi).toBe(true)
+  // The switch sits beside "Client can move workouts" (the test coach's trial plan includes the assistant).
+  await page.goto(`/coach/clients/${clientId}`)
+  const box = page.getByRole("checkbox", { name: /Client can ask AI/ })
+  await expect(box).toBeChecked()
+  await expect(page.getByText(/can ask AI/).first()).toBeVisible()
+  await box.uncheck()
+  await expect.poll(async () => (await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).canAskAi).toBe(false)
+})
+
 // ---------- reading the model's answer ----------
 
 const ctx: Context = {

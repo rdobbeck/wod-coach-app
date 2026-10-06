@@ -13,10 +13,11 @@ export async function PATCH(req: Request, { params }: { params: { clientId: stri
   })
   if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const body = (await req.json()) as { canMoveWorkouts?: boolean; units?: string; fastingEnabled?: boolean; fastingProtocol?: string }
+  const body = (await req.json()) as { canMoveWorkouts?: boolean; canAskAi?: boolean; units?: string; fastingEnabled?: boolean; fastingProtocol?: string }
   const protocol = body.fastingProtocol && PROTOCOLS[body.fastingProtocol] ? body.fastingProtocol : undefined
   const data = {
     ...(typeof body.canMoveWorkouts === "boolean" ? { canMoveWorkouts: body.canMoveWorkouts } : {}),
+    ...(typeof body.canAskAi === "boolean" ? { canAskAi: body.canAskAi } : {}),
     ...(body.units === "lb" || body.units === "kg" ? { units: body.units } : {}),
     // The coach offering fasting also turns it on; withdrawing it removes the
     // section from the client's settings entirely.

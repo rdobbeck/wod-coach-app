@@ -4,7 +4,19 @@ import { useState } from "react"
 import { toast } from "sonner"
 
 /** Invite link + per-client settings on the coach's client page. */
-export default function ClientActions({ clientId, canMoveWorkouts, hasPassword }: { clientId: string; canMoveWorkouts: boolean; hasPassword: boolean }) {
+export default function ClientActions({
+  clientId,
+  canMoveWorkouts,
+  canAskAi,
+  assistantPlan,
+  hasPassword,
+}: {
+  clientId: string
+  canMoveWorkouts: boolean
+  canAskAi: boolean
+  assistantPlan: boolean
+  hasPassword: boolean
+}) {
   const [url, setUrl] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [canMove, setCanMove] = useState(canMoveWorkouts)
@@ -35,6 +47,20 @@ export default function ClientActions({ clientId, canMoveWorkouts, hasPassword }
       toast.error("Couldn't save setting")
     }
   }
+  const [askAi, setAskAi] = useState(canAskAi)
+  const toggleAskAi = async () => {
+    const next = !askAi
+    setAskAi(next)
+    const res = await fetch(`/api/clients/${clientId}/settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ canAskAi: next }),
+    })
+    if (!res.ok) {
+      setAskAi(!next)
+      toast.error("Couldn't save setting")
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -46,6 +72,15 @@ export default function ClientActions({ clientId, canMoveWorkouts, hasPassword }
           <input type="checkbox" checked={canMove} onChange={toggleMove} className="h-4 w-4 rounded border-gray-300" />
           Client can move workouts
         </label>
+        {assistantPlan ? (
+          <label className="flex items-center gap-2 text-sm text-gray-700" title="Spends from your AI allowance">
+            <input type="checkbox" checked={askAi} onChange={toggleAskAi} className="h-4 w-4 rounded border-gray-300" />
+            Client can ask AI
+            <span className="text-xs text-gray-500">(spends your allowance)</span>
+          </label>
+        ) : (
+          <span className="text-xs text-gray-500">Ask AI for clients comes with Pro and Studio</span>
+        )}
         {!hasPassword && <span className="text-xs text-gray-500">Not signed up yet</span>}
       </div>
       {url && (

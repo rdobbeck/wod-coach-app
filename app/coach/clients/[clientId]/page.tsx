@@ -13,6 +13,7 @@ import HistoryView from "@/components/client/HistoryView"
 import AiAssistant from "@/components/coach/AiAssistant"
 import TrainTodayButton from "@/components/coach/TrainTodayButton"
 import { spendMeter } from "@/lib/ai/spend"
+import { getCoachPlan } from "@/lib/plans"
 import { dayKey, getClientSnapshot, getHistoryOverview } from "@/lib/training"
 import { clockLabel, fastHours, fastingStreak, type FastEntry } from "@/lib/fasting"
 
@@ -71,7 +72,7 @@ export default async function ClientDetailPage({
   const nextMonth = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1, 12))
   const todayKey = dayKey(today)
 
-  const [workouts, overview, programs, snapshot, unread, aiMeter] = await Promise.all([
+  const [workouts, overview, programs, snapshot, unread, aiMeter, coachPlan] = await Promise.all([
     prisma.workout.findMany({
       where: { clientId: client.id, scheduledDate: { gte: gridStart, lte: gridEnd } },
       orderBy: [{ scheduledDate: "asc" }, { order: "asc" }],
@@ -86,6 +87,7 @@ export default async function ClientDetailPage({
     getClientSnapshot(client.id),
     prisma.message.count({ where: { senderId: client.id, receiverId: session.user.id, isRead: false } }),
     spendMeter(session.user.id),
+    getCoachPlan(session.user.id),
   ])
 
   const fastRows = profile?.fastingEnabled
@@ -195,7 +197,7 @@ export default async function ClientDetailPage({
             <div className="min-w-0 flex-1">
               <h1 className="font-display text-4xl font-bold leading-none text-[#16181d]">{client.name || "Unnamed client"}</h1>
               <p className="mt-1 text-sm text-[#6b6257]">
-                {[client.email, profile?.units === "kg" ? "kg" : "lb", profile?.canMoveWorkouts === false ? "can't move workouts" : "can move workouts"]
+                {[client.email, profile?.units === "kg" ? "kg" : "lb", profile?.canMoveWorkouts === false ? "can't move workouts" : "can move workouts", ...(profile?.canAskAi ? ["can ask AI"] : [])]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
@@ -216,7 +218,13 @@ export default async function ClientDetailPage({
 
           <div className="mt-4 space-y-3">
             <TrainTodayButton clientId={client.id} days={calendarDays} />
-            <ClientActions clientId={client.id} canMoveWorkouts={profile?.canMoveWorkouts ?? true} hasPassword={!!client.hashedPassword} />
+            <ClientActions
+              clientId={client.id}
+              canMoveWorkouts={profile?.canMoveWorkouts ?? true}
+              canAskAi={profile?.canAskAi ?? false}
+              assistantPlan={coachPlan.plan.assistant}
+              hasPassword={!!client.hashedPassword}
+            />
             <FastingControl
               clientId={client.id}
               offered={profile?.fastingOffered ?? false}
