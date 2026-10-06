@@ -371,13 +371,12 @@ test("the public page lists what is for sale without signing in, and the coach's
 
   await page.goto("/pay/pw-coach")
   await expect(page.getByRole("heading", { name: /Train with/ })).toBeVisible()
-  await expect(page.getByRole("radio", { name: /Gym pod session/ })).toBeVisible()
-  await expect(page.getByRole("radio", { name: /\$120/ })).toBeVisible()
-  // Nothing is payable until an email is given.
-  const pay = page.getByRole("button", { name: /^Pay/ })
-  await expect(pay).toBeDisabled()
-  await page.getByLabel(/Your email/).fill("someone@example.com")
-  await expect(pay).toBeEnabled()
+  // Card payments are owner-only until Stripe Connect (cardReadyFor), so a
+  // visitor to any other coach's page is told to message the coach instead of
+  // being shown a price list that can't be paid.
+  await expect(page.getByText(/Online payment is not set up yet/)).toBeVisible()
+  await expect(page.getByRole("radio")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: /^Pay/ })).toHaveCount(0)
 
   // The coach's own page offers it, and stops offering it when nothing is for sale.
   await page.goto("/c/pw-coach")

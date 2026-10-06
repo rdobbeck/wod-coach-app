@@ -43,7 +43,7 @@ test.describe("Exercise Library — auth guard", () => {
 test.describe("Exercise Library — signed in as coach", () => {
   test("renders header with total count and ~48 cards on first page", async ({ page }) => {
     await page.goto("/coach/library")
-    await expect(page.locator(HEADER_PARA)).toContainText(/exercises from CoachRx/)
+    await expect(page.locator(HEADER_PARA)).toContainText(/exercises with demo videos/)
     await expect(page.locator(HEADER_PARA)).toContainText(/Showing 1 to /)
     const count = await page.locator(CARD_SELECTOR).count()
     expect(count).toBeGreaterThanOrEqual(40)
