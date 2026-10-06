@@ -326,6 +326,44 @@ test("in the panel: review a proposal, untick a change, apply, undo", async ({ p
   await expect.poll(async () => (await prisma.workoutExercise.findUniqueOrThrow({ where: { id: squat.id } })).name).toBe("Back Squat")
 })
 
+test("in the panel: the page survives a browser whose scrollIntoView returns a value", async ({ page }) => {
+  // Chrome 154 made scrollIntoView return an object. The panel scrolls to the
+  // newest message in an effect; if that effect hands the return value to
+  // React as its cleanup, React calls it on the next message and the whole
+  // client page falls over to the error screen, taking the proposal with it.
+  await page.addInitScript(() => {
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function (this: Element, ...args: unknown[]) {
+      ;(original as (...a: unknown[]) => void).apply(this, args)
+      return { done: true } as unknown as void
+    }
+  })
+  const w = await seedSession(`${PREFIX}Scroll Session`)
+  const [squat] = w.exercises
+  await page.route("**/api/ai/assist", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    await route.fulfill({
+      json: {
+        reply: "Swapped the squat.",
+        changes: [
+          { action: "replace", workoutId: w.id, workoutName: w.name, date: dayKey(w.scheduledDate), exerciseId: squat.id, exercise: "Back Squat", newExercise: "Goblet Squat", newPrescription: "3x10", libraryId: null, inLibrary: false, reason: "Easier on the knee" },
+        ],
+        warnings: [],
+        dropped: [],
+        meter: { spent: 0.05, cap: 25, level: "ok" },
+      },
+    })
+  })
+
+  await openPanel(page)
+  await page.getByPlaceholder("Ask a question or describe a change").fill("His knee hurts, ease the squat")
+  await page.getByRole("button", { name: "Send" }).click()
+
+  await expect(page.getByText("Swapped the squat.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Apply 1 change" })).toBeVisible()
+  await expect(page.getByText("Something went wrong")).toBeHidden()
+})
+
 test("in the panel: at the cap the box is switched off", async ({ page }) => {
   await prisma.aiUsage.create({ data: { coachId, kind: "assist", model: "test", costUsd: 25.5 } })
   await openPanel(page)
