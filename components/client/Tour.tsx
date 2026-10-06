@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { detectBrowser, shouldShowInstallStep, type InstallBrowser } from "@/lib/install-prompt"
 import { InstallStepBody, arrowAtBottom } from "./InstallStep"
 import { NotificationsStepBody } from "./NotificationsPrompt"
+import { CallsVisual, LoggingVisual, NotificationVisual, RestVisual, TabsVisual, VideoVisual, WeekVisual } from "./TourVisuals"
 
 /**
  * First-run walkthrough. It runs once, the first time a client opens Today,
@@ -12,8 +13,9 @@ import { NotificationsStepBody } from "./NotificationsPrompt"
  * allows them), notifications, and (on a phone, in the browser) adding it to
  * the Home Screen.
  */
+// `visual` is a small picture of the screen the slide talks about, shown in place of the icon.
 // `raise` lifts the card clear of an arrow pointing at the bottom of the screen.
-type Step = { id: string; title: string; icon: React.ReactNode; body: React.ReactNode; raise?: boolean }
+type Step = { id: string; title: string; icon: React.ReactNode; visual?: React.ReactNode; body: React.ReactNode; raise?: boolean }
 
 const Icon = ({ children }: { children: React.ReactNode }) => (
   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -34,6 +36,7 @@ function buildSteps({ coachName, canBook, canMove, install }: { coachName: strin
       id: "tabs",
       title: "Here's where everything lives",
       icon: <Icon><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" /></Icon>,
+      visual: <TabsVisual />,
       body: (
         <>
           <ul className="space-y-2">
@@ -51,6 +54,7 @@ function buildSteps({ coachName, canBook, canMove, install }: { coachName: strin
       id: "logging",
       title: "Log a set without typing",
       icon: <Icon><path d="M20 6 9 17l-5-5" /></Icon>,
+      visual: <LoggingVisual />,
       body: (
         <>
           <p>
@@ -68,6 +72,7 @@ function buildSteps({ coachName, canBook, canMove, install }: { coachName: strin
       id: "rest",
       title: "The rest timer runs itself",
       icon: <Icon><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M9 2h6" /></Icon>,
+      visual: <RestVisual />,
       body: (
         <p>
           Tick a set and rest starts counting straight away, using whatever rest your program calls for. Add 30 seconds or skip it from
@@ -79,9 +84,10 @@ function buildSteps({ coachName, canBook, canMove, install }: { coachName: strin
       id: "video",
       title: "Film a set and get it looked at",
       icon: <Icon><rect x="2" y="6" width="13" height="12" rx="2" /><path d="m15 11 6-3.5v9L15 13" /></Icon>,
+      visual: <VideoVisual coachName={coachName} />,
       body: (
         <p>
-          Every session has a comment box at the bottom. Tap the paperclip, attach a video of the set you want eyes on, and
+          Every session has a comment box at the bottom. Tap the <span className="font-semibold text-app-text">+</span>, attach a video of the set you want eyes on, and
           {coachName ? ` ${coachName}` : " your coach"} replies right there on that session instead of somewhere you have to go looking.
         </p>
       ),
@@ -93,6 +99,7 @@ function buildSteps({ coachName, canBook, canMove, install }: { coachName: strin
       id: "calls",
       title: "Two free calls, every month",
       icon: <Icon><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></Icon>,
+      visual: <CallsVisual />,
       body: (
         <p>
           You get two 30 minute video calls a month. Tap <span className="font-semibold text-app-text">Book a call</span> on Today and
@@ -107,6 +114,7 @@ function buildSteps({ coachName, canBook, canMove, install }: { coachName: strin
       id: "week",
       title: "Make the week fit your life",
       icon: <Icon><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M9 14h6" /></Icon>,
+      visual: <WeekVisual />,
       body: (
         <>
           <p>
@@ -126,6 +134,7 @@ function buildSteps({ coachName, canBook, canMove, install }: { coachName: strin
     id: "notifications",
     title: "Turn on notifications",
     icon: <Icon><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M13.7 21a2 2 0 0 1-3.4 0" /></Icon>,
+    visual: <NotificationVisual coachName={coachName} />,
     body: <NotificationsStepBody installNext={!!install} />,
   })
 
@@ -173,7 +182,7 @@ export function TourDeck({
 
   return (
     <div className={`fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center ${step.raise ? "pb-28" : ""}`} role="dialog" aria-modal="true" aria-label="App walkthrough">
-      <div className="w-full max-w-sm rounded-3xl border border-app-border bg-app-surface p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-app-text shadow-2xl">
+      <div className="max-h-full w-full max-w-sm overflow-y-auto rounded-3xl border border-app-border bg-app-surface p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-app-text shadow-2xl">
         <div className="flex items-center justify-between gap-4">
           <div className="flex gap-1.5" aria-hidden="true">
             {steps.map((s, n) => (
@@ -193,7 +202,11 @@ export function TourDeck({
           )}
         </div>
 
-        <span className="mt-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-app-surface2 text-app-accent">{step.icon}</span>
+        {step.visual ? (
+          <div className="mt-5">{step.visual}</div>
+        ) : (
+          <span className="mt-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-app-surface2 text-app-accent">{step.icon}</span>
+        )}
 
         <h2 className="mt-4 font-display text-3xl font-bold leading-tight">{step.title}</h2>
         <div className="mt-3 text-sm leading-relaxed text-app-muted">{step.body}</div>
