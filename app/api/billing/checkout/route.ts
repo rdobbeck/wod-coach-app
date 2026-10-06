@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { customerFor } from "@/lib/billing"
 import { PAID_PLANS, SETUP_LOOKUP_KEY, getCoachPlan, lookupKey, type PlanId } from "@/lib/plans"
-import { appOrigin, platformStripe, priceId } from "@/lib/stripe-platform"
+import { appOrigin, checkoutBase, platformStripe, priceId } from "@/lib/stripe-platform"
 
 /**
  * Starts a Stripe Checkout for a coach:
@@ -34,6 +34,7 @@ export async function POST(req: Request) {
       }
       const addSetup = !!body.setup && interval === "month"
       const s = await stripe.checkout.sessions.create({
+        ...checkoutBase,
         mode: "subscription",
         customer: customerId,
         line_items: [
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
 
     if (body.kind === "setup") {
       const s = await stripe.checkout.sessions.create({
+        ...checkoutBase,
         mode: "payment",
         customer: customerId,
         line_items: [{ price: await priceId(SETUP_LOOKUP_KEY), quantity: 1 }],
@@ -67,6 +69,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Top up between $10 and $100" }, { status: 400 })
       }
       const s = await stripe.checkout.sessions.create({
+        ...checkoutBase,
         mode: "payment",
         customer: customerId,
         line_items: [{ price_data: { currency: "usd", product: "wodcoach_ai_balance", unit_amount: cents }, quantity: 1 }],

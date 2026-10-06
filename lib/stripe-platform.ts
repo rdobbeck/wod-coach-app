@@ -32,3 +32,12 @@ export async function priceId(lookupKey: string): Promise<string> {
 
 /** The app's public origin, for Stripe redirect URLs. */
 export const appOrigin = (req: Request) => process.env.NEXTAUTH_URL ?? new URL(req.url).origin
+
+/**
+ * Spread into every WOD.COACH Checkout Session. The account has Stripe Managed
+ * Payments on by default (Stripe as seller of record), but it can't sell human
+ * services (the done-for-you setup) and doesn't work for Connect platforms,
+ * which is where coach payments are headed. So we stay the seller; turn on
+ * Stripe Tax (automatic_tax) once sales reach a state's threshold.
+ */
+export const checkoutBase = { managed_payments: { enabled: false } } as {}

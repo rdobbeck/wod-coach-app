@@ -17,11 +17,16 @@ export async function missingPrices(): Promise<string[]> {
   return CATALOG_KEYS.filter((k) => !have.has(k))
 }
 
-async function product(stripe: Stripe, id: string, name: string, description: string) {
+// Stripe tax categories. The plans and AI balance are software a coach uses for
+// their business; the done-for-you setup is a person doing the work.
+const TAX_SAAS_BUSINESS = "txcd_10103001" // Software as a service (SaaS) - business use
+const TAX_SERVICES = "txcd_20030000" // General - Services
+
+async function product(stripe: Stripe, id: string, name: string, description: string, tax_code: string) {
   try {
-    return await stripe.products.update(id, { name, description })
+    return await stripe.products.update(id, { name, description, tax_code })
   } catch {
-    return stripe.products.create({ id, name, description })
+    return stripe.products.create({ id, name, description, tax_code })
   }
 }
 
@@ -52,18 +57,19 @@ export async function ensureCatalog(): Promise<string[]> {
       stripe,
       `wodcoach_plan_${id.toLowerCase()}`,
       `WOD.COACH ${plan.name}`,
-      `Up to ${plan.clients} clients, ${plan.aiPrograms} AI-built programs a month${plan.assistant ? ", AI assistant" : ""}. Every feature included.`
+      `Up to ${plan.clients} clients, ${plan.aiPrograms} AI-built programs a month${plan.assistant ? ", AI assistant" : ""}. Every feature included.`,
+      TAX_SAAS_BUSINESS
     )
     const m = await price(stripe, p.id, lookupKey(id, "month"), plan.monthlyCents, { interval: "month" })
     const y = await price(stripe, p.id, lookupKey(id, "year"), plan.yearlyCents, { interval: "year" })
     log.push(`${plan.name}: $${plan.monthlyCents / 100}/mo (${m.id}), $${plan.yearlyCents / 100}/yr (${y.id})`)
   }
 
-  const setup = await product(stripe, "wodcoach_setup", "WOD.COACH done-for-you setup", "We move your clients over, set up your page, and build your first program with you.")
+  const setup = await product(stripe, "wodcoach_setup", "WOD.COACH done-for-you setup", "We move your clients over, set up your page, and build your first program with you.", TAX_SERVICES)
   const s = await price(stripe, setup.id, SETUP_LOOKUP_KEY, SETUP_CENTS)
   log.push(`Done-for-you setup: $${SETUP_CENTS / 100} one-time (${s.id})`)
 
-  await product(stripe, "wodcoach_ai_balance", "WOD.COACH AI balance", "Pay-as-you-go balance for AI-built programs and the AI assistant.")
+  await product(stripe, "wodcoach_ai_balance", "WOD.COACH AI balance", "Pay-as-you-go balance for AI-built programs and the AI assistant.", TAX_SAAS_BUSINESS)
   log.push("AI balance product ready (top-ups are priced at checkout)")
 
   // Customer portal: coaches change plan, update their card, see invoices, cancel.
