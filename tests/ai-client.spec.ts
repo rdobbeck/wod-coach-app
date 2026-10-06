@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test"
 import { PrismaClient } from "@prisma/client"
 import { dbUrl } from "../lib/db-url"
 import { dayKey } from "../lib/training-format"
+import { undoChangeSet } from "../lib/ai/apply"
 
 /** Ask AI on the client's own Today page: gated by the coach's switch, paid by the coach. */
 const prisma = new PrismaClient({ datasources: { db: { url: dbUrl() } } })
@@ -93,4 +94,41 @@ test("switched off while the panel is open: the next ask explains instead of goi
   await page.getByPlaceholder("Ask a question or describe a change").fill("Anything")
   await page.getByRole("button", { name: "Send" }).click()
   await expect(page.getByText(/hasn't switched on Ask AI for you/)).toBeVisible()
+})
+
+test("the coach sees what the client changed and can undo it; a stranger coach cannot", async ({ page, browser }) => {
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  const w = await seedSession(`${PREFIX}Seen By Coach`)
+  const [squat] = w.exercises
+  await signInAsClient(page)
+  const res = await page.request.post("/api/ai/assist/apply", {
+    data: { clientId, request: "Make my squat lighter please", changes: [{ action: "modify", workoutId: w.id, exerciseId: squat.id, newPrescription: "3x5 @ RPE 6" }] },
+  })
+  expect(res.status()).toBe(200)
+
+  const coach = await browser.newContext({ storageState: "./.auth/coach.json" })
+  const cp = await coach.newPage()
+  await cp.goto(`/coach/clients/${clientId}`)
+  const strip = cp.getByTestId("recent-ai-changes")
+  await expect(strip).toContainText("Recent AI changes")
+  await expect(strip).toContainText("Playwright") // the client's first name
+  await expect(strip).toContainText("Make my squat lighter please")
+  await expect(strip).toContainText("1 edit")
+  await strip.getByRole("button", { name: "Undo" }).click()
+  await expect(strip).toContainText("Undone")
+  await expect.poll(async () => (await prisma.workoutExercise.findUniqueOrThrow({ where: { id: squat.id } })).prescription).toBe("3x5 @ RPE 7, rest 2 min")
+  await coach.close()
+
+  // Someone who is not this client's coach cannot undo their batch.
+  const again = await page.request.post("/api/ai/assist/apply", {
+    data: { clientId, request: "again", changes: [{ action: "modify", workoutId: w.id, exerciseId: squat.id, newPrescription: "3x5 @ RPE 6" }] },
+  })
+  const { changeSetId: id2 } = await again.json()
+  const stranger = await prisma.user.upsert({
+    where: { email: "playwright-stranger-coach@dev.local" },
+    update: {},
+    create: { email: "playwright-stranger-coach@dev.local", name: "Stranger", role: "COACH", hashedPassword: "x", coachProfile: { create: {} } },
+  })
+  const r = await undoChangeSet(stranger.id, id2)
+  expect(r.ok).toBe(false)
 })
