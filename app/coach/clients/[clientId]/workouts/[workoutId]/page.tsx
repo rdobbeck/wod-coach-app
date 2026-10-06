@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import DashboardHeader from "@/components/DashboardHeader"
 import CoachWorkout from "@/components/coach/CoachWorkout"
 import { coachOf } from "@/lib/coach-access"
-import { dayKey, getLastTimes } from "@/lib/training"
+import { dayKey, getLastTimes, measureOfLogged } from "@/lib/training"
 import { signDownloads } from "@/lib/uploads"
 
 // Comments change outside this render, so never serve a cached copy.
@@ -27,7 +27,7 @@ export default async function CoachWorkoutPage({
     where: { id: params.workoutId, clientId: params.clientId },
     include: {
       client: { select: { name: true, clientProfile: { select: { units: true } } } },
-      exercises: { orderBy: { order: "asc" }, include: { exercise: { select: { name: true, videoUrl: true } } } },
+      exercises: { orderBy: { order: "asc" }, include: { exercise: { select: { name: true, videoUrl: true, tracking: true } } } },
       logs: { include: { exerciseLogs: { include: { setLogs: { orderBy: { setNumber: "asc" } } } } } },
       comments: { orderBy: { createdAt: "asc" }, include: { attachments: true } },
     },
@@ -75,7 +75,7 @@ export default async function CoachWorkoutPage({
               supersetGroup: e.supersetGroup ?? "",
               lastTime: lastTimes[e.id],
               logged: x
-                ? { resultText: x.resultText, rpe: x.rpe, sets: x.setLogs.map((s) => ({ setNumber: s.setNumber, reps: s.reps, weight: s.weight, rpe: s.rpe })) }
+                ? { resultText: x.resultText, rpe: x.rpe, sets: x.setLogs.map((s) => ({ setNumber: s.setNumber, reps: s.reps, weight: s.weight, rpe: s.rpe })), measure: measureOfLogged(e) }
                 : null,
             }
           })}

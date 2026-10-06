@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { parseTracking } from "../lib/hold"
+import { measureFor, parseTracking } from "../lib/hold"
 import { parseRestSeconds } from "../lib/rest"
 import { summarizeEntry } from "../lib/training-format"
 
@@ -39,4 +39,14 @@ test("cues after the target don't change it", () => {
   expect(parseTracking({ prescription: "@2011, 6 each side x 4 sets; rest 60s\n\nNote: hold 1 second, return.", reps: null })).toEqual({ kind: "reps" })
   expect(parseTracking({ prescription: "One set, Max Reps", reps: null })).toEqual({ kind: "reps" })
   expect(parseTracking({ prescription: "Ring Plank 2 x MAX (3:00 goal)", reps: null })).toEqual({ kind: "timed", hold: { mode: "up", seconds: null } })
+})
+
+test("each history entry carries its own unit", () => {
+  const sets = [{ setNumber: 1, reps: 45, weight: 90, rpe: null }]
+  expect(summarizeEntry({ resultText: null, rpe: null, sets, measure: "seconds" }, "lb")).toBe("90 lb × 45s")
+  expect(summarizeEntry({ resultText: null, rpe: null, sets, measure: { distance: "m" } }, "lb")).toBe("90 lb × 45 m")
+  expect(summarizeEntry({ resultText: null, rpe: null, sets }, "lb")).toBe("90 lb × 45")
+  expect(measureFor({ prescription: "3x30m @ RPE 7.5", reps: "30m" })).toEqual({ distance: "m" })
+  expect(measureFor({ prescription: "3 x 20s", reps: null })).toBe("seconds")
+  expect(measureFor({ prescription: "3 x 2", reps: "2", libraryTracking: "distance" })).toEqual({ distance: null })
 })

@@ -1,5 +1,6 @@
 import { prisma } from "./prisma"
 import { exerciseKey } from "./exercise-key"
+import { measureFor } from "./hold"
 import { dayKey, summarizeEntry, type HistoryEntry } from "./training-format"
 
 export { dayKey, fromDayKey, summarizeEntry, type HistoryEntry } from "./training-format"
@@ -26,6 +27,11 @@ function historyWhere(clientId: string, ref: ExerciseRef) {
 }
 
 /** Every logged instance of an exercise for a client, newest first. */
+/** The unit a logged exercise's reps column holds, from the prescription it was logged against. */
+export function measureOfLogged(we: { prescription: string | null; reps: string | null; exercise: { tracking: string | null } | null } | undefined) {
+  return we ? measureFor({ prescription: we.prescription, reps: we.reps, libraryTracking: we.exercise?.tracking }) : undefined
+}
+
 export async function getExerciseHistory(clientId: string, ref: ExerciseRef, limit = 50): Promise<HistoryEntry[]> {
   const logs = await prisma.exerciseLog.findMany({
     where: historyWhere(clientId, ref),
@@ -33,7 +39,7 @@ export async function getExerciseHistory(clientId: string, ref: ExerciseRef, lim
     take: limit,
     include: {
       setLogs: { orderBy: { setNumber: "asc" } },
-      workoutExercise: { select: { name: true, exercise: { select: { name: true } }, workout: { select: { id: true, name: true } } } },
+      workoutExercise: { select: { name: true, prescription: true, reps: true, exercise: { select: { name: true, tracking: true } }, workout: { select: { id: true, name: true } } } },
     },
   })
   return logs
@@ -47,6 +53,7 @@ export async function getExerciseHistory(clientId: string, ref: ExerciseRef, lim
       resultText: l.resultText,
       rpe: l.rpe,
       sets: l.setLogs.map((s) => ({ setNumber: s.setNumber, reps: s.reps, weight: s.weight, rpe: s.rpe })),
+      measure: measureOfLogged(l.workoutExercise),
     }))
 }
 
@@ -83,7 +90,7 @@ export async function getHistoryOverview(clientId: string) {
       orderBy: { performedAt: "desc" },
       include: {
         setLogs: { orderBy: { setNumber: "asc" } },
-        workoutExercise: { select: { name: true, exercise: { select: { name: true } } } },
+        workoutExercise: { select: { name: true, prescription: true, reps: true, exercise: { select: { name: true, tracking: true } } } },
       },
     }),
   ])
@@ -91,7 +98,7 @@ export async function getHistoryOverview(clientId: string) {
   // One row per exercise (library exercise when linked, else normalized name).
   const seen = new Map<
     string,
-    { exerciseId: string | null; name: string; lastDay: string; count: number; last: Pick<HistoryEntry, "resultText" | "rpe" | "sets"> }
+    { exerciseId: string | null; name: string; lastDay: string; count: number; last: Pick<HistoryEntry, "resultText" | "rpe" | "sets" | "measure"> }
   >()
   for (const l of logs) {
     const key = l.exerciseId ?? `name:${l.exerciseKey}`
@@ -105,7 +112,12 @@ export async function getHistoryOverview(clientId: string) {
       name: l.workoutExercise.exercise?.name ?? l.workoutExercise.name ?? "Exercise",
       lastDay: dayKey(l.performedAt),
       count: 1,
-      last: { resultText: l.resultText, rpe: l.rpe, sets: l.setLogs.map((s) => ({ setNumber: s.setNumber, reps: s.reps, weight: s.weight, rpe: s.rpe })) },
+      last: {
+        resultText: l.resultText,
+        rpe: l.rpe,
+        sets: l.setLogs.map((s) => ({ setNumber: s.setNumber, reps: s.reps, weight: s.weight, rpe: s.rpe })),
+        measure: measureOfLogged(l.workoutExercise),
+      },
     })
   }
 
@@ -129,7 +141,7 @@ export async function getClientSnapshot(clientId: string) {
       orderBy: { scheduledDate: "desc" },
       include: {
         logs: { where: { userId: clientId }, include: { exerciseLogs: { include: { setLogs: { orderBy: { setNumber: "asc" } } } } } },
-        exercises: { select: { id: true, name: true, exercise: { select: { name: true } } } },
+        exercises: { select: { id: true, name: true, prescription: true, reps: true, exercise: { select: { name: true, tracking: true } } } },
       },
     }),
     prisma.program.findFirst({
@@ -151,10 +163,7 @@ export async function getClientSnapshot(clientId: string) {
   const compliance = rated.length ? Math.round((rated.filter((w) => w.isCompleted).length / rated.length) * 100) : null
 
   const log = latest?.logs[0]
-  const nameOf = (weId: string) => {
-    const e = latest?.exercises.find((x) => x.id === weId)
-    return e?.exercise?.name ?? e?.name ?? "Exercise"
-  }
+  const exerciseOf = (weId: string) => latest?.exercises.find((x) => x.id === weId)
   const latestSession = latest
     ? {
         id: latest.id,
@@ -162,9 +171,14 @@ export async function getClientSnapshot(clientId: string) {
         day: dayKey(latest.scheduledDate),
         note: log?.notes ?? null,
         lines: (log?.exerciseLogs ?? []).slice(0, 6).map((x) => ({
-          name: nameOf(x.workoutExerciseId),
+          name: exerciseOf(x.workoutExerciseId)?.exercise?.name ?? exerciseOf(x.workoutExerciseId)?.name ?? "Exercise",
           summary: summarizeEntry(
-            { resultText: x.resultText, rpe: x.rpe, sets: x.setLogs.map((s) => ({ setNumber: s.setNumber, reps: s.reps, weight: s.weight, rpe: s.rpe })) },
+            {
+              resultText: x.resultText,
+              rpe: x.rpe,
+              sets: x.setLogs.map((s) => ({ setNumber: s.setNumber, reps: s.reps, weight: s.weight, rpe: s.rpe })),
+              measure: measureOfLogged(exerciseOf(x.workoutExerciseId)),
+            },
             "lb"
           ),
         })),

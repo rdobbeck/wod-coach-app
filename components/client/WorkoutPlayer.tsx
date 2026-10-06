@@ -8,9 +8,9 @@ import CommentThread from "@/components/CommentThread"
 import ExerciseHistorySheet from "@/components/ExerciseHistorySheet"
 import VideoPlayer, { type PlayerItem } from "@/components/VideoPlayer"
 import VideoThumb from "@/components/VideoThumb"
-import { summarizeEntry, type HistoryEntry, type SetMeasure } from "@/lib/training-format"
+import { summarizeEntry, type HistoryEntry } from "@/lib/training-format"
 import { formatClock, restSecondsFor } from "@/lib/rest"
-import { parseTracking, type Hold, type Tracking } from "@/lib/hold"
+import { parseTracking, type Hold } from "@/lib/hold"
 import Hint from "./Hint"
 import MoveWorkoutButton from "./MoveWorkoutButton"
 
@@ -54,10 +54,6 @@ const fmtDay = (d: string, opts: Intl.DateTimeFormatOptions = { weekday: "long",
 
 const numOrNull = (v: string) => (v.trim() === "" || Number.isNaN(Number(v)) ? null : Number(v))
 const isLogged = (e: PlayerExercise) => !!e.resultText.trim() || e.rpe !== null || e.sets.some((s) => s.done)
-
-/** How the second column of a set row reads and logs, from what the set measures. */
-const measureOf = (t: Tracking): SetMeasure => (t.kind === "timed" ? "seconds" : t.kind === "distance" ? { distance: t.unit } : "reps")
-
 function TextBlock({ title, text, open = false }: { title: string; text: string | null; open?: boolean }) {
   if (!text) return null
   return (
@@ -423,7 +419,7 @@ export default function WorkoutPlayer({
                     {e.lastTime ? (
                       <>
                         <span className="font-semibold text-app-text">Last time ({fmtDay(e.lastTime.date, { month: "short", day: "numeric" })}):</span>{" "}
-                        {summarizeEntry(e.lastTime, units, measureOf(tracking)) || "done"} <span className="text-app-accent">· History ›</span>
+                        {summarizeEntry(e.lastTime, units) || "done"} <span className="text-app-accent">· History ›</span>
                       </>
                     ) : (
                       <>First time logging this <span className="text-app-accent">· History ›</span></>
@@ -665,7 +661,6 @@ export default function WorkoutPlayer({
           exerciseId={historyFor.exerciseId}
           name={historyFor.name}
           units={units}
-          measure={measureOf(parseTracking(historyFor))}
           onClose={() => setHistoryFor(null)}
           onUse={(h) => useHistory(historyFor, h)}
         />

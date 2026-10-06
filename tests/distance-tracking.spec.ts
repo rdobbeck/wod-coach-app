@@ -126,3 +126,16 @@ test("a carry in meters logs weight × meters; reps and holds are unchanged", as
 
   await ctx.close()
 })
+
+test("the coach sees the unit: last time, today's logged sets, and history", async ({ page }) => {
+  // Runs after the client logged set 1 above (90 lb × 30 m).
+  await page.goto(`/coach/clients/${clientId}/workouts/${workoutId}`)
+  const carry = page.locator("li").filter({ hasText: "3x30m @ RPE 7.5" })
+  await expect(carry.getByText(/Logged:/).locator("..")).toContainText("90 lb × 30 m")
+  await expect(carry.getByRole("button", { name: /Last time/ })).toContainText("90 lb × 30 m (×3)")
+
+  await page.goto(`/coach/clients/${clientId}?tab=exercises`)
+  await expect(page.getByRole("button", { name: /Farmer Carry/ })).toContainText("× 30 m")
+  await page.getByRole("button", { name: /Farmer Carry/ }).click()
+  await expect(page.getByText("Set 1: 90 lb × 30 m").first()).toBeVisible()
+})

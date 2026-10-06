@@ -1,15 +1,13 @@
 'use client'
 
 import { useEffect, useState } from "react"
-import { formatSetValue, summarizeEntry, type HistoryEntry, type SetMeasure } from "@/lib/training-format"
+import { formatSetValue, summarizeEntry, type HistoryEntry } from "@/lib/training-format"
 
 type Props = {
   clientId?: string // omit for the signed-in client
   exerciseId: string | null
   name: string
   units: string
-  /** What the reps column holds for this exercise (seconds, a distance); plain reps when omitted. */
-  measure?: SetMeasure
   onClose: () => void
   /**
    * Fill today's set rows from a past day. Only passed when the sheet is open
@@ -22,7 +20,7 @@ const fmtDate = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
 
 /** Bottom sheet listing every previous time the client did this exercise, newest first. */
-export default function ExerciseHistorySheet({ clientId, exerciseId, name, units, measure = "reps", onClose, onUse }: Props) {
+export default function ExerciseHistorySheet({ clientId, exerciseId, name, units, onClose, onUse }: Props) {
   const [history, setHistory] = useState<HistoryEntry[] | null>(null)
   const [error, setError] = useState("")
 
@@ -69,7 +67,7 @@ export default function ExerciseHistorySheet({ clientId, exerciseId, name, units
                     {h.sets.map((s) => (
                       <li key={s.setNumber}>
                         Set {s.setNumber}: {s.weight !== null ? `${s.weight} ${units}` : "-"}
-                        {s.reps !== null ? ` × ${formatSetValue(s.reps, measure)}` : ""}
+                        {s.reps !== null ? ` × ${formatSetValue(s.reps, h.measure)}` : ""}
                         {s.rpe !== null ? ` @ RPE ${s.rpe}` : ""}
                       </li>
                     ))}
