@@ -1,16 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useState } from "react"
+import { detectBrowser, shouldShowInstallStep, type InstallBrowser } from "@/lib/install-prompt"
+import { InstallStepBody, arrowAtBottom } from "./InstallStep"
+import { NotificationsStepBody } from "./NotificationsPrompt"
 
 /**
  * First-run walkthrough. It runs once, the first time a client opens Today,
  * and can be replayed from Settings. It is deliberately short: where things
- * live, and turning notifications on. Everything else is learned in place:
+ * live, turning notifications on, and (on a phone, in the browser) adding it to
+ * the Home Screen. Everything else is learned in place:
  * one-time Hints on the workout screen (logging sets, the rest timer), the
  * comment box's placeholder (video form checks), and Today's own labels
  * (moving sessions, free calls).
  */
-type Step = { id: string; title: string; icon: React.ReactNode; body: React.ReactNode }
+// `raise` lifts the card clear of an arrow pointing at the bottom of the screen.
+type Step = { id: string; title: string; icon: React.ReactNode; body: React.ReactNode; raise?: boolean }
 
 const Icon = ({ children }: { children: React.ReactNode }) => (
   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -25,7 +30,7 @@ const TABS = [
   ["Settings", "Make it look and work how you want"],
 ]
 
-function buildSteps(_: { coachName: string; canBook: boolean; canMove: boolean }): Step[] {
+function buildSteps({ install }: { coachName: string; canBook: boolean; canMove: boolean; install: InstallBrowser | null }): Step[] {
   const steps: Step[] = [
     {
       id: "tabs",
@@ -48,18 +53,20 @@ function buildSteps(_: { coachName: string; canBook: boolean; canMove: boolean }
 
   steps.push({
     id: "notifications",
-    title: "One last thing",
+    title: "Turn on notifications",
     icon: <Icon><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M13.7 21a2 2 0 0 1-3.4 0" /></Icon>,
-    body: (
-      <>
-        <p>
-          Turn on notifications in <span className="font-semibold text-app-text">Settings</span> so you know when a new program lands or
-          a note comes back. On an iPhone, add the app to your Home Screen first, or Apple won't let it send anything.
-        </p>
-        <p className="mt-3">Settings is also where you change the colours, switch between lb and kg, and run this tour again.</p>
-      </>
-    ),
+    body: <NotificationsStepBody installNext={!!install} />,
   })
+
+  if (install && install !== "desktop") {
+    steps.push({
+      id: "install",
+      title: "Put WOD on your Home Screen",
+      icon: <Icon><rect x="6" y="2" width="12" height="20" rx="3" /><path d="M11 18h2" /></Icon>,
+      body: <InstallStepBody browser={install} />,
+      raise: arrowAtBottom(install),
+    })
+  }
 
   return steps
 }
@@ -75,7 +82,12 @@ export function TourDeck({
   canMove: boolean
   onDone: (completed: boolean) => void
 }) {
-  const steps = buildSteps({ coachName, canBook, canMove })
+  // Decided after mount: it depends on the browser, and the server can't know.
+  const [install, setInstall] = useState<InstallBrowser | null>(null)
+  useEffect(() => {
+    if (shouldShowInstallStep()) setInstall(detectBrowser())
+  }, [])
+  const steps = buildSteps({ coachName, canBook, canMove, install })
   const [i, setI] = useState(0)
   const step = steps[i]
   const last = i === steps.length - 1
@@ -89,7 +101,7 @@ export function TourDeck({
   }, [close])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="App walkthrough">
+    <div className={`fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center ${step.raise ? "pb-28" : ""}`} role="dialog" aria-modal="true" aria-label="App walkthrough">
       <div className="w-full max-w-sm rounded-3xl border border-app-border bg-app-surface p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-app-text shadow-2xl">
         <div className="flex items-center justify-between gap-4">
           <div className="flex gap-1.5" aria-hidden="true">
@@ -97,9 +109,17 @@ export function TourDeck({
               <span key={s.id} className={`h-1.5 rounded-full transition-all ${n === i ? "w-5 bg-app-accent" : "w-1.5 bg-app-surface2"}`} />
             ))}
           </div>
-          <button onClick={() => close(false)} className="text-sm font-semibold text-app-muted">
-            Skip
-          </button>
+          {step.id === "install" ? (
+            <button onClick={() => close(false)} aria-label="Close" className="-m-2 p-2 text-app-muted">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          ) : (
+            <button onClick={() => close(false)} className="text-sm font-semibold text-app-muted">
+              Skip
+            </button>
+          )}
         </div>
 
         <span className="mt-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-app-surface2 text-app-accent">{step.icon}</span>
