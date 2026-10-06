@@ -68,9 +68,21 @@ test.afterAll(async () => {
   await cleanup()
   await prisma.$disconnect()
 })
-test.beforeEach(async () => {
+// Panel tests save the thread in the background; let those requests land before the next test's cleanup.
+const inflight = new WeakMap<Page, Set<unknown>>()
+test.beforeEach(async ({ page }) => {
+  const pending = new Set<unknown>()
+  page.on("request", (r) => pending.add(r))
+  page.on("requestfinished", (r) => pending.delete(r))
+  page.on("requestfailed", (r) => pending.delete(r))
+  inflight.set(page, pending)
+  await prisma.aiThread.deleteMany({ where: { clientId } })
   await prisma.aiChangeSet.deleteMany({ where: { clientId } })
   await prisma.aiUsage.deleteMany({ where: { coachId } })
+})
+test.afterEach(async ({ page }) => {
+  const pending = inflight.get(page)
+  if (pending) await expect.poll(() => pending.size, { timeout: 5_000 }).toBe(0).catch(() => {})
 })
 
 // ---------- the cap ----------
@@ -448,6 +460,71 @@ test("in the panel: the page survives a browser whose scrollIntoView returns a v
 
   await expect(page.getByText("Swapped the squat.")).toBeVisible()
   await expect(page.getByRole("button", { name: "Apply 1 change" })).toBeVisible()
+  await expect(page.getByText("Something went wrong")).toBeHidden()
+})
+
+async function mockReply(page: Page, w: Awaited<ReturnType<typeof seedSession>>) {
+  const [squat] = w.exercises
+  await page.route("**/api/ai/assist", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    await route.fulfill({
+      json: {
+        reply: "Eased the squat.",
+        changes: [{ action: "replace", workoutId: w.id, workoutName: w.name, date: dayKey(w.scheduledDate), exerciseId: squat.id, exercise: "Back Squat", newExercise: "Goblet Squat", newPrescription: "3x10", libraryId: null, inLibrary: false, reason: "Easier on the knee" }],
+        warnings: [], dropped: [], meter: { spent: 0.05, cap: 25, level: "ok" },
+      },
+    })
+  })
+}
+
+test("in the panel: a proposal survives a reload, still applies, and Clear wipes it", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Reload Me`)
+  await mockReply(page, w)
+  await openPanel(page)
+  await page.getByPlaceholder("Ask a question or describe a change").fill("Knee hurts")
+  const saved = page.waitForResponse((r) => r.url().includes("/api/ai/assist/thread") && r.request().method() === "PUT")
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(page.getByText("Eased the squat.")).toBeVisible()
+  expect((await saved).status()).toBe(200)
+
+  await page.reload()
+  await page.waitForLoadState("networkidle")
+  await page.getByRole("button", { name: /Ask AI about/ }).click()
+  await expect(page.getByText("Knee hurts", { exact: true })).toBeVisible()
+  await expect(page.getByText("Eased the squat.")).toBeVisible()
+  await page.getByRole("button", { name: "Apply 1 change" }).click()
+  await expect(page.getByText(/Applied 1 change to/)).toBeVisible()
+  await expect.poll(async () => (await prisma.workoutExercise.findUniqueOrThrow({ where: { id: w.exercises[0].id } })).name).toBe("Goblet Squat")
+
+  // Applied state is saved too.
+  await page.reload()
+  await page.waitForLoadState("networkidle")
+  await page.getByRole("button", { name: /Ask AI about/ }).click()
+  await expect(page.getByText(/Applied 1 change to/)).toBeVisible()
+
+  page.once("dialog", (d) => d.accept())
+  const deleted = page.waitForResponse((r) => r.url().includes("/api/ai/assist/thread") && r.request().method() === "DELETE")
+  await page.getByRole("button", { name: "Clear" }).click()
+  await expect(page.getByText("Eased the squat.")).toBeHidden()
+  await expect(page.getByText(/Ask a question, or tell me what to change/)).toBeVisible()
+  expect((await deleted).status()).toBe(200)
+  expect(await prisma.aiThread.count({ where: { clientId } })).toBe(0)
+})
+
+test("in the panel: a restored proposal whose session is now done is skipped, not crashed on", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Gone Stale`)
+  await mockReply(page, w)
+  await openPanel(page)
+  await page.getByPlaceholder("Ask a question or describe a change").fill("Knee hurts")
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(page.getByText("Eased the squat.")).toBeVisible()
+  await prisma.workout.update({ where: { id: w.id }, data: { isCompleted: true } })
+  await page.reload()
+  await page.waitForLoadState("networkidle")
+  await page.getByRole("button", { name: /Ask AI about/ }).click()
+  await page.getByRole("button", { name: "Apply 1 change" }).click()
+  await expect(page.getByText(/not found, is already done, or is in the past/)).toBeVisible()
+  await expect(page.getByRole("button", { name: "Apply 1 change" })).toBeVisible() // back to pending
   await expect(page.getByText("Something went wrong")).toBeHidden()
 })
 

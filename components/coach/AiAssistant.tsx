@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import type { Change } from "@/lib/ai/assist"
 
 type Meter = { spent: number; cap: number; level: "ok" | "warn" | "capped" }
-type Msg = {
+export type Msg = {
   role: "user" | "assistant"
   text: string
   changes?: Change[]
@@ -76,6 +76,59 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
   const end = useRef<HTMLDivElement>(null)
   const first = clientName.split(" ")[0] || "this client"
 
+  // The conversation lives in the database so a reload or a crash does not lose it.
+  const [loaded, setLoaded] = useState(false)
+  const lastSaved = useRef<Msg[] | null>(null)
+  useEffect(() => {
+    if (!open || loaded) return
+    let cancelled = false
+    fetch(`/api/ai/assist/thread?clientId=${encodeURIComponent(clientId)}`)
+      .then((r) => (r.ok ? r.json() : { messages: [] }))
+      .then((d) => {
+        if (cancelled || !Array.isArray(d.messages)) return
+        // Never overwrite a conversation that started while the thread was loading.
+        setMsgs((cur) => {
+          if (cur.length) return cur
+          lastSaved.current = d.messages
+          return d.messages
+        })
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, loaded, clientId])
+
+  const saveThread = (messages: Msg[]) => {
+    fetch("/api/ai/assist/thread", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId, messages: messages.filter((m) => !m.failed) }),
+    })
+      .then((r) => {
+        if (!r.ok) toast.error("Couldn't save this conversation")
+      })
+      .catch(() => toast.error("Couldn't save this conversation"))
+  }
+  useEffect(() => {
+    // Save on every change after the first load; the restore itself is not written back.
+    if (!loaded || lastSaved.current === msgs) return
+    lastSaved.current = msgs
+    if (msgs.length === 0) return
+    saveThread(msgs)
+  }, [msgs, loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const clearThread = async () => {
+    const pending = msgs.some((m) => m.state === "pending")
+    if (!window.confirm(pending ? "Clear this conversation? Unapplied edits will be dropped." : "Clear this conversation?")) return
+    lastSaved.current = []
+    setMsgs([])
+    await fetch(`/api/ai/assist/thread?clientId=${encodeURIComponent(clientId)}`, { method: "DELETE" }).catch(() => {})
+  }
+
   // Braces matter: newer Chrome returns a value from scrollIntoView, and an
   // effect that returns it would hand React a "cleanup" that is not a function.
   useEffect(() => {
@@ -102,7 +155,7 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
 
   const send = async (text: string) => {
     const message = text.trim()
-    if (!message || busy) return
+    if (!message || busy || !loaded) return
     const history = msgs.filter((m) => !m.failed).map((m) => ({ role: m.role, content: m.text }))
     setMsgs((m) => [...m, { role: "user", text: message }])
     setInput("")
@@ -207,9 +260,16 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
                   <p className="font-display text-xl font-bold leading-none text-[#16181d]">Ask AI</p>
                   <p className="text-xs text-[#6b6257]">About {first}. Nothing changes until you apply it.</p>
                 </div>
-                <button onClick={() => setOpen(false)} className="rounded-full px-3 py-1 text-sm font-semibold text-[#6b6257]" aria-label="Close">
-                  Close
-                </button>
+                <div className="flex items-center gap-1">
+                  {msgs.length > 0 && (
+                    <button onClick={clearThread} className="rounded-full px-3 py-1 text-sm font-semibold text-[#6b6257]" aria-label="Clear">
+                      Clear
+                    </button>
+                  )}
+                  <button onClick={() => setOpen(false)} className="rounded-full px-3 py-1 text-sm font-semibold text-[#6b6257]" aria-label="Close">
+                    Close
+                  </button>
+                </div>
               </div>
               <div className="mt-2" title="Resets on the 1st">
                 <div className="flex justify-between text-[11px] text-[#6b6257]">
@@ -230,7 +290,8 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
             </div>
 
             <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-              {!msgs.length && (
+              {!loaded && <p className="text-sm text-[#6b6257]">Loading&hellip;</p>}
+              {loaded && !msgs.length && (
                 <div className="space-y-2">
                   <p className="text-sm text-[#4a443c]">
                     Ask a question, or tell me what to change in {first}&apos;s upcoming training. I can see their sessions, results and notes.
@@ -349,12 +410,12 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
                   }}
                   rows={2}
                   placeholder={meter.level === "capped" ? "Monthly AI limit reached" : "Ask a question or describe a change"}
-                  disabled={meter.level === "capped"}
+                  disabled={meter.level === "capped" || !loaded}
                   className="block max-h-40 min-h-[3rem] flex-1 resize-none rounded-xl border border-[#ddd7cc] bg-[#faf8f4] px-3 py-2 text-base text-[#16181d] disabled:opacity-60"
                 />
                 <button
                   type="submit"
-                  disabled={busy || !input.trim() || meter.level === "capped"}
+                  disabled={busy || !loaded || !input.trim() || meter.level === "capped"}
                   className="h-12 rounded-xl bg-[#16181d] px-4 font-display text-base font-bold uppercase tracking-[0.06em] text-[#f4f1ea] disabled:opacity-40"
                 >
                   Send
