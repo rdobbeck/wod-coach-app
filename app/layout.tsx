@@ -6,6 +6,7 @@ import "./globals.css";
 const display = Barlow_Condensed({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-display", display: "swap" });
 const body = Public_Sans({ subsets: ["latin"], variable: "--font-body", display: "swap" });
 import { Toaster } from "sonner";
+import InstallPromptInit from "@/components/InstallPromptInit";
 
 export const metadata: Metadata = {
   title: "WOD Coach",
@@ -29,6 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
       <body className="antialiased">
+        <InstallPromptInit />
         {children}
         <Toaster position="top-right" />
       </body>

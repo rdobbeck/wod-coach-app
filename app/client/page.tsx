@@ -5,6 +5,7 @@ import { callCreditsFor } from "@/lib/call-credits"
 import { counterForClient } from "@/lib/sessions/queries"
 import TodayView, { type DayWorkout } from "@/components/client/TodayView"
 import Tour from "@/components/client/Tour"
+import NotificationsPrompt from "@/components/client/NotificationsPrompt"
 import { requireClient } from "@/lib/require-client"
 
 const DAY = 86_400_000
@@ -132,6 +133,8 @@ export default async function ClientToday() {
         canBook={canBook}
         canMove={canMove}
       />
+      {/* Only once the tour is behind them, so the two never stack. */}
+      {profile?.tourSeenAt && <NotificationsPrompt />}
     </>
   )
 }

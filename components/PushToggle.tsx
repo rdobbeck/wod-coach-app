@@ -2,17 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { disablePush, enablePush, getPushState, type PushState } from "@/lib/push-client"
 
-/** Base64url to the Uint8Array the Push API wants. */
-function urlB64ToUint8Array(base64: string) {
-  const padded = (base64 + "=".repeat((4 - (base64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/")
-  const raw = atob(padded)
-  const out = new Uint8Array(raw.length)
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i)
-  return out
-}
-
-type State = "loading" | "unsupported" | "needs-install" | "off" | "on" | "blocked"
+type State = "loading" | PushState
 
 /**
  * Turns notifications on for this device. iPhone only allows push once the app
@@ -24,44 +16,15 @@ export default function PushToggle({ tone = "client" }: { tone?: "client" | "coa
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    const run = async () => {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-      const standalone =
-        window.matchMedia("(display-mode: standalone)").matches ||
-        (window.navigator as unknown as { standalone?: boolean }).standalone === true
-      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-        return setState(isIOS && !standalone ? "needs-install" : "unsupported")
-      }
-      if (Notification.permission === "denied") return setState("blocked")
-      const reg = await navigator.serviceWorker.getRegistration()
-      const sub = await reg?.pushManager.getSubscription()
-      setState(sub ? "on" : "off")
-    }
-    run().catch(() => setState("unsupported"))
+    getPushState().then(setState, () => setState("unsupported"))
   }, [])
 
   const enable = async () => {
     setBusy(true)
     try {
-      const permission = await Notification.requestPermission()
-      if (permission !== "granted") {
-        setState(permission === "denied" ? "blocked" : "off")
-        return
-      }
-      const reg = await navigator.serviceWorker.register("/sw.js")
-      await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlB64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
-      })
-      const res = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sub.toJSON()),
-      })
-      if (!res.ok) throw new Error("save failed")
-      setState("on")
-      toast.success("Notifications on for this device")
+      const next = await enablePush()
+      setState(next)
+      if (next === "on") toast.success("Notifications on for this device")
     } catch (e) {
       toast.error("Couldn't turn notifications on")
     } finally {
@@ -72,16 +35,7 @@ export default function PushToggle({ tone = "client" }: { tone?: "client" | "coa
   const disable = async () => {
     setBusy(true)
     try {
-      const reg = await navigator.serviceWorker.getRegistration()
-      const sub = await reg?.pushManager.getSubscription()
-      if (sub) {
-        await fetch("/api/push/subscribe", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ endpoint: sub.endpoint }),
-        })
-        await sub.unsubscribe()
-      }
+      await disablePush()
       setState("off")
       toast.success("Notifications off for this device")
     } finally {
