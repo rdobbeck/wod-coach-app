@@ -8,9 +8,9 @@ import CommentThread from "@/components/CommentThread"
 import ExerciseHistorySheet from "@/components/ExerciseHistorySheet"
 import VideoPlayer, { type PlayerItem } from "@/components/VideoPlayer"
 import VideoThumb from "@/components/VideoThumb"
-import { summarizeEntry, type HistoryEntry } from "@/lib/training-format"
+import { summarizeEntry, type HistoryEntry, type SetMeasure } from "@/lib/training-format"
 import { formatClock, restSecondsFor } from "@/lib/rest"
-import { parseHold, type Hold } from "@/lib/hold"
+import { parseTracking, type Hold, type Tracking } from "@/lib/hold"
 import Hint from "./Hint"
 import MoveWorkoutButton from "./MoveWorkoutButton"
 
@@ -20,8 +20,10 @@ export type PlayerExercise = {
   exerciseId: string | null
   name: string
   prescription: string | null
-  /** The coach's reps field as written ("8-12", "60s", "max"); a hold is read from here or the prescription. */
+  /** The coach's reps field as written ("8-12", "60s", "30m", "max"); a hold or distance is read from here or the prescription. */
   reps: string | null
+  /** The exercise library's tag ("distance" for carries and sleds), used when the target names no unit. */
+  libraryTracking: string | null
   /** The coach's rest field on this exercise, used when the prescription text doesn't say. */
   restSeconds: number | null
   notes: string | null
@@ -52,6 +54,9 @@ const fmtDay = (d: string, opts: Intl.DateTimeFormatOptions = { weekday: "long",
 
 const numOrNull = (v: string) => (v.trim() === "" || Number.isNaN(Number(v)) ? null : Number(v))
 const isLogged = (e: PlayerExercise) => !!e.resultText.trim() || e.rpe !== null || e.sets.some((s) => s.done)
+
+/** How the second column of a set row reads and logs, from what the set measures. */
+const measureOf = (t: Tracking): SetMeasure => (t.kind === "timed" ? "seconds" : t.kind === "distance" ? { distance: t.unit } : "reps")
 
 function TextBlock({ title, text, open = false }: { title: string; text: string | null; open?: boolean }) {
   if (!text) return null
@@ -263,8 +268,10 @@ export default function WorkoutPlayer({
   const seedSets = (e: PlayerExercise): SetRow[] => {
     const planned = Math.min(Math.max(e.plannedSets ?? e.lastTime?.sets.length ?? 3, 1), 12)
     const last = e.lastTime?.sets ?? []
-    // A timed exercise starts at its prescribed seconds when there's no history.
-    const target = parseHold(e)?.seconds ?? null
+    // A timed or distance exercise starts at its prescribed seconds or distance when there's no history.
+    const t = parseTracking(e)
+    const target =
+      t.kind === "timed" ? t.hold.seconds : t.kind === "distance" && t.amount !== null && Number.isInteger(t.amount) ? t.amount : null
     return Array.from({ length: planned }, (_, i) => ({
       weight: last[i]?.weight ?? last[last.length - 1]?.weight ?? null,
       reps: last[i]?.reps ?? last[last.length - 1]?.reps ?? target,
@@ -378,7 +385,10 @@ export default function WorkoutPlayer({
         {exercises.map((e, idx) => {
           const open = openId === e.id
           const logged = isLogged(e)
-          const timed = parseHold(e)
+          const tracking = parseTracking(e)
+          const timed = tracking.kind === "timed" ? tracking.hold : null
+          const distance = tracking.kind === "distance" ? tracking : null
+          const repsLabel = timed ? "Sec" : distance ? distance.unit ?? "Dist" : "Reps"
           return (
             <li key={e.id} className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
               <div className="flex items-center gap-3 p-4">
@@ -413,7 +423,7 @@ export default function WorkoutPlayer({
                     {e.lastTime ? (
                       <>
                         <span className="font-semibold text-app-text">Last time ({fmtDay(e.lastTime.date, { month: "short", day: "numeric" })}):</span>{" "}
-                        {summarizeEntry(e.lastTime, units, !!timed) || "done"} <span className="text-app-accent">· History ›</span>
+                        {summarizeEntry(e.lastTime, units, measureOf(tracking)) || "done"} <span className="text-app-accent">· History ›</span>
                       </>
                     ) : (
                       <>First time logging this <span className="text-app-accent">· History ›</span></>
@@ -433,7 +443,7 @@ export default function WorkoutPlayer({
                       <div className="grid grid-cols-[1.5rem_1fr_1fr_3rem] gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-app-muted">
                         <span>Set</span>
                         <span>{units}</span>
-                        <span>{timed ? "Sec" : "Reps"}</span>
+                        <span>{repsLabel}</span>
                         <span className="text-center">{timed ? "Start" : "Done"}</span>
                       </div>
                       {rowsFor(e).map((s, i, rows) => {
@@ -445,9 +455,9 @@ export default function WorkoutPlayer({
                             <Stepper value={s.weight} step={units === "kg" ? 2.5 : 5} onChange={(v) => updateSet(e, i, { weight: v })} ariaLabel={`Set ${i + 1} weight`} />
                             <Stepper
                               value={s.reps}
-                              step={timed ? 5 : 1}
+                              step={timed || (distance && (!distance.unit || ["m", "ft", "yd"].includes(distance.unit))) ? 5 : 1}
                               onChange={(v) => updateSet(e, i, { reps: v })}
-                              ariaLabel={`Set ${i + 1} ${timed ? "seconds" : "reps"}`}
+                              ariaLabel={`Set ${i + 1} ${timed ? "seconds" : distance ? "distance" : "reps"}`}
                             />
                             {timed && !s.done ? (
                               <button
@@ -497,7 +507,7 @@ export default function WorkoutPlayer({
                         isLogged(e) ? "" : "pulse-cta"
                       }`}
                     >
-                      {timed ? "Log holds (seconds)" : "Log sets (weight × reps)"}
+                      {timed ? "Log holds (seconds)" : distance ? `Log sets (weight × ${distance.unit ?? "distance"})` : "Log sets (weight × reps)"}
                     </button>
                   )}
 
@@ -655,6 +665,7 @@ export default function WorkoutPlayer({
           exerciseId={historyFor.exerciseId}
           name={historyFor.name}
           units={units}
+          measure={measureOf(parseTracking(historyFor))}
           onClose={() => setHistoryFor(null)}
           onUse={(h) => useHistory(historyFor, h)}
         />
