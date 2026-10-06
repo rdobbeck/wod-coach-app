@@ -117,6 +117,66 @@ test("only a coach of that client can use the assistant", async ({ browser }) =>
   await ctx.close()
 })
 
+async function clientContext(browser: import("@playwright/test").Browser) {
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await ctx.newPage()
+  await page.goto("/auth/signin")
+  await page.locator('input[name="email"]').fill("playwright-client@dev.local")
+  await page.locator('input[name="password"]').fill("playwright-test-PW-1")
+  await page.locator('button[type="submit"]').click()
+  await page.waitForURL(/\/client$/, { timeout: 15_000 })
+  return { ctx, page }
+}
+
+test("a client may use the assistant only when their coach switched it on", async ({ browser }) => {
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+  const { ctx, page } = await clientContext(browser)
+  const off = await page.request.post("/api/ai/assist", { data: { clientId, message: "hi" } })
+  expect(off.status()).toBe(403)
+  expect((await off.json()).error).toMatch(/hasn't switched/i)
+  // A client can never ask about someone else, switched on or not.
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  const other = await page.request.post("/api/ai/assist", { data: { clientId: otherId, message: "hi" } })
+  expect(other.status()).toBe(401)
+  // Switched on: the call reaches the coach's funding checks. Cap the coach first (and empty the balance) so the
+  // route refuses with the coach's cap error before any model is called: 402 AI_CAP proves the gate opened.
+  await prisma.aiUsage.create({ data: { coachId, kind: "assist", model: "test", costUsd: 26 } })
+  await prisma.coachProfile.updateMany({ where: { userId: coachId }, data: { aiBalanceCents: 0 } })
+  const on = await page.request.post("/api/ai/assist", { data: { clientId, message: "hi" } })
+  expect(on.status()).toBe(402)
+  expect((await on.json()).code).toBe("AI_CAP")
+  await ctx.close()
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+})
+
+test("apply records who applied, and undo is open to the applier and to any coach of the client", async ({ page, browser }) => {
+  const w = await seedSession(`${PREFIX}Who Applied`)
+  const [squat] = w.exercises
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  const { ctx, page: cp } = await clientContext(browser)
+  const res = await cp.request.post("/api/ai/assist/apply", {
+    data: { clientId, request: "client request", changes: [{ action: "modify", workoutId: w.id, exerciseId: squat.id, newPrescription: "3x5 @ RPE 8" }] },
+  })
+  expect(res.status(), await res.text()).toBe(200)
+  const { changeSetId } = await res.json()
+  const set = await prisma.aiChangeSet.findUniqueOrThrow({ where: { id: changeSetId } })
+  expect(set.appliedById).toBe(clientId)
+  expect(set.coachId).toBe(coachId)
+  // The coach can undo a batch the client applied.
+  const undo = await page.request.post("/api/ai/assist/undo", { data: { changeSetId } })
+  expect(undo.status()).toBe(200)
+  expect((await prisma.workoutExercise.findUniqueOrThrow({ where: { id: squat.id } })).prescription).toBe("3x5 @ RPE 7, rest 2 min")
+  // A second batch, undone by the client themself.
+  const res2 = await cp.request.post("/api/ai/assist/apply", {
+    data: { clientId, request: "again", changes: [{ action: "modify", workoutId: w.id, exerciseId: squat.id, newPrescription: "3x5 @ RPE 9" }] },
+  })
+  const { changeSetId: id2 } = await res2.json()
+  const undo2 = await cp.request.post("/api/ai/assist/undo", { data: { changeSetId: id2 } })
+  expect(undo2.status()).toBe(200)
+  await ctx.close()
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+})
+
 // ---------- reading the model's answer ----------
 
 const ctx: Context = {

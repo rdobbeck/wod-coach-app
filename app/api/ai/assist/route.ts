@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { coachOf } from "@/lib/coach-access"
+import { aiAccess, denialResponse, isDenied } from "@/lib/ai/access"
 import { withAlert } from "@/lib/alert"
 import { AiCapError, assertUnderCap, spendMeter } from "@/lib/ai/spend"
 import { ASSIST_MIN_CENTS, settleAiCall } from "@/lib/ai-billing"
@@ -21,9 +21,9 @@ async function handlePOST(req: Request) {
   if (!body.clientId || !message) return NextResponse.json({ error: "clientId and message are required" }, { status: 400 })
   if (message.length > 2000) return NextResponse.json({ error: "That message is too long. Keep it under 2,000 characters." }, { status: 400 })
 
-  const session = await coachOf(body.clientId)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const coachId = session.user.id
+  const access = await aiAccess(body.clientId)
+  if (isDenied(access)) return denialResponse(access)
+  const coachId = access.coachId
 
   // Included on Pro and Studio up to the monthly cap; otherwise (or past the cap)
   // each message comes out of the coach's AI balance.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { coachOf } from "@/lib/coach-access"
+import { aiAccess, denialResponse, isDenied } from "@/lib/ai/access"
 import { withAlert } from "@/lib/alert"
 import { applyChanges, type ChangeInput } from "@/lib/ai/apply"
 
@@ -12,10 +12,10 @@ async function handlePOST(req: Request) {
   if (!body.clientId || !Array.isArray(body.changes) || !body.changes.length) {
     return NextResponse.json({ error: "clientId and at least one change are required" }, { status: 400 })
   }
-  const session = await coachOf(body.clientId)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const result = await applyChanges(session.user.id, body.clientId, body.request ?? "", body.changes)
-  return NextResponse.json(result)
+  const access = await aiAccess(body.clientId)
+  if (isDenied(access)) return denialResponse(access)
+  const result = await applyChanges(access.coachId, body.clientId, body.request ?? "", body.changes, access.userId)
+  return NextResponse.json({ ...result, viewer: access.viewer })
 }
 
 export const POST = withAlert("ai/assist/apply", handlePOST)
