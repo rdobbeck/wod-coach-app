@@ -15,6 +15,8 @@ export type HistoryEntry = {
   resultText: string | null
   rpe: number | null
   sets: { setNumber: number; reps: number | null; weight: number | null; rpe: number | null }[]
+  /** What the reps column held that day, from the prescription it was logged against. */
+  measure?: SetMeasure
 }
 
 /**
@@ -31,7 +33,7 @@ export const formatSetValue = (n: number, measure: SetMeasure = "reps") =>
  * One-line summary of a history entry: "40 kg × 8 · 45 × 8 · RPE 7" or the result text.
  * Timed sets read "60s · 45s"; distance sets "90 lb × 30 m (×3)".
  */
-export function summarizeEntry(h: Pick<HistoryEntry, "resultText" | "rpe" | "sets">, units = "lb", measure: SetMeasure = "reps") {
+export function summarizeEntry(h: Pick<HistoryEntry, "resultText" | "rpe" | "sets" | "measure">, units = "lb", measure: SetMeasure = h.measure ?? "reps") {
   // Collapse repeats: "110 lb × 6 (×3) · 120 lb × 6"
   const sets: string[] = []
   let prev = ""

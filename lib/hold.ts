@@ -15,6 +15,8 @@
  * Seconds and distance are both stored in the set's reps column, so nothing
  * about storage or history changes; the player just labels the column.
  */
+import type { SetMeasure } from "./training-format"
+
 export type Hold = { mode: "down"; seconds: number } | { mode: "up"; seconds: null }
 export type Tracking =
   | { kind: "reps" }
@@ -92,6 +94,12 @@ export function parseTracking(e: {
     return { kind: "distance", amount: n, unit: null }
   }
   return { kind: "reps" }
+}
+
+/** What a logged set's reps column holds for this exercise: reps, seconds, or a distance in the coach's unit. */
+export function measureFor(e: { prescription: string | null | undefined; reps: string | null | undefined; libraryTracking?: string | null }): SetMeasure {
+  const t = parseTracking(e)
+  return t.kind === "timed" ? "seconds" : t.kind === "distance" ? { distance: t.unit } : "reps"
 }
 
 export function parseHold(e: { prescription: string | null | undefined; reps: string | null | undefined; libraryTracking?: string | null }): Hold | null {

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import ExerciseHistorySheet from "@/components/ExerciseHistorySheet"
-import { summarizeEntry } from "@/lib/training-format"
+import { summarizeEntry, type SetMeasure } from "@/lib/training-format"
 
 type W = { id: string; name: string; day: string; programName: string | null; exerciseCount: number }
 type X = {
@@ -11,7 +11,7 @@ type X = {
   name: string
   lastDay: string
   count: number
-  last: { resultText: string | null; rpe: number | null; sets: { setNumber: number; reps: number | null; weight: number | null; rpe: number | null }[] }
+  last: { resultText: string | null; rpe: number | null; sets: { setNumber: number; reps: number | null; weight: number | null; rpe: number | null }[]; measure?: SetMeasure }
 }
 
 const fmt = (d: string, o: Intl.DateTimeFormatOptions) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { ...o, timeZone: "UTC" })

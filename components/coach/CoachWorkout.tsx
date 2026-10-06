@@ -6,10 +6,10 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import CommentThread from "@/components/CommentThread"
 import ExerciseHistorySheet from "@/components/ExerciseHistorySheet"
-import { summarizeEntry, type HistoryEntry } from "@/lib/training-format"
+import { formatSetValue, summarizeEntry, type HistoryEntry } from "@/lib/training-format"
 import VideoPlayer, { type PlayerItem } from "@/components/VideoPlayer"
 
-type Logged = Pick<HistoryEntry, "resultText" | "rpe" | "sets">
+type Logged = Pick<HistoryEntry, "resultText" | "rpe" | "sets" | "measure">
 type Ex = {
   id?: string // absent for rows added in this edit session
   key: string // stable React key
@@ -268,7 +268,7 @@ export default function CoachWorkout({
                 <div className="mt-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
                   <span className="font-semibold">Logged:</span>{" "}
                   {r.logged.sets.length
-                    ? r.logged.sets.map((s) => `${s.weight ?? "-"}${s.weight !== null ? ` ${units}` : ""} × ${s.reps ?? "-"}${s.rpe !== null ? ` @${s.rpe}` : ""}`).join(" · ")
+                    ? r.logged.sets.map((s) => `${s.weight ?? "-"}${s.weight !== null ? ` ${units}` : ""} × ${s.reps !== null ? formatSetValue(s.reps, r.logged!.measure) : "-"}${s.rpe !== null ? ` @${s.rpe}` : ""}`).join(" · ")
                     : null}
                   {r.logged.resultText && <span className="whitespace-pre-line"> {r.logged.resultText}</span>}
                   {r.logged.rpe !== null && <span> · RPE {r.logged.rpe}</span>}
