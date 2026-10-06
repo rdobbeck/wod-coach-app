@@ -29,7 +29,7 @@ function useEnable(setState: (s: PushState) => void) {
 }
 
 /** The tour's notifications step: turn them on right there when this browser can. */
-export function NotificationsStepBody({ installNext }: { installNext: boolean }) {
+export function NotificationsStepBody() {
   const [state, setState] = useState<PushState | "loading">("loading")
   const { busy, enable } = useEnable(setState)
   useEffect(() => {
@@ -49,12 +49,6 @@ export function NotificationsStepBody({ installNext }: { installNext: boolean })
         </button>
       )}
       {state === "on" && <p className="mt-3 font-semibold text-app-text">They&rsquo;re on for this phone.</p>}
-      {state === "needs-install" && (
-        <p className="mt-3">
-          An iPhone only sends notifications to apps on the Home Screen.{" "}
-          {installNext ? "The next step shows you how, and we'll ask once you open it from there." : "Add it there, open it from the icon, and we'll ask."}
-        </p>
-      )}
       {state === "blocked" && <p className="mt-3">They&rsquo;re blocked for this site. Allow them in your browser settings, then turn them on in Settings.</p>}
       <p className="mt-3">Settings is also where you change the colours, switch between lb and kg, and run this tour again.</p>
     </>
@@ -66,7 +60,8 @@ const DISMISSED = "wod:push-prompt-dismissed"
 /**
  * One-time ask on Today, for clients who've finished the tour but never turned
  * notifications on here. Mostly this is the first launch from the Home Screen on
- * an iPhone, where the tour (seen back in Safari) couldn't ask. "Not now" is
+ * an iPhone: the tour in Safari leaves the ask out (Apple won't allow it there)
+ * and points here instead. "Not now" is
  * remembered per device; Settings keeps the toggle.
  */
 export default function NotificationsPrompt() {
