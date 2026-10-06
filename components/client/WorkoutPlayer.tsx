@@ -13,6 +13,8 @@ import { formatClock, restSecondsFor } from "@/lib/rest"
 import { parseTracking, type Hold } from "@/lib/hold"
 import Hint from "./Hint"
 import MoveWorkoutButton from "./MoveWorkoutButton"
+import RestTimer from "./RestTimer"
+import SaveButton from "./SaveButton"
 
 type SetRow = { reps: number | null; weight: number | null; rpe: number | null; done?: boolean }
 export type PlayerExercise = {
@@ -107,14 +109,14 @@ export default function WorkoutPlayer({
   const [exercises, setExercises] = useState(initial)
   const [notes, setNotes] = useState(workout.notes)
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
-  const [finishing, setFinishing] = useState(false)
   const [historyFor, setHistoryFor] = useState<PlayerExercise | null>(null)
   const [videoIndex, setVideoIndex] = useState<number | null>(null)
   // One exercise open at a time: the first not yet logged.
   const [openId, setOpenId] = useState<string | null>(initial.find((e) => !isLogged(e))?.id ?? initial[0]?.id ?? null)
   // Both timers run off wall-clock timestamps, not a once-a-second tick, so a
   // locked phone doesn't stall them: `left`/`elapsed` are recomputed from Date.now().
-  const [rest, setRest] = useState<{ endsAt: number; total: number; left: number } | null>(null)
+  // A paused rest has no deadline; `left` is what it will resume from.
+  const [rest, setRest] = useState<{ endsAt: number | null; total: number; left: number } | null>(null)
   const [hold, setHold] = useState<{
     exerciseId: string
     setIndex: number
@@ -157,6 +159,12 @@ export default function WorkoutPlayer({
     setRest({ endsAt: Date.now() + seconds * 1000, total: seconds, left: seconds })
     navigator.vibrate?.(20)
   }
+  const pauseRest = () =>
+    setRest((r) => (r && r.endsAt ? { ...r, endsAt: null, left: Math.max(0, Math.ceil((r.endsAt - Date.now()) / 1000)) } : r))
+  const resumeRest = () => setRest((r) => (r && !r.endsAt ? { ...r, endsAt: Date.now() + r.left * 1000 } : r))
+  /** A new remaining time from the adjust wheel; a paused rest stays paused at the new value. */
+  const setRestSeconds = (seconds: number) =>
+    setRest((r) => (r ? { total: Math.max(r.total, seconds), left: seconds, endsAt: r.endsAt ? Date.now() + seconds * 1000 : null } : r))
 
   // ---- hold timer (planks, hangs) -----------------------------------------
   const holdStartedAt = hold?.startedAt
@@ -321,18 +329,17 @@ export default function WorkoutPlayer({
     if (next) startRest(e)
   }
 
-  const finish = async () => {
-    setFinishing(true)
-    const ok = await flush(true)
-    setFinishing(false)
-    if (!ok) return toast.error("Couldn't save. Check your connection and try again.")
+  /** The finish button's save: true once the server has the session. Logged sets stay put either way. */
+  const finish = () => flush(true)
+  const finished = () => {
     toast.success("Workout complete. Nice work!")
     router.push(exitHref)
     router.refresh()
   }
 
   return (
-    <div className="space-y-4 pb-60">
+    // Extra room at the bottom while the rest timer is up, so the last set's inputs stay clear of it.
+    <div className={`space-y-4 ${rest ? "pb-80" : "pb-60"}`}>
       <div className="flex items-center justify-between">
         <Link href={exitHref} className="text-sm font-semibold text-app-muted">{coaching ? "‹ Exit" : "‹ Today"}</Link>
         <span className="text-xs text-app-muted">
@@ -604,52 +611,32 @@ export default function WorkoutPlayer({
           {rest && !hold && !coaching && (
             <div className="mx-auto mb-2 max-w-md shadow-lg">
               <Hint id="rest-timer" done={rest.left <= 0}>
-                Rest counts down on its own. Add 30 seconds or skip it here, and your phone buzzes when you&rsquo;re up.
+                Rest counts down on its own. Pause or skip it here, tap the time to change it, and your phone buzzes when you&rsquo;re up.
               </Hint>
             </div>
           )}
           {rest && !hold && (
-            <div
-              role="timer"
-              aria-live="polite"
-              className="mx-auto mb-2 max-w-md overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-lg"
-            >
-              <div className="flex items-center gap-3 px-4 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted">{rest.left > 0 ? "Rest" : "Rest done"}</p>
-                  <p className={`font-display text-5xl font-bold leading-none tabular-nums ${rest.left <= 0 ? "text-app-good" : ""}`}>
-                    {rest.left > 0 ? formatClock(rest.left) : "Go"}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setRest((r) => (r ? { endsAt: r.endsAt + 30_000, left: r.left + 30, total: Math.max(r.total, r.left + 30) } : r))}
-                  aria-label="Add 30 seconds"
-                  className="h-12 rounded-xl border border-app-border px-4 text-sm font-semibold text-app-text"
-                >
-                  +30s
-                </button>
-                <button onClick={() => setRest(null)} aria-label="Skip rest" className="h-12 rounded-xl border border-app-border px-4 text-sm font-semibold text-app-text">
-                  Skip
-                </button>
-              </div>
-              <div className="h-1.5 bg-app-surface2">
-                <div
-                  className={`h-full transition-[width] duration-1000 ease-linear ${rest.left <= 0 ? "bg-app-good" : "bg-app-accent"}`}
-                  style={{ width: `${Math.max(0, Math.min(100, (rest.left / rest.total) * 100))}%` }}
-                />
-              </div>
+            <div className="mx-auto mb-2 max-w-md">
+              <RestTimer
+                left={rest.left}
+                total={rest.total}
+                paused={!rest.endsAt}
+                onPause={pauseRest}
+                onResume={resumeRest}
+                onSkip={() => setRest(null)}
+                onChange={setRestSeconds}
+              />
             </div>
           )}
           <div className="mx-auto flex max-w-md items-center gap-2">
-            <button
-              onClick={finish}
-              disabled={finishing}
-              className={`h-14 flex-1 rounded-xl bg-app-accent font-display text-xl font-bold uppercase tracking-[0.06em] text-app-accent-text shadow-lg disabled:opacity-60 ${
-                doneCount === exercises.length && !workout.isCompleted ? "pulse-cta" : ""
-              }`}
-            >
-              {finishing ? "Saving…" : workout.isCompleted ? "Save changes" : "Finish workout"}
-            </button>
+            <SaveButton
+              label={workout.isCompleted ? "Save changes" : "Finish workout"}
+              savingLabel="Saving"
+              doneLabel={workout.isCompleted ? "Saved" : "Session saved"}
+              onSave={finish}
+              onDone={finished}
+              className={doneCount === exercises.length && !workout.isCompleted ? "pulse-cta" : ""}
+            />
           </div>
         </div>
       )}
