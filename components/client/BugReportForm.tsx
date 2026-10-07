@@ -181,7 +181,7 @@ export default function BugReportForm() {
       >
         {busy ? "Sending…" : "Send to Ryan"}
       </button>
-      {from && <p className="text-center text-xs text-app-muted">We'll include that you were on {from}.</p>}
+      {from && <p className="text-center text-xs text-app-muted">We&apos;ll include that you were on {from}.</p>}
     </div>
   )
 }

@@ -299,7 +299,7 @@ export default function WorkoutPlayer({
    * replaced with exactly what was done that day, unticked so the client still
    * confirms each one as they go.
    */
-  const useHistory = (e: PlayerExercise, h: HistoryEntry) => {
+  const fillFromHistory = (e: PlayerExercise, h: HistoryEntry) => {
     const src = [...h.sets].sort((a, b) => a.setNumber - b.setNumber).slice(0, 12)
     if (!src.length) return
     update(e.id, { sets: src.map((s) => ({ weight: s.weight, reps: s.reps, rpe: null, done: false })) })
@@ -649,7 +649,7 @@ export default function WorkoutPlayer({
           name={historyFor.name}
           units={units}
           onClose={() => setHistoryFor(null)}
-          onUse={(h) => useHistory(historyFor, h)}
+          onUse={(h) => fillFromHistory(historyFor, h)}
         />
       )}
     </div>

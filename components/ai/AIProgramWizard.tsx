@@ -226,7 +226,7 @@ export default function AIProgramWizard({ clients, funding, estimate }: AIProgra
             {clients.length === 0 ? (
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
                 <p className="text-yellow-800 mb-4">
-                  You don't have any active clients yet. Add a client first to create programs.
+                  You don&apos;t have any active clients yet. Add a client first to create programs.
                 </p>
                 <button
                   onClick={() => router.push("/coach/clients/new")}
@@ -459,8 +459,8 @@ export default function AIProgramWizard({ clients, funding, estimate }: AIProgra
           <div>
             <h2 className="font-display text-3xl font-bold text-[#16181d] mb-2">Program ready</h2>
             <p className="text-[#6b6257] mb-6">
-              Saved as a <strong>draft</strong> on {selectedClient?.client.name ?? "the client"}'s calendar starting {new Date(`${startDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-              {saved && ` · ${saved.exercisesLinked}/${saved.exerciseRows} exercises linked to videos`}. The client can't see it until you publish.
+              Saved as a <strong>draft</strong> on {selectedClient?.client.name ?? "the client"}&apos;s calendar starting {new Date(`${startDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              {saved && ` · ${saved.exercisesLinked}/${saved.exerciseRows} exercises linked to videos`}. The client can&apos;t see it until you publish.
             </p>
 
             <div className="bg-[#faf8f4] rounded-xl p-6 mb-6">
@@ -560,7 +560,7 @@ export default function AIProgramWizard({ clients, funding, estimate }: AIProgra
           <div className="mt-8 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4" />
             <p className="text-[#6b6257]">AI is designing the program... this usually takes 1-3 minutes.</p>
-            <p className="text-sm text-[#857c70] mt-1">It's saved as a draft automatically (only you can see it), so it's safe to leave this page.</p>
+            <p className="text-sm text-[#857c70] mt-1">It&apos;s saved as a draft automatically (only you can see it), so it&apos;s safe to leave this page.</p>
           </div>
         )}
       </div>

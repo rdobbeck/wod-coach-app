@@ -19,7 +19,7 @@ export default async function AddClientPage() {
         <div className="mb-8">
           <h1 className="font-display text-4xl font-bold text-[#16181d]">Add a client</h1>
           <p className="mt-2 text-[#6b6257]">
-            Nothing is sent to them yet. Next you'll build their program and text them a sign-in link.
+            Nothing is sent to them yet. Next you&apos;ll build their program and text them a sign-in link.
           </p>
         </div>
 

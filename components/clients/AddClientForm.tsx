@@ -91,7 +91,7 @@ export default function AddClientForm({ coachId }: AddClientFormProps) {
           placeholder="john@example.com"
         />
         <p className="text-xs text-[#857c70] mt-1">
-          Nothing is sent yet. You'll text them a sign-in link from their page
+          Nothing is sent yet. You&apos;ll text them a sign-in link from their page
         </p>
       </div>
 

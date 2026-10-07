@@ -91,7 +91,7 @@ function buildSteps({
       body: (
         <p>
           Tick a set and rest starts counting straight away, using whatever rest your program calls for. Add 30 seconds or skip it from
-          the bar at the bottom. Your phone buzzes when you're back up.
+          the bar at the bottom. Your phone buzzes when you&apos;re back up.
         </p>
       ),
     },
@@ -118,7 +118,7 @@ function buildSteps({
       body: (
         <p>
           You get two 30 minute video calls a month. Tap <span className="font-semibold text-app-text">Book a call</span> on Today and
-          pick a time that works. The count resets on the 1st, and Today always shows how many you've got left.
+          pick a time that works. The count resets on the 1st, and Today always shows how many you&apos;ve got left.
         </p>
       ),
     })
@@ -133,7 +133,7 @@ function buildSteps({
       body: (
         <>
           <p>
-            Hold any session until your phone buzzes, then drag it onto the day you want in the week strip. Tap a day to see what's
+            Hold any session until your phone buzzes, then drag it onto the day you want in the week strip. Tap a day to see what&apos;s
             on it, and swipe the strip to look weeks ahead.
           </p>
           <p className="mt-3">

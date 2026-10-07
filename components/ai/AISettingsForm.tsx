@@ -54,7 +54,7 @@ export default function AISettingsForm({ keyHint, preferredModel }: AISettingsFo
         <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="font-semibold underline">
           openrouter.ai/keys
         </a>
-        . It's encrypted before it's stored and never shown again.
+        . It&apos;s encrypted before it&apos;s stored and never shown again.
       </p>
 
       <input
