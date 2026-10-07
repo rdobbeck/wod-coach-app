@@ -144,6 +144,14 @@ body {
 .tour-rest-bar {
   animation: tour-rest 6s linear infinite;
 }
+/* The rest ring in the tour: the border drains clockwise like the real timer's. */
+@keyframes tour-rest-ring {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 1; }
+}
+.tour-rest-ring {
+  animation: tour-rest-ring 6s linear infinite;
+}
 @keyframes tour-drag {
   0%, 15% { transform: translate(0, 0) rotate(0deg); }
   55%, 85% { transform: translate(52px, -30px) rotate(-3deg); }
@@ -154,6 +162,7 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .tour-rest-bar { animation: none; width: 60%; }
+  .tour-rest-ring { animation: none; stroke-dashoffset: 0.4; }
   .tour-drag { animation: none; transform: translate(52px, -30px) rotate(-3deg); }
 }
 
