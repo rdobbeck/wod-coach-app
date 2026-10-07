@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { Change } from "@/lib/ai/assist"
 import { createThreadWriter } from "@/lib/ai/thread-writer"
@@ -75,10 +75,33 @@ function ChangeRow({ c, on, disabled, toggle }: { c: Change; on: boolean; disabl
  * The AI box: ask a question or describe a change, review the edits, apply or
  * undo. The coach sees it on a client's page; a client sees it on their own
  * Today page when their coach switched it on (viewer "client": first-person
- * copy, no spend meter, because the money is the coach's).
+ * copy, no spend meter, because the money is the coach's). `onFirstMessage`
+ * fires once, when the first reply lands or a restored thread already has
+ * messages, so a first-use hint beside the button knows to go away.
  */
-export default function AiAssistant({ clientId, clientName, meter: initial, viewer = "coach" }: { clientId: string; clientName: string; meter: Meter; viewer?: "coach" | "client" }) {
+export default function AiAssistant({
+  clientId,
+  clientName,
+  meter: initial,
+  viewer = "coach",
+  onFirstMessage,
+}: {
+  clientId: string
+  clientName: string
+  meter: Meter
+  viewer?: "coach" | "client"
+  onFirstMessage?: () => void
+}) {
   const isClient = viewer === "client"
+  // Stable, so the thread-load effect below can list it; the latest callback is read through a ref.
+  const onFirst = useRef(onFirstMessage)
+  onFirst.current = onFirstMessage
+  const announced = useRef(false)
+  const announceFirst = useCallback(() => {
+    if (announced.current) return
+    announced.current = true
+    onFirst.current?.()
+  }, [])
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([])
@@ -111,6 +134,7 @@ export default function AiAssistant({ clientId, clientName, meter: initial, view
           lastSaved.current = d.messages
           return d.messages
         })
+        if (d.messages.length) announceFirst()
       })
       .catch(() => {})
       .finally(() => {
@@ -119,7 +143,7 @@ export default function AiAssistant({ clientId, clientName, meter: initial, view
     return () => {
       cancelled = true
     }
-  }, [open, loaded, clientId])
+  }, [open, loaded, clientId, announceFirst])
 
   const saveThread = (messages: Msg[]) => {
     void writer.current.save(messages.filter((m) => !m.failed)).then((ok) => {
@@ -209,6 +233,7 @@ export default function AiAssistant({ clientId, clientName, meter: initial, view
         applyNote: willAuto ? "Applying load changes…" : undefined,
       },
     ])
+    announceFirst()
     if (willAuto) await runApply(idx, d.changes, message, true)
   }
 
