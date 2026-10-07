@@ -38,7 +38,7 @@ export function NotificationsStepBody() {
 
   return (
     <>
-      <p>Get a notification when a new program lands or a note comes back from your coach.</p>
+      <p>Get a notification when a new program lands, a note comes back from your coach, or your rest is up while your phone is locked.</p>
       {state === "off" && (
         <button
           onClick={enable}
