@@ -74,8 +74,8 @@ export default function PushToggle({ tone = "client" }: { tone?: "client" | "coa
         <>
           <p className={`mt-2 ${muted}`}>
             {state === "on"
-              ? "This device gets a notification for new messages, comments, and new programs."
-              : "Get a notification when a message, comment, or new program comes in."}
+              ? "This device gets a notification for new messages, comments, new programs, and when your rest is up while the phone is locked."
+              : "Get a notification when a message, comment, or new program comes in, and when your rest is up while the phone is locked."}
           </p>
           <button onClick={state === "on" ? disable : enable} disabled={busy} className={`mt-3 ${state === "on" ? btnOff : btnOn}`}>
             {state === "on" ? "Turn off on this device" : "Turn on"}

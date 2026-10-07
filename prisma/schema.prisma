@@ -84,6 +84,7 @@ model User {
   sessionLocations      SessionLocation[]
   Attachment            Attachment[]
   bugReports            BugReport[]
+  restAlert             RestAlert?
 }
 
 model VerificationToken {
@@ -249,6 +250,21 @@ model BugReport {
 
   @@index([resolvedAt, createdAt])
   @@index([userId])
+}
+
+// A "Rest's up" push waiting to go out. One per user: the phone that locked
+// mid-rest arms it, unlocking disarms it, and a chain of short server hops
+// (lib/rest-alert.ts) sends the push when fireAt arrives. nonce tells an old
+// chain that a newer rest replaced it.
+model RestAlert {
+  userId    String   @id
+  workoutId String
+  exercise  String
+  fireAt    DateTime
+  nonce     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // A place the coach trains clients in person, with its own scheduling link.

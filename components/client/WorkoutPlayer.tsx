@@ -66,6 +66,21 @@ function TextBlock({ title, text, open = false }: { title: string; text: string 
   )
 }
 
+/**
+ * Arm or disarm the server-side "Rest's up" push (lib/rest-alert.ts). Fired
+ * from the page on its way to the background, so keepalive lets the request
+ * finish after the phone locks. Best effort: nothing here can fail the session.
+ */
+function restAlert(mode: "on" | "off", alert?: { workoutId: string; exercise: string; endsAt: number }) {
+  try {
+    void fetch("/api/rest-alert", {
+      method: mode === "on" ? "POST" : "DELETE",
+      keepalive: true,
+      ...(mode === "on" ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(alert) } : {}),
+    }).catch(() => undefined)
+  } catch {}
+}
+
 /** Number field with -/+ steppers, sized for thumbs. */
 function Stepper({ value, step, onChange, ariaLabel }: { value: number | null; step: number; onChange: (v: number | null) => void; ariaLabel: string }) {
   const bump = (d: number) => {
@@ -116,7 +131,9 @@ export default function WorkoutPlayer({
   // Both timers run off wall-clock timestamps, not a once-a-second tick, so a
   // locked phone doesn't stall them: `left`/`elapsed` are recomputed from Date.now().
   // A paused rest has no deadline; `left` is what it will resume from.
-  const [rest, setRest] = useState<{ endsAt: number | null; total: number; left: number } | null>(null)
+  const [rest, setRest] = useState<{ endsAt: number | null; total: number; left: number; exercise: string } | null>(null)
+  const restRef = useRef(rest)
+  restRef.current = rest
   const [hold, setHold] = useState<{
     exerciseId: string
     setIndex: number
@@ -143,6 +160,8 @@ export default function WorkoutPlayer({
       if (left <= 0) {
         clearInterval(id)
         navigator.vibrate?.([120, 60, 120])
+        // It ended on screen, so no push is wanted for it.
+        restAlert("off")
         doneTimer = setTimeout(() => setRest((r) => (r && r.endsAt === restEndsAt ? null : r)), 2500)
       }
     }
@@ -156,15 +175,19 @@ export default function WorkoutPlayer({
 
   const startRest = (e: PlayerExercise) => {
     const seconds = restSecondsFor(e, defaultRestSeconds)
-    setRest({ endsAt: Date.now() + seconds * 1000, total: seconds, left: seconds })
+    setRest({ endsAt: Date.now() + seconds * 1000, total: seconds, left: seconds, exercise: e.name })
     navigator.vibrate?.(20)
+  }
+  const skipRest = () => {
+    setRest(null)
+    restAlert("off")
   }
   const pauseRest = () =>
     setRest((r) => (r && r.endsAt ? { ...r, endsAt: null, left: Math.max(0, Math.ceil((r.endsAt - Date.now()) / 1000)) } : r))
   const resumeRest = () => setRest((r) => (r && !r.endsAt ? { ...r, endsAt: Date.now() + r.left * 1000 } : r))
   /** A new remaining time from the adjust wheel; a paused rest stays paused at the new value. */
   const setRestSeconds = (seconds: number) =>
-    setRest((r) => (r ? { total: Math.max(r.total, seconds), left: seconds, endsAt: r.endsAt ? Date.now() + seconds * 1000 : null } : r))
+    setRest((r) => (r ? { ...r, total: Math.max(r.total, seconds), left: seconds, endsAt: r.endsAt ? Date.now() + seconds * 1000 : null } : r))
 
   // ---- hold timer (planks, hangs) -----------------------------------------
   const holdStartedAt = hold?.startedAt
@@ -253,12 +276,22 @@ export default function WorkoutPlayer({
     timer.current = setTimeout(() => void flush(), 1000)
   }
   useEffect(() => () => clearTimeout(timer.current), [])
-  // Save when the app is backgrounded (phone locked, tab switched).
+  // Save when the app is backgrounded (phone locked, tab switched), and hand
+  // the rest countdown to the server so a "Rest's up" push can reach the locked
+  // phone; take it back when the app is on screen again.
   useEffect(() => {
-    const onHide = () => document.visibilityState === "hidden" && void flush()
-    document.addEventListener("visibilitychange", onHide)
-    return () => document.removeEventListener("visibilitychange", onHide)
-  }, [flush])
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        void flush()
+        const r = restRef.current
+        if (r?.endsAt && r.left > 0) restAlert("on", { workoutId: workout.id, exercise: r.exercise, endsAt: r.endsAt })
+      } else {
+        restAlert("off")
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => document.removeEventListener("visibilitychange", onVisibility)
+  }, [flush, workout.id])
 
   const update = (id: string, patch: Partial<PlayerExercise>) => {
     setExercises((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)))
@@ -623,7 +656,7 @@ export default function WorkoutPlayer({
                 paused={!rest.endsAt}
                 onPause={pauseRest}
                 onResume={resumeRest}
-                onSkip={() => setRest(null)}
+                onSkip={skipRest}
                 onChange={setRestSeconds}
               />
             </div>
