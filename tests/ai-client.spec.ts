@@ -39,6 +39,8 @@ test.beforeAll(async () => {
   await prisma.clientProfile.update({ where: { userId: clientId }, data: { tourSeenAt: new Date() } })
 })
 test.beforeEach(async () => {
+  // The tour spec (and any diagnostic run of it elsewhere) resets this on the shared client; keep the walkthrough closed here.
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { tourSeenAt: new Date() } })
   await prisma.aiThread.deleteMany({ where: { clientId } })
   await prisma.aiChangeSet.deleteMany({ where: { clientId } })
   await prisma.aiUsage.deleteMany({ where: { coachId } })
