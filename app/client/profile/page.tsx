@@ -57,7 +57,7 @@ export default async function ClientProfilePage() {
         />
       )}
 
-      <ReplayTourButton canBook={canBook} canMove={p?.canMoveWorkouts ?? true} />
+      <ReplayTourButton canBook={canBook} canMove={p?.canMoveWorkouts ?? true} canAskAi={!!p?.canAskAi} />
 
       <Link
         href="/client/report?from=/client/profile"

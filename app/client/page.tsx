@@ -136,6 +136,7 @@ export default async function ClientToday() {
         coachName={coachLink?.coach.name ?? ""}
         canBook={canBook}
         canMove={canMove}
+        canAskAi={!!profile?.canAskAi}
       />
       {/* Only once the tour is behind them, so the two never stack. */}
       {profile?.tourSeenAt && <NotificationsPrompt />}
