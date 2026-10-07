@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test"
 import { PrismaClient } from "@prisma/client"
 import { dbUrl } from "../lib/db-url"
-import { planStep } from "../lib/rest-alert"
+import { planStep, restAlertUrl } from "../lib/rest-alert"
 
 /**
  * "Rest's up" while the phone is locked: the page arms an alert on its way to
@@ -47,6 +47,11 @@ test("a hop sleeps at most one hop, then fires on the last stretch", () => {
   expect(planStep(0, 120_000, 50_000)).toEqual({ kind: "hop", sleepMs: 50_000 })
   expect(planStep(100_000, 120_000, 50_000)).toEqual({ kind: "fire", sleepMs: 20_000 })
   expect(planStep(130_000, 120_000, 50_000)).toEqual({ kind: "fire", sleepMs: 0 })
+})
+
+test("the notification opens the client's workout, or train mode for the coach who armed it", () => {
+  expect(restAlertUrl("c1", { id: "w1", clientId: "c1" })).toBe("/client/workouts/w1")
+  expect(restAlertUrl("coach9", { id: "w1", clientId: "c1" })).toBe("/coach/clients/c1/workouts/w1/train")
 })
 
 test("arming needs a signed-in user and a workout they can log", async ({ page, playwright, baseURL }) => {
