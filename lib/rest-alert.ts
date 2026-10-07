@@ -23,6 +23,16 @@ export function planStep(now: number, fireAt: number, hopMs = HOP_MS): Step {
   return remaining > hopMs ? { kind: "hop", sleepMs: hopMs } : { kind: "fire", sleepMs: remaining }
 }
 
+/**
+ * Where the notification opens. The client goes to their workout; a coach who
+ * armed it while running the session in person goes back to train mode.
+ */
+export function restAlertUrl(userId: string, workout: { id: string; clientId: string | null }) {
+  return workout.clientId && workout.clientId !== userId
+    ? `/coach/clients/${workout.clientId}/workouts/${workout.id}/train`
+    : `/client/workouts/${workout.id}`
+}
+
 export async function armRestAlert(userId: string, input: { workoutId: string; exercise: string; endsAt: number }) {
   const fireAt = new Date(Math.min(input.endsAt, Date.now() + MAX_REST_MS))
   const nonce = randomUUID()
@@ -59,10 +69,11 @@ export async function runRestAlertHop(userId: string, nonce: string, next?: (use
     const fresh = await prisma.restAlert.findUnique({ where: { userId } })
     if (!fresh || fresh.nonce !== nonce) return "superseded" as const
     await prisma.restAlert.deleteMany({ where: { userId, nonce } })
+    const workout = await prisma.workout.findUnique({ where: { id: fresh.workoutId }, select: { id: true, clientId: true } })
     await notifyUser(userId, {
       title: "Rest's up",
       body: `Back to ${fresh.exercise}`,
-      url: `/client/workouts/${fresh.workoutId}`,
+      url: workout ? restAlertUrl(userId, workout) : "/client",
       tag: "rest",
     })
     return "fired" as const
