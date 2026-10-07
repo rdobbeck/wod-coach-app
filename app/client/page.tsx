@@ -7,7 +7,7 @@ import TodayView, { type DayWorkout } from "@/components/client/TodayView"
 import Tour from "@/components/client/Tour"
 import NotificationsPrompt from "@/components/client/NotificationsPrompt"
 import { requireClient } from "@/lib/require-client"
-import AiAssistant from "@/components/coach/AiAssistant"
+import AskAiHint from "@/components/client/AskAiHint"
 import { spendMeter } from "@/lib/ai/spend"
 
 const DAY = 86_400_000
@@ -99,7 +99,15 @@ export default async function ClientToday() {
 
   const canMove = profile?.canMoveWorkouts ?? true
   // Ask AI on the client's own training, when their coach switched it on. The meter is the coach's; the panel hides it for clients.
-  const aiMeter = profile?.canAskAi && coachLink ? await spendMeter(coachLink.coachId) : null
+  // A saved conversation means they have used it already, so the first-use hint stays away on every device.
+  const [aiMeter, aiThread] =
+    profile?.canAskAi && coachLink
+      ? await Promise.all([
+          spendMeter(coachLink.coachId),
+          prisma.aiThread.findUnique({ where: { userId_clientId: { userId: session.user.id, clientId: session.user.id } }, select: { messages: true } }),
+        ])
+      : [null, null]
+  const hasAiThread = Array.isArray(aiThread?.messages) && aiThread.messages.length > 0
 
   return (
     <>
@@ -136,10 +144,13 @@ export default async function ClientToday() {
         coachName={coachLink?.coach.name ?? ""}
         canBook={canBook}
         canMove={canMove}
+        canAskAi={!!profile?.canAskAi}
       />
       {/* Only once the tour is behind them, so the two never stack. */}
       {profile?.tourSeenAt && <NotificationsPrompt />}
-      {aiMeter && <AiAssistant clientId={session.user.id} clientName={session.user.name ?? ""} meter={aiMeter} viewer="client" />}
+      {aiMeter && (
+        <AskAiHint clientId={session.user.id} clientName={session.user.name ?? ""} coachName={coachLink?.coach.name ?? null} meter={aiMeter} hasThread={hasAiThread} />
+      )}
     </>
   )
 }

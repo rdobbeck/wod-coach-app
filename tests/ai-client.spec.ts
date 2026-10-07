@@ -39,6 +39,8 @@ test.beforeAll(async () => {
   await prisma.clientProfile.update({ where: { userId: clientId }, data: { tourSeenAt: new Date() } })
 })
 test.beforeEach(async () => {
+  // The tour spec (and any diagnostic run of it elsewhere) resets this on the shared client; keep the walkthrough closed here.
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { tourSeenAt: new Date() } })
   await prisma.aiThread.deleteMany({ where: { clientId } })
   await prisma.aiChangeSet.deleteMany({ where: { clientId } })
   await prisma.aiUsage.deleteMany({ where: { coachId } })
@@ -140,4 +142,41 @@ test("the strip names who applied: you, the client, or another coach", () => {
   expect(whoApplied({ appliedById: "coachA", ...args })).toBe("you")
   expect(whoApplied({ appliedById: "c1", ...args })).toBe("Sasha")
   expect(whoApplied({ appliedById: "coachB", ...args })).toBe("another coach")
+})
+
+test("the Ask AI hint shows once, and goes away after the first message or when the switch is off", async ({ page }) => {
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  await prisma.aiThread.deleteMany({ where: { clientId } })
+  await page.route("**/api/ai/assist", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    await route.fulfill({ json: { reply: "32 sessions left.", changes: [], warnings: [], dropped: [], meter: { spent: 0.05, cap: 25, level: "ok" } } })
+  })
+  await signInAsClient(page)
+  const hint = page.getByRole("note").filter({ hasText: /Ask AI/ })
+  // The card appears once the page has hydrated; on a busy dev server that can take a while.
+  await expect(hint).toBeVisible({ timeout: 15_000 })
+  // Same promise as the tour slide: load bumps can apply on their own, everything else waits for Apply.
+  await expect(hint).toContainText(/Small load tweaks can go in on their own/)
+  await expect(hint).toContainText(/Anything bigger waits until you tap Apply/)
+  await page.getByRole("button", { name: /Ask AI about your training/ }).click()
+  await page.getByPlaceholder("Ask a question or describe a change").fill("How many sessions are left?")
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(page.getByText("32 sessions left.")).toBeVisible()
+  await page.getByRole("button", { name: "Close" }).click()
+  await expect(hint).toBeHidden()
+  // Still hidden after a reload: the thread now has messages.
+  await page.reload()
+  await expect(page.getByRole("button", { name: /Ask AI about your training/ })).toBeVisible()
+  await expect(hint).toBeHidden()
+  // A client who used Ask AI before the hint existed, or on another device: the saved thread alone keeps it away.
+  await expect.poll(async () => prisma.aiThread.count({ where: { clientId, userId: clientId } })).toBe(1)
+  await page.evaluate(() => localStorage.removeItem("hint:ask-ai"))
+  await page.reload()
+  await expect(page.getByRole("button", { name: /Ask AI about your training/ })).toBeVisible()
+  await expect(hint).toBeHidden()
+  // Switch off: no hint, no button.
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+  await page.reload()
+  await expect(page.getByRole("button", { name: /Ask AI/ })).toBeHidden()
+  await expect(hint).toBeHidden()
 })

@@ -176,6 +176,33 @@ export function WeekVisual() {
   )
 }
 
+/** The red Ask AI button and one proposed change under it, as the client sees them. Static on purpose: no motion to respect. */
+export function AskAiVisual() {
+  return (
+    <Frame className="space-y-2 bg-app-surface">
+      <div className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-app-text px-3 py-2 text-xs text-app-bg">
+        My shoulder is irritated. No overhead work for two weeks.
+      </div>
+      <div className="rounded-xl border border-app-border bg-app-surface2 px-2.5 py-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-app-muted">Thu &middot; Upper</p>
+        <p className="mt-1 text-xs text-app-text">
+          <span className="mr-1.5 rounded bg-[rgba(var(--app-accent-rgb),0.15)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-app-accent">replace</span>
+          <span className="text-app-muted line-through">Strict Press</span> &rarr; <span className="font-semibold">Landmine Press</span>
+        </p>
+        <div className="mt-2 flex gap-2">
+          <span className="flex h-8 flex-1 items-center justify-center rounded-lg bg-app-accent font-display text-xs font-bold uppercase tracking-wide text-white">Apply 1 change</span>
+          <span className="flex h-8 items-center rounded-lg border border-app-border px-3 text-xs font-semibold text-app-muted">Discard</span>
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <span className="flex items-center gap-1.5 rounded-full bg-app-accent px-3 py-1.5 font-display text-xs font-bold uppercase tracking-[0.06em] text-white shadow">
+          &#10022; Ask AI
+        </span>
+      </div>
+    </Frame>
+  )
+}
+
 /** What lands on their lock screen. */
 export function NotificationVisual({ coachName }: { coachName: string }) {
   return (

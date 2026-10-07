@@ -5,14 +5,14 @@ import { detectBrowser, shouldShowInstallStep, type InstallBrowser } from "@/lib
 import { getPushState } from "@/lib/push-client"
 import { InstallStepBody, arrowAtBottom } from "./InstallStep"
 import { NotificationsStepBody } from "./NotificationsPrompt"
-import { CallsVisual, LoggingVisual, NotificationVisual, RestVisual, TabsVisual, VideoVisual, WeekVisual } from "./TourVisuals"
+import { AskAiVisual, CallsVisual, LoggingVisual, NotificationVisual, RestVisual, TabsVisual, VideoVisual, WeekVisual } from "./TourVisuals"
 
 /**
  * First-run walkthrough. It runs once, the first time a client opens Today,
  * and can be replayed from Settings: where things live, logging, the rest
- * timer, video form checks, free calls and moving sessions (when the coach
- * allows them), notifications, and (on a phone, in the browser) adding it to
- * the Home Screen.
+ * timer, video form checks, free calls, moving sessions and Ask AI (when the
+ * coach allows them), notifications, and (on a phone, in the browser) adding
+ * it to the Home Screen.
  */
 // `visual` is a small picture of the screen the slide talks about, shown in place of the icon.
 // `raise` lifts the card clear of an arrow pointing at the bottom of the screen.
@@ -35,12 +35,14 @@ function buildSteps({
   coachName,
   canBook,
   canMove,
+  canAskAi,
   install,
   notifyAfterInstall,
 }: {
   coachName: string
   canBook: boolean
   canMove: boolean
+  canAskAi: boolean
   install: InstallBrowser | null
   // iPhone in the browser: Apple only lets Home Screen apps ask, so the ask
   // waits for the installed app (NotificationsPrompt) instead of a slide here.
@@ -145,6 +147,22 @@ function buildSteps({
     })
   }
 
+  if (canAskAi) {
+    steps.push({
+      id: "askai",
+      title: "Ask the AI about your training",
+      icon: <Icon><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z" /></Icon>,
+      visual: <AskAiVisual />,
+      body: (
+        <p>
+          Tell it what&apos;s going on. A cranky shoulder, a week with only dumbbells, squats that felt easy. It reshapes your upcoming
+          sessions. Small load tweaks can go in on their own (you can switch that off). Anything bigger waits until you tap{" "}
+          <span className="font-semibold text-app-text">Apply</span>, and {coachName || "your coach"} sees every change and can undo it.
+        </p>
+      ),
+    })
+  }
+
   if (!notifyAfterInstall) steps.push({
     id: "notifications",
     title: "Turn on notifications",
@@ -170,12 +188,14 @@ export function TourDeck({
   coachName = "",
   canBook,
   canMove,
+  canAskAi,
   onDone,
   onReachEnd,
 }: {
   coachName?: string
   canBook: boolean
   canMove: boolean
+  canAskAi: boolean
   onDone: (completed: boolean) => void
   /** Reaching the last slide counts as seen: on a phone they often leave from there to install. */
   onReachEnd?: () => void
@@ -187,7 +207,7 @@ export function TourDeck({
     if (shouldShowInstallStep()) setInstall(detectBrowser())
     getPushState().then((s) => setNotifyAfterInstall(s === "needs-install"), () => {})
   }, [])
-  const steps = buildSteps({ coachName, canBook, canMove, install, notifyAfterInstall })
+  const steps = buildSteps({ coachName, canBook, canMove, canAskAi, install, notifyAfterInstall })
   const [i, setI] = useState(0)
   const step = steps[i]
   const last = i === steps.length - 1
@@ -266,7 +286,7 @@ const remember = (seen: boolean) =>
   }).catch(() => {})
 
 /** Opens itself once, on a client's first visit to Today. */
-export default function Tour({ seen, coachName, canBook, canMove }: { seen: boolean; coachName?: string; canBook: boolean; canMove: boolean }) {
+export default function Tour({ seen, coachName, canBook, canMove, canAskAi }: { seen: boolean; coachName?: string; canBook: boolean; canMove: boolean; canAskAi: boolean }) {
   const [open, setOpen] = useState(!seen)
   const markSeen = useCallback(() => remember(true), [])
   if (!open) return null
@@ -275,6 +295,7 @@ export default function Tour({ seen, coachName, canBook, canMove }: { seen: bool
       coachName={coachName}
       canBook={canBook}
       canMove={canMove}
+      canAskAi={canAskAi}
       onReachEnd={markSeen}
       onDone={() => {
         setOpen(false)
@@ -286,7 +307,7 @@ export default function Tour({ seen, coachName, canBook, canMove }: { seen: bool
 }
 
 /** Settings entry point, for anyone who skipped it or wants a reminder. */
-export function ReplayTourButton({ canBook, canMove }: { canBook: boolean; canMove: boolean }) {
+export function ReplayTourButton({ canBook, canMove, canAskAi }: { canBook: boolean; canMove: boolean; canAskAi: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -296,7 +317,7 @@ export function ReplayTourButton({ canBook, canMove }: { canBook: boolean; canMo
       >
         Show me around the app again
       </button>
-      {open && <TourDeck canBook={canBook} canMove={canMove} onDone={() => setOpen(false)} />}
+      {open && <TourDeck canBook={canBook} canMove={canMove} canAskAi={canAskAi} onDone={() => setOpen(false)} />}
     </>
   )
 }
