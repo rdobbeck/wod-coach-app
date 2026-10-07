@@ -155,9 +155,9 @@ test("the Ask AI hint shows once, and goes away after the first message or when 
   const hint = page.getByRole("note").filter({ hasText: /Ask AI/ })
   // The card appears once the page has hydrated; on a busy dev server that can take a while.
   await expect(hint).toBeVisible({ timeout: 15_000 })
-  // Same promise as the tour slide: load bumps can apply on their own, everything else waits for Apply.
-  await expect(hint).toContainText(/Small load tweaks can go in on their own/)
-  await expect(hint).toContainText(/Anything bigger waits until you tap Apply/)
+  // Same promise as the tour slide: clients review everything, since auto-apply is off for them.
+  await expect(hint).toContainText(/Nothing changes until you tap Apply/)
+  await expect(hint).not.toContainText(/load tweaks/)
   await page.getByRole("button", { name: /Ask AI about your training/ }).click()
   await page.getByPlaceholder("Ask a question or describe a change").fill("How many sessions are left?")
   await page.getByRole("button", { name: "Send" }).click()
@@ -179,4 +179,37 @@ test("the Ask AI hint shows once, and goes away after the first message or when 
   await page.reload()
   await expect(page.getByRole("button", { name: /Ask AI/ })).toBeHidden()
   await expect(hint).toBeHidden()
+})
+
+test("for a client, a load bump waits for Apply: auto-apply is off unless they turn it on", async ({ page }) => {
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  const w = await seedSession(`${PREFIX}Bump`)
+  const [squat] = w.exercises
+  await page.route("**/api/ai/assist", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    await route.fulfill({
+      json: {
+        reply: "Bumped your squat.",
+        changes: [{ action: "modify", workoutId: w.id, workoutName: w.name, date: dayKey(w.scheduledDate), exerciseId: squat.id, exercise: "Back Squat", currentPrescription: "3x5 @ RPE 7, rest 2 min", newPrescription: "3x5 @ RPE 8, rest 2 min", reason: "Felt easy" }],
+        warnings: [], dropped: [], autoApply: true, meter: { spent: 0.05, cap: 25, level: "ok" },
+      },
+    })
+  })
+  await signInAsClient(page)
+  await page.getByRole("button", { name: /Ask AI about your training/ }).click()
+  const dialog = page.getByRole("dialog", { name: "AI assistant" })
+  await expect(dialog.getByLabel(/Apply load bumps automatically/)).not.toBeChecked()
+  await expect(dialog.getByText(/Nothing changes until you apply it/)).toBeVisible()
+  await page.getByPlaceholder("Ask a question or describe a change").fill("Squats felt easy")
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(page.getByText("Bumped your squat.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Apply 1 change" })).toBeVisible()
+  await expect(page.getByText(/Applied .* automatically/)).toBeHidden()
+  expect((await prisma.workoutExercise.findUniqueOrThrow({ where: { id: squat.id } })).prescription).toBe("3x5 @ RPE 7, rest 2 min")
+  // Turning it on is remembered on this device, and the header says what that means.
+  await dialog.getByLabel(/Apply load bumps automatically/).check()
+  await expect(dialog.getByText(/Load bumps go in on their own/)).toBeVisible()
+  await page.reload()
+  await page.getByRole("button", { name: /Ask AI about your training/ }).click()
+  await expect(page.getByRole("dialog", { name: "AI assistant" }).getByLabel(/Apply load bumps automatically/)).toBeChecked()
 })

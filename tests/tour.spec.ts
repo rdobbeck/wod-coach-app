@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test"
+import { test, expect, type Browser, type Page } from "@playwright/test"
 import { PrismaClient } from "@prisma/client"
 import { dbUrl } from "../lib/db-url"
 
@@ -73,46 +73,76 @@ test("a new client is walked through the app once, then left alone", async ({ br
   await ctx.close()
 })
 
+/** Walk the whole tour as a fresh client, then wait for the seen write so it cannot land after a later reset. */
+async function walkTour(browser: Browser) {
+  await unseen()
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await ctx.newPage()
+  await signIn(page)
+  const tour = page.getByRole("dialog", { name: "App walkthrough" })
+  // Today renders on the server behind a loading state; give it the same room as sign-in.
+  await expect(tour).toBeVisible({ timeout: 15_000 })
+  const titles: string[] = []
+  let askAi = ""
+  let pill = ""
+  for (let i = 0; i < 12; i++) {
+    const title = (await tour.getByRole("heading").textContent()) ?? ""
+    titles.push(title)
+    if (title === "Ask the AI about your training") {
+      askAi = (await tour.textContent()) ?? ""
+      pill = await tour.locator("span", { hasText: /^\S Ask AI$/ }).evaluate((el) => getComputedStyle(el).backgroundColor)
+    }
+    const next = tour.getByRole("button", { name: "Next" })
+    if (!(await next.isVisible())) break
+    await next.click()
+  }
+  await expect
+    .poll(async () => (await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).tourSeenAt !== null)
+    .toBe(true)
+  await ctx.close()
+  return { titles, askAi, pill }
+}
+
 test("the Ask AI slide appears only when the coach switched Ask AI on", async ({ browser }) => {
   test.setTimeout(90_000)
-  const walk = async () => {
-    await unseen()
-    const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
-    const page = await ctx.newPage()
-    await signIn(page)
-    const tour = page.getByRole("dialog", { name: "App walkthrough" })
-    // Today renders on the server behind a loading state; give it the same room as sign-in.
-    await expect(tour).toBeVisible({ timeout: 15_000 })
-    const titles: string[] = []
-    let askAi = ""
-    for (let i = 0; i < 12; i++) {
-      const title = (await tour.getByRole("heading").textContent()) ?? ""
-      titles.push(title)
-      if (title === "Ask the AI about your training") askAi = (await tour.textContent()) ?? ""
-      const next = tour.getByRole("button", { name: "Next" })
-      if (!(await next.isVisible())) break
-      await next.click()
-    }
-    // Reaching the end marks the tour seen in the background; wait for that write so it
-    // cannot land after the next test's reset.
-    await expect
-      .poll(async () => (await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).tourSeenAt !== null)
-      .toBe(true)
-    await ctx.close()
-    return { titles, askAi }
-  }
   await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
-  const withAi = await walk()
+  const withAi = await walkTour(browser)
   expect(withAi.titles).toContain("Ask the AI about your training")
   // It sits after the week slide (when present) and before notifications.
   expect(withAi.titles.indexOf("Ask the AI about your training")).toBeLessThan(withAi.titles.indexOf("Turn on notifications"))
-  // Honest about the one thing that applies without a tap: load bumps, which the panel switches on by default.
-  expect(withAi.askAi).toMatch(/Small load tweaks can go in on their own/)
-  expect(withAi.askAi).toMatch(/Anything bigger waits until you tap Apply/)
+  // Clients review every change by default (auto-apply is off for them), so the promise is plain.
+  expect(withAi.askAi).toMatch(/Nothing changes until you tap Apply/)
+  expect(withAi.askAi).not.toMatch(/load tweaks/)
 
   await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
-  const withoutAi = await walk()
+  const withoutAi = await walkTour(browser)
   expect(withoutAi.titles).not.toContain("Ask the AI about your training")
+})
+
+test("no active coach, no Ask AI slide, even with the switch on", async ({ browser }) => {
+  test.setTimeout(90_000)
+  const link = await prisma.clientCoach.findFirstOrThrow({ where: { clientId, status: "ACTIVE" } })
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  await prisma.clientCoach.update({ where: { id: link.id }, data: { status: "INACTIVE" } })
+  try {
+    const walked = await walkTour(browser)
+    expect(walked.titles).not.toContain("Ask the AI about your training")
+  } finally {
+    await prisma.clientCoach.update({ where: { id: link.id }, data: { status: "ACTIVE" } })
+    await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+  }
+})
+
+test("the slide's Ask AI button is red whatever the theme, like the real one", async ({ browser }) => {
+  test.setTimeout(90_000)
+  const before = (await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).theme
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true, theme: "midnight" } })
+  try {
+    const walked = await walkTour(browser)
+    expect(walked.pill).toBe("rgb(193, 39, 45)")
+  } finally {
+    await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false, theme: before } })
+  }
 })
 
 test("skipping counts as seen, so it never ambushes them twice", async ({ browser }) => {

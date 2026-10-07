@@ -104,10 +104,11 @@ export default async function ClientToday() {
     profile?.canAskAi && coachLink
       ? await Promise.all([
           spendMeter(coachLink.coachId),
-          prisma.aiThread.findUnique({ where: { userId_clientId: { userId: session.user.id, clientId: session.user.id } }, select: { messages: true } }),
+          // A row only exists once there are messages: empty saves are skipped and Clear deletes it.
+          prisma.aiThread.findUnique({ where: { userId_clientId: { userId: session.user.id, clientId: session.user.id } }, select: { id: true } }),
         ])
       : [null, null]
-  const hasAiThread = Array.isArray(aiThread?.messages) && aiThread.messages.length > 0
+  const hasAiThread = !!aiThread
 
   return (
     <>
@@ -144,7 +145,7 @@ export default async function ClientToday() {
         coachName={coachLink?.coach.name ?? ""}
         canBook={canBook}
         canMove={canMove}
-        canAskAi={!!profile?.canAskAi}
+        canAskAi={!!profile?.canAskAi && !!coachLink}
       />
       {/* Only once the tour is behind them, so the two never stack. */}
       {profile?.tourSeenAt && <NotificationsPrompt />}
