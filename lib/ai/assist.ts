@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { buildExerciseMatcher } from "@/lib/exercise-match"
 import { noLongDashes } from "@/lib/text"
 import { dayKey, summarizeEntry } from "@/lib/training-format"
+import { measureOfLogged } from "@/lib/training"
 
 /**
  * The always-open AI box on a client's page. The coach types a question or a
@@ -61,7 +62,7 @@ export async function buildContext(clientId: string): Promise<Context> {
         resultText: true,
         rpe: true,
         setLogs: { orderBy: { setNumber: "asc" }, select: { setNumber: true, reps: true, weight: true, rpe: true } },
-        workoutExercise: { select: { name: true, exercise: { select: { name: true } } } },
+        workoutExercise: { select: { name: true, prescription: true, reps: true, exercise: { select: { name: true, tracking: true } } } },
       },
     }),
   ])
@@ -91,7 +92,11 @@ export async function buildContext(clientId: string): Promise<Context> {
 
   const recent = logs
     .map((l) => {
-      const s = summarizeEntry({ resultText: l.resultText, rpe: l.rpe, sets: l.setLogs }, profile?.units ?? "lb")
+      const s = summarizeEntry(
+        // "90 lb × 30 m" for a carry, "60s" for a hold, so the model doesn't read either as reps.
+        { resultText: l.resultText, rpe: l.rpe, sets: l.setLogs, measure: measureOfLogged(l.workoutExercise) },
+        profile?.units ?? "lb"
+      )
       return s ? `${dayKey(l.performedAt)}  ${l.workoutExercise.name ?? l.workoutExercise.exercise?.name ?? "Exercise"}: ${s}` : null
     })
     .filter(Boolean)
