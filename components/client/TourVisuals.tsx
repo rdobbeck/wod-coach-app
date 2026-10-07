@@ -82,21 +82,21 @@ export function LoggingVisual() {
 }
 
 /** The rest bar that appears above the tab bar after a tick, counting down. */
+/** The rest timer surface from RestTimer.tsx: Pause, the time (tap it to change), Skip, with the countdown drawn as the border. */
 export function RestVisual() {
   return (
-    <Frame className="p-0">
-      <div className="bg-app-surface">
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted">Rest</p>
-            <p className="font-display text-4xl font-bold leading-none tabular-nums text-app-text">1:30</p>
-          </div>
-          <span className="flex h-10 items-center rounded-xl border border-app-border px-3 text-sm font-semibold text-app-text">+30s</span>
-          <span className="flex h-10 items-center rounded-xl border border-app-border px-3 text-sm font-semibold text-app-text">Skip</span>
-        </div>
-        <div className="h-1.5 bg-app-surface2">
-          <div className="tour-rest-bar h-full bg-app-accent" />
-        </div>
+    <Frame className="p-2">
+      <div className="relative flex h-[104px] w-full items-center justify-between gap-2 overflow-hidden rounded-[24px] bg-app-surface px-3 shadow-lg">
+        <svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 320 104" preserveAspectRatio="none" fill="none">
+          <rect x="2.5" y="2.5" width="315" height="99" rx="21.5" stroke="var(--app-border)" strokeWidth="5" />
+          <rect x="2.5" y="2.5" width="315" height="99" rx="21.5" stroke="var(--app-accent)" strokeWidth="5" strokeLinecap="round" pathLength={1} strokeDasharray={1} className="tour-rest-ring" />
+        </svg>
+        <span className="relative flex h-10 w-[68px] shrink-0 items-center justify-center rounded-full bg-[rgba(var(--app-accent-rgb),0.15)] text-[13px] font-semibold text-app-accent">Pause</span>
+        <span className="relative flex min-w-0 flex-1 flex-col items-center justify-center">
+          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted">Rest</span>
+          <span className="font-display text-[34px] font-bold leading-none tabular-nums text-app-text">1:30</span>
+        </span>
+        <span className="relative flex h-10 w-[60px] shrink-0 items-center justify-center rounded-full bg-app-surface2 text-[13px] font-semibold text-app-text">Skip</span>
       </div>
     </Frame>
   )

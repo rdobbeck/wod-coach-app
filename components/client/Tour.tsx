@@ -90,8 +90,8 @@ function buildSteps({
       visual: <RestVisual />,
       body: (
         <p>
-          Tick a set and rest starts counting straight away, using whatever rest your program calls for. Add 30 seconds or skip it from
-          the bar at the bottom. Your phone buzzes when you're back up.
+          Tick a set and rest starts counting straight away, using whatever rest your program calls for. Pause or skip it from the timer
+          at the bottom, or tap the time to change it. Your phone buzzes when you're back up.
         </p>
       ),
     },

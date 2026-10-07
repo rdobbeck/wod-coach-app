@@ -50,10 +50,10 @@ test("a new client is walked through the app once, then left alone", async ({ br
     if (!(await next.isVisible())) break
     await next.click()
   }
-  // The tour is short now: where things live, then notifications. Logging, the
-  // rest timer and the rest are taught by in-place hints as they come up.
+  // Where things live first, the rest timer along the way, notifications near the end.
   expect(titles[0]).toBe("Here's where everything lives")
-  expect(titles).toContain("One last thing")
+  expect(titles).toContain("The rest timer runs itself")
+  expect(titles).toContain("Turn on notifications")
 
   // Back really does go back.
   await tour.getByRole("button", { name: "Back" }).click()
