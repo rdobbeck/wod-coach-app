@@ -12,7 +12,10 @@ import FastingControl from "@/components/coach/FastingControl"
 import HistoryView from "@/components/client/HistoryView"
 import AiAssistant from "@/components/coach/AiAssistant"
 import TrainTodayButton from "@/components/coach/TrainTodayButton"
+import RecentAiChanges, { type RecentAiChange } from "@/components/coach/RecentAiChanges"
+import { whoApplied } from "@/lib/ai/who"
 import { spendMeter } from "@/lib/ai/spend"
+import { getCoachPlan } from "@/lib/plans"
 import { dayKey, getClientSnapshot, getHistoryOverview } from "@/lib/training"
 import { clockLabel, fastHours, fastingStreak, type FastEntry } from "@/lib/fasting"
 
@@ -71,7 +74,7 @@ export default async function ClientDetailPage({
   const nextMonth = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1, 12))
   const todayKey = dayKey(today)
 
-  const [workouts, overview, programs, snapshot, unread, aiMeter] = await Promise.all([
+  const [workouts, overview, programs, snapshot, unread, aiMeter, coachPlan, aiSets] = await Promise.all([
     prisma.workout.findMany({
       where: { clientId: client.id, scheduledDate: { gte: gridStart, lte: gridEnd } },
       orderBy: [{ scheduledDate: "asc" }, { order: "asc" }],
@@ -86,7 +89,23 @@ export default async function ClientDetailPage({
     getClientSnapshot(client.id),
     prisma.message.count({ where: { senderId: client.id, receiverId: session.user.id, isRead: false } }),
     spendMeter(session.user.id),
+    getCoachPlan(session.user.id),
+    prisma.aiChangeSet.findMany({
+      where: { clientId: params.clientId },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, request: true, applied: true, createdAt: true, undoneAt: true, appliedById: true },
+    }),
   ])
+  const clientFirst = client.name?.split(" ")[0] ?? "Client"
+  const recentAi: RecentAiChange[] = aiSets.map((s) => ({
+    id: s.id,
+    when: fmt(s.createdAt, { month: "short", day: "numeric" }),
+    who: whoApplied({ appliedById: s.appliedById, clientId: client.id, viewerId: session.user.id, clientFirst }),
+    request: s.request,
+    count: Array.isArray(s.applied) ? (s.applied as unknown[]).length : 0,
+    undone: !!s.undoneAt,
+  }))
 
   const fastRows = profile?.fastingEnabled
     ? await prisma.fastLog.findMany({ where: { userId: client.id }, orderBy: { startedAt: "desc" }, take: 14 })
@@ -195,7 +214,7 @@ export default async function ClientDetailPage({
             <div className="min-w-0 flex-1">
               <h1 className="font-display text-4xl font-bold leading-none text-[#16181d]">{client.name || "Unnamed client"}</h1>
               <p className="mt-1 text-sm text-[#6b6257]">
-                {[client.email, profile?.units === "kg" ? "kg" : "lb", profile?.canMoveWorkouts === false ? "can't move workouts" : "can move workouts"]
+                {[client.email, profile?.units === "kg" ? "kg" : "lb", profile?.canMoveWorkouts === false ? "can't move workouts" : "can move workouts", ...(profile?.canAskAi ? ["can ask AI"] : [])]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
@@ -216,7 +235,13 @@ export default async function ClientDetailPage({
 
           <div className="mt-4 space-y-3">
             <TrainTodayButton clientId={client.id} days={calendarDays} />
-            <ClientActions clientId={client.id} canMoveWorkouts={profile?.canMoveWorkouts ?? true} hasPassword={!!client.hashedPassword} />
+            <ClientActions
+              clientId={client.id}
+              canMoveWorkouts={profile?.canMoveWorkouts ?? true}
+              canAskAi={profile?.canAskAi ?? false}
+              assistantPlan={coachPlan.plan.assistant}
+              hasPassword={!!client.hashedPassword}
+            />
             <FastingControl
               clientId={client.id}
               offered={profile?.fastingOffered ?? false}
@@ -324,6 +349,9 @@ export default async function ClientDetailPage({
                   <Link href={`/coach/clients/${client.id}?m=${monthKey(nextMonth)}`} aria-label="Next month" className="rounded-md border border-[#ddd7cc] px-2.5 py-1 text-sm">
                     ›
                   </Link>
+                </div>
+                <div className="mb-3">
+                  <RecentAiChanges items={recentAi} />
                 </div>
                 <CoachCalendar clientId={client.id} todayKey={todayKey} days={calendarDays} />
               </section>

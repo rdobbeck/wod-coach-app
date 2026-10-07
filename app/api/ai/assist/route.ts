@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { coachOf } from "@/lib/coach-access"
+import { aiAccess, denialResponse, isDenied } from "@/lib/ai/access"
 import { withAlert } from "@/lib/alert"
 import { AiCapError, assertUnderCap, spendMeter } from "@/lib/ai/spend"
 import { ASSIST_MIN_CENTS, settleAiCall } from "@/lib/ai-billing"
@@ -21,9 +21,11 @@ async function handlePOST(req: Request) {
   if (!body.clientId || !message) return NextResponse.json({ error: "clientId and message are required" }, { status: 400 })
   if (message.length > 2000) return NextResponse.json({ error: "That message is too long. Keep it under 2,000 characters." }, { status: 400 })
 
-  const session = await coachOf(body.clientId)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const coachId = session.user.id
+  const access = await aiAccess(body.clientId)
+  if (isDenied(access)) return denialResponse(access)
+  const coachId = access.coachId
+  // A client is spending their coach's allowance, so money messages are written for them, not the coach.
+  const forClient = (coachText: string) => (access.viewer === "client" ? "Your coach's AI allowance is used up for this month. Ask them to top it up." : coachText)
 
   // Included on Pro and Studio up to the monthly cap; otherwise (or past the cap)
   // each message comes out of the coach's AI balance.
@@ -40,13 +42,13 @@ async function handlePOST(req: Request) {
     } catch (e) {
       if (!(e instanceof AiCapError)) throw e
       if (balance < ASSIST_MIN_CENTS) {
-        return NextResponse.json({ error: e.message, code: e.code, meter: await spendMeter(coachId) }, { status: 402 })
+        return NextResponse.json({ error: forClient(e.message), code: e.code, meter: await spendMeter(coachId) }, { status: 402 })
       }
     }
   }
   if (mode === "balance" && balance < ASSIST_MIN_CENTS) {
     return NextResponse.json(
-      { error: "The AI assistant comes with Pro and Studio. Or add AI balance in Settings, Plan & billing and pay a few cents a message.", code: "AI_FUNDS", meter: await spendMeter(coachId) },
+      { error: forClient("The AI assistant comes with Pro and Studio. Or add AI balance in Settings, Plan & billing and pay a few cents a message."), code: "AI_FUNDS", meter: await spendMeter(coachId) },
       { status: 402 },
     )
   }

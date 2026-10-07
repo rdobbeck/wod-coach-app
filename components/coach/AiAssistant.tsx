@@ -1,12 +1,13 @@
-'use client'
+"use client"
 
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { Change } from "@/lib/ai/assist"
+import { createThreadWriter } from "@/lib/ai/thread-writer"
 
 type Meter = { spent: number; cap: number; level: "ok" | "warn" | "capped" }
-type Msg = {
+export type Msg = {
   role: "user" | "assistant"
   text: string
   changes?: Change[]
@@ -20,13 +21,20 @@ type Msg = {
   failed?: boolean
 }
 
-const EXAMPLES = [
+const EXAMPLES_COACH = [
   "Her shoulder is irritated. No overhead work for the next two weeks.",
   "He's travelling next week with only dumbbells and a bench.",
   "Squats have felt easy. Bump the next three weeks.",
 ]
+const EXAMPLES_CLIENT = ["My shoulder is irritated. No overhead work for two weeks.", "I'm travelling next week with only dumbbells and a bench.", "Squats have felt easy. Bump the next three weeks."]
 
-const day = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })
+const day = (d: string) =>
+  new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })
 const money = (n: number) => `$${n.toFixed(2)}`
 
 const CHIP: Record<Change["action"], string> = {
@@ -63,8 +71,14 @@ function ChangeRow({ c, on, disabled, toggle }: { c: Change; on: boolean; disabl
   )
 }
 
-/** The AI box on a client's page: ask a question or describe a change, review the edits, apply or undo. */
-export default function AiAssistant({ clientId, clientName, meter: initial }: { clientId: string; clientName: string; meter: Meter }) {
+/**
+ * The AI box: ask a question or describe a change, review the edits, apply or
+ * undo. The coach sees it on a client's page; a client sees it on their own
+ * Today page when their coach switched it on (viewer "client": first-person
+ * copy, no spend meter, because the money is the coach's).
+ */
+export default function AiAssistant({ clientId, clientName, meter: initial, viewer = "coach" }: { clientId: string; clientName: string; meter: Meter; viewer?: "coach" | "client" }) {
+  const isClient = viewer === "client"
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([])
@@ -75,6 +89,60 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
   const [auto, setAuto] = useState(true)
   const end = useRef<HTMLDivElement>(null)
   const first = clientName.split(" ")[0] || "this client"
+  const whose = isClient ? "your" : `${first}'s`
+  const about = isClient ? "your training" : first
+  const examples = isClient ? EXAMPLES_CLIENT : EXAMPLES_COACH
+
+  // The conversation lives in the database so a reload or a crash does not lose it.
+  const [loaded, setLoaded] = useState(false)
+  const lastSaved = useRef<Msg[] | null>(null)
+  // One write in flight at a time, in order, so a slow save never lands after a later one.
+  const writer = useRef(createThreadWriter(clientId))
+  useEffect(() => {
+    if (!open || loaded) return
+    let cancelled = false
+    fetch(`/api/ai/assist/thread?clientId=${encodeURIComponent(clientId)}`)
+      .then((r) => (r.ok ? r.json() : { messages: [] }))
+      .then((d) => {
+        if (cancelled || !Array.isArray(d.messages)) return
+        // Never overwrite a conversation that started while the thread was loading.
+        setMsgs((cur) => {
+          if (cur.length) return cur
+          lastSaved.current = d.messages
+          return d.messages
+        })
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, loaded, clientId])
+
+  const saveThread = (messages: Msg[]) => {
+    void writer.current.save(messages.filter((m) => !m.failed)).then((ok) => {
+      if (!ok) toast.error("Couldn't save this conversation")
+    })
+  }
+  useEffect(() => {
+    // Save on every change after the first load; the restore itself is not written back.
+    if (!loaded || lastSaved.current === msgs) return
+    lastSaved.current = msgs
+    if (msgs.length === 0) return
+    // "Applying…" is a moment, not a state worth keeping: the next change writes the result.
+    if (msgs.some((m) => m.state === "applied" && !m.changeSetId && !m.undone)) return
+    saveThread(msgs)
+  }, [msgs, loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const clearThread = async () => {
+    const pending = msgs.some((m) => m.state === "pending")
+    if (!window.confirm(pending ? "Clear this conversation? Unapplied edits will be dropped." : "Clear this conversation?")) return
+    lastSaved.current = []
+    setMsgs([])
+    await writer.current.clear()
+  }
 
   // Braces matter: newer Chrome returns a value from scrollIntoView, and an
   // effect that returns it would hand React a "cleanup" that is not a function.
@@ -102,7 +170,7 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
 
   const send = async (text: string) => {
     const message = text.trim()
-    if (!message || busy) return
+    if (!message || busy || !loaded) return
     const history = msgs.filter((m) => !m.failed).map((m) => ({ role: m.role, content: m.text }))
     setMsgs((m) => [...m, { role: "user", text: message }])
     setInput("")
@@ -116,7 +184,14 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
     const d = res ? await res.json().catch(() => ({})) : {}
     if (d.meter) setMeter(d.meter)
     if (!res?.ok) {
-      setMsgs((m) => [...m, { role: "assistant", text: d.error ?? "Could not reach the AI. Check your connection and try again.", failed: true }])
+      setMsgs((m) => [
+        ...m,
+        {
+          role: "assistant",
+          text: d.error ?? "Could not reach the AI. Check your connection and try again.",
+          failed: true,
+        },
+      ])
       return
     }
     const willAuto = auto && !!d.autoApply && !!d.changes?.length
@@ -157,8 +232,8 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
       state: "applied",
       changeSetId: d.changeSetId,
       applyNote: automatic
-        ? `Applied ${n} load ${n === 1 ? "change" : "changes"} automatically to ${first}'s calendar.${d.skipped?.length ? ` ${d.skipped.length} skipped.` : ""}`
-        : `Applied ${n} ${n === 1 ? "change" : "changes"} to ${first}'s calendar.${d.skipped?.length ? ` ${d.skipped.length} skipped.` : ""}`,
+        ? `Applied ${n} load ${n === 1 ? "change" : "changes"} automatically to ${whose} calendar.${d.skipped?.length ? ` ${d.skipped.length} skipped.` : ""}`
+        : `Applied ${n} ${n === 1 ? "change" : "changes"} to ${whose} calendar.${d.skipped?.length ? ` ${d.skipped.length} skipped.` : ""}`,
     })
     router.refresh()
   }
@@ -179,7 +254,10 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
       body: JSON.stringify({ changeSetId: m.changeSetId }),
     }).catch(() => null)
     if (!res?.ok) return toast.error("Couldn't undo that")
-    patch(i, { undone: true, applyNote: "Undone. Everything is back the way it was." })
+    patch(i, {
+      undone: true,
+      applyNote: "Undone. Everything is back the way it was.",
+    })
     router.refresh()
   }
 
@@ -191,8 +269,11 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-30 flex items-center gap-2 rounded-full bg-[#16181d] px-5 py-3 font-display text-lg font-bold uppercase tracking-[0.06em] text-[#f4f1ea] shadow-xl"
-          aria-label={`Ask AI about ${first}`}
+          className={`fixed right-5 z-30 flex items-center gap-2 rounded-full px-5 py-3 font-display text-lg font-bold uppercase tracking-[0.06em] shadow-xl ${
+            // The client app has a fixed bottom nav and a dark theme: sit above the nav, in the accent colour.
+            isClient ? "bottom-[calc(5.5rem+env(safe-area-inset-bottom))] bg-[#c1272d] text-white" : "bottom-5 bg-[#16181d] text-[#f4f1ea]"
+          }`}
+          aria-label={`Ask AI about ${about}`}
         >
           <span aria-hidden>&#10022;</span> Ask AI
         </button>
@@ -205,23 +286,32 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-display text-xl font-bold leading-none text-[#16181d]">Ask AI</p>
-                  <p className="text-xs text-[#6b6257]">About {first}. Nothing changes until you apply it.</p>
+                  <p className="text-xs text-[#6b6257]">About {about}. Nothing changes until you apply it.</p>
                 </div>
-                <button onClick={() => setOpen(false)} className="rounded-full px-3 py-1 text-sm font-semibold text-[#6b6257]" aria-label="Close">
-                  Close
-                </button>
-              </div>
-              <div className="mt-2" title="Resets on the 1st">
-                <div className="flex justify-between text-[11px] text-[#6b6257]">
-                  <span>AI spend this month</span>
-                  <span className="font-semibold tabular-nums">
-                    {money(meter.spent)} of ${meter.cap.toFixed(0)}
-                  </span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#e7e2d9]">
-                  <div className={`h-full ${bar}`} style={{ width: `${pct}%` }} />
+                <div className="flex items-center gap-1">
+                  {msgs.length > 0 && (
+                    <button onClick={clearThread} className="rounded-full px-3 py-1 text-sm font-semibold text-[#6b6257]" aria-label="Clear">
+                      Clear
+                    </button>
+                  )}
+                  <button onClick={() => setOpen(false)} className="rounded-full px-3 py-1 text-sm font-semibold text-[#6b6257]" aria-label="Close">
+                    Close
+                  </button>
                 </div>
               </div>
+              {!isClient && (
+                <div className="mt-2" title="Resets on the 1st">
+                  <div className="flex justify-between text-[11px] text-[#6b6257]">
+                    <span>AI spend this month</span>
+                    <span className="font-semibold tabular-nums">
+                      {money(meter.spent)} of ${meter.cap.toFixed(0)}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#e7e2d9]">
+                    <div className={`h-full ${bar}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )}
               <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-[#4a443c]">
                 <input type="checkbox" checked={auto} onChange={(e) => toggleAuto(e.target.checked)} className="h-3.5 w-3.5 accent-[#c1272d]" />
                 Apply load bumps automatically
@@ -230,12 +320,15 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
             </div>
 
             <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-              {!msgs.length && (
+              {!loaded && <p className="text-sm text-[#6b6257]">Loading&hellip;</p>}
+              {loaded && !msgs.length && (
                 <div className="space-y-2">
                   <p className="text-sm text-[#4a443c]">
-                    Ask a question, or tell me what to change in {first}&apos;s upcoming training. I can see their sessions, results and notes.
+                    {isClient
+                      ? "Ask a question, or tell me what to change in your upcoming training. I can see your sessions, results and notes."
+                      : `Ask a question, or tell me what to change in ${first}'s upcoming training. I can see their sessions, results and notes.`}
                   </p>
-                  {EXAMPLES.map((x) => (
+                  {examples.map((x) => (
                     <button key={x} onClick={() => send(x)} className="block w-full rounded-xl border border-[#e0dad0] bg-white px-3 py-2 text-left text-sm text-[#16181d] hover:border-[#c1272d]">
                       {x}
                     </button>
@@ -272,9 +365,13 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
                                       c={c}
                                       on={!!m.picked?.[k]}
                                       disabled={m.state !== "pending"}
-                                      toggle={() => patch(i, { picked: m.picked!.map((v, j) => (j === k ? !v : v)) })}
+                                      toggle={() =>
+                                        patch(i, {
+                                          picked: m.picked!.map((v, j) => (j === k ? !v : v)),
+                                        })
+                                      }
                                     />
-                                  ) : null
+                                  ) : null,
                                 )}
                               </div>
                             )
@@ -318,13 +415,9 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
                         </ul>
                       </div>
                     )}
-                    {m.dropped && m.dropped.length > 0 && (
-                      <p className="px-1 text-xs text-[#857c70]">
-                        Left out: {m.dropped.join(" ")}
-                      </p>
-                    )}
+                    {m.dropped && m.dropped.length > 0 && <p className="px-1 text-xs text-[#857c70]">Left out: {m.dropped.join(" ")}</p>}
                   </div>
-                )
+                ),
               )}
               {busy && <p className="mr-4 animate-pulse text-sm text-[#6b6257]">Working on it&hellip;</p>}
               <div ref={end} />
@@ -348,13 +441,13 @@ export default function AiAssistant({ clientId, clientName, meter: initial }: { 
                     }
                   }}
                   rows={2}
-                  placeholder={meter.level === "capped" ? "Monthly AI limit reached" : "Ask a question or describe a change"}
-                  disabled={meter.level === "capped"}
+                  placeholder={meter.level === "capped" ? (isClient ? "Your coach's AI limit is used up for this month" : "Monthly AI limit reached") : "Ask a question or describe a change"}
+                  disabled={meter.level === "capped" || !loaded}
                   className="block max-h-40 min-h-[3rem] flex-1 resize-none rounded-xl border border-[#ddd7cc] bg-[#faf8f4] px-3 py-2 text-base text-[#16181d] disabled:opacity-60"
                 />
                 <button
                   type="submit"
-                  disabled={busy || !input.trim() || meter.level === "capped"}
+                  disabled={busy || !loaded || !input.trim() || meter.level === "capped"}
                   className="h-12 rounded-xl bg-[#16181d] px-4 font-display text-base font-bold uppercase tracking-[0.06em] text-[#f4f1ea] disabled:opacity-40"
                 >
                   Send

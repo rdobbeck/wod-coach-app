@@ -46,7 +46,7 @@ type Applied =
 
 const clean = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? noLongDashes(v.trim()).slice(0, max) : undefined)
 
-export async function applyChanges(coachId: string, clientId: string, request: string, changes: ChangeInput[]) {
+export async function applyChanges(coachId: string, clientId: string, request: string, changes: ChangeInput[], appliedById: string) {
   const todayStart = new Date(`${dayKey(new Date())}T00:00:00.000Z`)
   const skipped: string[] = []
   const applied: Applied[] = []
@@ -136,16 +136,24 @@ export async function applyChanges(coachId: string, clientId: string, request: s
 
   if (!applied.length) return { changeSetId: null as string | null, applied: 0, skipped }
   const set = await prisma.aiChangeSet.create({
-    data: { coachId, clientId, request: request.slice(0, 2000), applied: applied as never },
+    data: { coachId, clientId, request: request.slice(0, 2000), applied: applied as never, appliedById },
     select: { id: true },
   })
   return { changeSetId: set.id, applied: applied.length, skipped }
 }
 
-/** Put every row in a batch back the way it was. Rows the client has logged on since are left as they are. */
-export async function undoChangeSet(coachId: string, changeSetId: string) {
-  const set = await prisma.aiChangeSet.findFirst({ where: { id: changeSetId, coachId } })
+/**
+ * Put every row in a batch back the way it was. Allowed for the person who
+ * applied it and for any coach of that client. Rows the client has logged on
+ * since are left as they are.
+ */
+export async function undoChangeSet(userId: string, changeSetId: string) {
+  const set = await prisma.aiChangeSet.findUnique({ where: { id: changeSetId } })
   if (!set) return { ok: false as const, error: "Not found" }
+  if (set.appliedById !== userId && set.coachId !== userId) {
+    const link = await prisma.clientCoach.findUnique({ where: { clientId_coachId: { clientId: set.clientId, coachId: userId } } })
+    if (!link) return { ok: false as const, error: "Not found" }
+  }
   if (set.undoneAt) return { ok: false as const, error: "Already undone" }
   const items = set.applied as unknown as Applied[]
   let restored = 0

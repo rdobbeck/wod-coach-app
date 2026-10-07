@@ -5,6 +5,7 @@ import { dbUrl } from "../lib/db-url"
 import { dayKey } from "../lib/training-format"
 import { assertUnderCap, spendMeter, AiCapError, monthStart } from "../lib/ai/spend"
 import { parseProposal, isLoadBump, type Change, type Context } from "../lib/ai/assist"
+import { createThreadWriter } from "../lib/ai/thread-writer"
 
 /**
  * The AI box: the monthly spend cap, what the assistant is allowed to touch,
@@ -46,6 +47,7 @@ async function seedSession(name: string, opts: { owner?: string; done?: boolean;
 }
 
 async function cleanup() {
+  await prisma.aiThread.deleteMany({ where: { clientId } })
   await prisma.aiChangeSet.deleteMany({ where: { clientId } })
   await prisma.aiUsage.deleteMany({ where: { coachId } })
   await prisma.workout.deleteMany({ where: { clientId: { in: [clientId, otherId].filter(Boolean) }, name: { startsWith: PREFIX } } })
@@ -67,9 +69,21 @@ test.afterAll(async () => {
   await cleanup()
   await prisma.$disconnect()
 })
-test.beforeEach(async () => {
+// Panel tests save the thread in the background; let those requests land before the next test's cleanup.
+const inflight = new WeakMap<Page, Set<unknown>>()
+test.beforeEach(async ({ page }) => {
+  const pending = new Set<unknown>()
+  page.on("request", (r) => pending.add(r))
+  page.on("requestfinished", (r) => pending.delete(r))
+  page.on("requestfailed", (r) => pending.delete(r))
+  inflight.set(page, pending)
+  await prisma.aiThread.deleteMany({ where: { clientId } })
   await prisma.aiChangeSet.deleteMany({ where: { clientId } })
   await prisma.aiUsage.deleteMany({ where: { coachId } })
+})
+test.afterEach(async ({ page }) => {
+  const pending = inflight.get(page)
+  if (pending) await expect.poll(() => pending.size, { timeout: 5_000 }).toBe(0).catch(() => {})
 })
 
 // ---------- the cap ----------
@@ -115,6 +129,107 @@ test("only a coach of that client can use the assistant", async ({ browser }) =>
   const anonApply = await page.request.post("/api/ai/assist/apply", { data: { clientId, changes: [{ action: "remove", workoutId: "x" }] } })
   expect(anonApply.status()).toBe(401)
   await ctx.close()
+})
+
+async function clientContext(browser: import("@playwright/test").Browser) {
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await ctx.newPage()
+  await page.goto("/auth/signin")
+  await page.locator('input[name="email"]').fill("playwright-client@dev.local")
+  await page.locator('input[name="password"]').fill("playwright-test-PW-1")
+  await page.locator('button[type="submit"]').click()
+  await page.waitForURL(/\/client$/, { timeout: 15_000 })
+  return { ctx, page }
+}
+
+test("a client may use the assistant only when their coach switched it on", async ({ browser }) => {
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+  const { ctx, page } = await clientContext(browser)
+  const off = await page.request.post("/api/ai/assist", { data: { clientId, message: "hi" } })
+  expect(off.status()).toBe(403)
+  expect((await off.json()).error).toMatch(/hasn't switched/i)
+  // A client can never ask about someone else, switched on or not.
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  const other = await page.request.post("/api/ai/assist", { data: { clientId: otherId, message: "hi" } })
+  expect(other.status()).toBe(401)
+  // Switched on: the call reaches the coach's funding checks. Cap the coach first (and empty the balance) so the
+  // route refuses with the coach's cap error before any model is called: 402 AI_CAP proves the gate opened.
+  await prisma.aiUsage.create({ data: { coachId, kind: "assist", model: "test", costUsd: 26 } })
+  await prisma.coachProfile.updateMany({ where: { userId: coachId }, data: { aiBalanceCents: 0 } })
+  const on = await page.request.post("/api/ai/assist", { data: { clientId, message: "hi" } })
+  expect(on.status()).toBe(402)
+  const capped = await on.json()
+  expect(capped.code).toBe("AI_CAP")
+  expect(capped.error).toMatch(/your coach's AI allowance/i) // client-facing copy, not "add balance in Settings"
+  await ctx.close()
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+})
+
+test("apply records who applied, and undo is open to the applier and to any coach of the client", async ({ page, browser }) => {
+  const w = await seedSession(`${PREFIX}Who Applied`)
+  const [squat] = w.exercises
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  const { ctx, page: cp } = await clientContext(browser)
+  const res = await cp.request.post("/api/ai/assist/apply", {
+    data: { clientId, request: "client request", changes: [{ action: "modify", workoutId: w.id, exerciseId: squat.id, newPrescription: "3x5 @ RPE 8" }] },
+  })
+  expect(res.status(), await res.text()).toBe(200)
+  const { changeSetId } = await res.json()
+  const set = await prisma.aiChangeSet.findUniqueOrThrow({ where: { id: changeSetId } })
+  expect(set.appliedById).toBe(clientId)
+  expect(set.coachId).toBe(coachId)
+  // The coach can undo a batch the client applied.
+  const undo = await page.request.post("/api/ai/assist/undo", { data: { changeSetId } })
+  expect(undo.status()).toBe(200)
+  expect((await prisma.workoutExercise.findUniqueOrThrow({ where: { id: squat.id } })).prescription).toBe("3x5 @ RPE 7, rest 2 min")
+  // A second batch, undone by the client themself.
+  const res2 = await cp.request.post("/api/ai/assist/apply", {
+    data: { clientId, request: "again", changes: [{ action: "modify", workoutId: w.id, exerciseId: squat.id, newPrescription: "3x5 @ RPE 9" }] },
+  })
+  const { changeSetId: id2 } = await res2.json()
+  const undo2 = await cp.request.post("/api/ai/assist/undo", { data: { changeSetId: id2 } })
+  expect(undo2.status()).toBe(200)
+  await ctx.close()
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+})
+
+test("threads: saved per person and client, trimmed, cleaned, and cleared", async ({ page, browser }) => {
+  const msg = (i: number) => ({ role: i % 2 ? "assistant" : "user", text: `m${i}` })
+  // Junk is refused.
+  expect((await page.request.put("/api/ai/assist/thread", { data: { clientId, messages: "nope" } })).status()).toBe(400)
+  // 30 messages in, last 20 kept; unknown fields and failed messages dropped; text trimmed to 4000.
+  const long = Array.from({ length: 30 }, (_, i) => ({ ...msg(i), bogus: 1, text: i === 29 ? "x".repeat(5000) : `m${i}` }))
+  long.push({ role: "assistant", text: "broken", failed: true } as never)
+  const put = await page.request.put("/api/ai/assist/thread", { data: { clientId, messages: long } })
+  expect(put.status(), await put.text()).toBe(200)
+  const got = await (await page.request.get(`/api/ai/assist/thread?clientId=${clientId}`)).json()
+  expect(got.messages.length).toBe(20)
+  expect(got.messages[0].text).toBe("m10")
+  expect(got.messages[19].text.length).toBe(4000)
+  expect("bogus" in got.messages[0]).toBe(false)
+  // The client's thread about the same training is separate.
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  const { ctx, page: cp } = await clientContext(browser)
+  const theirs = await (await cp.request.get(`/api/ai/assist/thread?clientId=${clientId}`)).json()
+  expect(theirs.messages).toEqual([])
+  await ctx.close()
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+  // Clear.
+  expect((await page.request.delete(`/api/ai/assist/thread?clientId=${clientId}`)).status()).toBe(200)
+  expect((await (await page.request.get(`/api/ai/assist/thread?clientId=${clientId}`)).json()).messages).toEqual([])
+})
+
+test("the coach switches Ask AI on and off per client", async ({ page }) => {
+  const res = await page.request.patch(`/api/clients/${clientId}/settings`, { data: { canAskAi: true } })
+  expect(res.status()).toBe(200)
+  expect((await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).canAskAi).toBe(true)
+  // The switch sits beside "Client can move workouts" (the test coach's trial plan includes the assistant).
+  await page.goto(`/coach/clients/${clientId}`)
+  const box = page.getByRole("checkbox", { name: /Client can ask AI/ })
+  await expect(box).toBeChecked()
+  await expect(page.getByText(/can ask AI/).first()).toBeVisible()
+  await box.uncheck()
+  await expect.poll(async () => (await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).canAskAi).toBe(false)
 })
 
 // ---------- reading the model's answer ----------
@@ -362,6 +477,115 @@ test("in the panel: the page survives a browser whose scrollIntoView returns a v
   await expect(page.getByText("Swapped the squat.")).toBeVisible()
   await expect(page.getByRole("button", { name: "Apply 1 change" })).toBeVisible()
   await expect(page.getByText("Something went wrong")).toBeHidden()
+})
+
+async function mockReply(page: Page, w: Awaited<ReturnType<typeof seedSession>>) {
+  const [squat] = w.exercises
+  await page.route("**/api/ai/assist", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    await route.fulfill({
+      json: {
+        reply: "Eased the squat.",
+        changes: [{ action: "replace", workoutId: w.id, workoutName: w.name, date: dayKey(w.scheduledDate), exerciseId: squat.id, exercise: "Back Squat", newExercise: "Goblet Squat", newPrescription: "3x10", libraryId: null, inLibrary: false, reason: "Easier on the knee" }],
+        warnings: [], dropped: [], meter: { spent: 0.05, cap: 25, level: "ok" },
+      },
+    })
+  })
+}
+
+test("in the panel: a proposal survives a reload, still applies, and Clear wipes it", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Reload Me`)
+  await mockReply(page, w)
+  await openPanel(page)
+  await page.getByPlaceholder("Ask a question or describe a change").fill("Knee hurts")
+  const saved = page.waitForResponse((r) => r.url().includes("/api/ai/assist/thread") && r.request().method() === "PUT")
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(page.getByText("Eased the squat.")).toBeVisible()
+  expect((await saved).status()).toBe(200)
+
+  await page.reload()
+  await page.waitForLoadState("networkidle")
+  await page.getByRole("button", { name: /Ask AI about/ }).click()
+  await expect(page.getByText("Knee hurts", { exact: true })).toBeVisible()
+  await expect(page.getByText("Eased the squat.")).toBeVisible()
+  await page.getByRole("button", { name: "Apply 1 change" }).click()
+  await expect(page.getByText(/Applied 1 change to/)).toBeVisible()
+  await expect.poll(async () => (await prisma.workoutExercise.findUniqueOrThrow({ where: { id: w.exercises[0].id } })).name).toBe("Goblet Squat")
+
+  // Applied state is saved too.
+  await page.reload()
+  await page.waitForLoadState("networkidle")
+  await page.getByRole("button", { name: /Ask AI about/ }).click()
+  await expect(page.getByText(/Applied 1 change to/)).toBeVisible()
+
+  page.once("dialog", (d) => d.accept())
+  const deleted = page.waitForResponse((r) => r.url().includes("/api/ai/assist/thread") && r.request().method() === "DELETE")
+  await page.getByRole("button", { name: "Clear" }).click()
+  await expect(page.getByText("Eased the squat.")).toBeHidden()
+  await expect(page.getByText(/Ask a question, or tell me what to change/)).toBeVisible()
+  expect((await deleted).status()).toBe(200)
+  expect(await prisma.aiThread.count({ where: { clientId } })).toBe(0)
+})
+
+test("in the panel: a restored proposal whose session is now done is skipped, not crashed on", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Gone Stale`)
+  await mockReply(page, w)
+  await openPanel(page)
+  await page.getByPlaceholder("Ask a question or describe a change").fill("Knee hurts")
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(page.getByText("Eased the squat.")).toBeVisible()
+  await prisma.workout.update({ where: { id: w.id }, data: { isCompleted: true } })
+  await page.reload()
+  await page.waitForLoadState("networkidle")
+  await page.getByRole("button", { name: /Ask AI about/ }).click()
+  await page.getByRole("button", { name: "Apply 1 change" }).click()
+  await expect(page.getByText(/not found, is already done, or is in the past/)).toBeVisible()
+  await expect(page.getByRole("button", { name: "Apply 1 change" })).toBeVisible() // back to pending
+  await expect(page.getByText("Something went wrong")).toBeHidden()
+})
+
+test("thread writes go out one at a time, in order, so a slow save can never land after a later one", async () => {
+  const calls: { method: string; body: string; done: () => void }[] = []
+  const fakeFetch = (_url: string, init?: { method?: string; body?: string }) =>
+    new Promise<{ ok: boolean }>((resolve) => {
+      calls.push({ method: init?.method ?? "GET", body: String(init?.body ?? ""), done: () => resolve({ ok: true }) })
+    })
+  const writer = createThreadWriter("c1", fakeFetch as unknown as typeof fetch)
+  const first = writer.save([{ role: "user", text: "one" }])
+  const second = writer.save([{ role: "user", text: "one" }, { role: "assistant", text: "two" }])
+  const third = writer.clear()
+  await new Promise((r) => setTimeout(r, 20))
+  // Only the first request has gone out; the others wait for it.
+  expect(calls.map((c) => c.method)).toEqual(["PUT"])
+  calls[0].done()
+  await new Promise((r) => setTimeout(r, 20))
+  expect(calls.map((c) => c.method)).toEqual(["PUT", "PUT"])
+  expect(calls[1].body).toContain("two")
+  calls[1].done()
+  await new Promise((r) => setTimeout(r, 20))
+  expect(calls.map((c) => c.method)).toEqual(["PUT", "PUT", "DELETE"])
+  calls[2].done()
+  await Promise.all([first, second, third])
+})
+
+test("the switch can always be turned off, even after the coach's plan loses the assistant", async ({ page }) => {
+  const before = await prisma.coachProfile.findUniqueOrThrow({ where: { userId: coachId }, select: { createdAt: true } })
+  try {
+    // 30 days in: the trial is over and the test coach is on Free, which has no assistant.
+    await prisma.coachProfile.update({ where: { userId: coachId }, data: { createdAt: new Date(Date.now() - 30 * 86_400_000) } })
+    await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+    await page.goto(`/coach/clients/${clientId}`)
+    const box = page.getByRole("checkbox", { name: /Client can ask AI/ })
+    await expect(box).toBeChecked()
+    await box.uncheck()
+    await expect.poll(async () => (await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).canAskAi).toBe(false)
+    await page.reload()
+    await expect(page.getByText(/Ask AI for clients comes with Pro/)).toBeVisible()
+    await expect(page.getByRole("checkbox", { name: /Client can ask AI/ })).toBeHidden()
+  } finally {
+    await prisma.coachProfile.update({ where: { userId: coachId }, data: { createdAt: before.createdAt } })
+    await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+  }
 })
 
 test("in the panel: at the cap the box is switched off", async ({ page }) => {
