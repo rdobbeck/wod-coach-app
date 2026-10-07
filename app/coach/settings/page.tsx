@@ -75,7 +75,7 @@ export default async function CoachSettingsPage() {
           <div className="rounded-2xl border border-[#e4dfd5] bg-white p-4">
             <p className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-[#857c70]">AI</p>
             <p className="mt-2 text-sm text-[#4a443c]">
-              How AI programs are paid for, and your own OpenRouter key if you'd rather use one. Currently{" "}
+              How AI programs are paid for, and your own OpenRouter key if you&apos;d rather use one. Currently{" "}
               {coach?.aiProvider === "BRING_YOUR_OWN_KEY" && coach?.openrouterApiKey ? "your own key" : "your plan, then your AI balance"}.
             </p>
             <Link href="/coach/settings/ai" className="mt-3 inline-block rounded-xl border border-[#ddd7cc] px-4 py-2 text-sm font-semibold text-[#16181d]">

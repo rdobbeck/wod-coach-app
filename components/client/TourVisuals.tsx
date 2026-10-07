@@ -21,10 +21,10 @@ const Svg = ({ children, size = 18 }: { children: React.ReactNode; size?: number
 /** BottomNav, Today selected. */
 export function TabsVisual() {
   const tabs: [string, React.ReactNode][] = [
-    ["Today", <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" />],
-    ["History", <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>],
-    ["Messages", <path d="M4 5h16v11H8l-4 4z" />],
-    ["Settings", <><circle cx="12" cy="8" r="4" /><path d="M6 20a6 6 0 0 1 12 0" /></>],
+    ["Today", <path key="today" d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" />],
+    ["History", <g key="history"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></g>],
+    ["Messages", <path key="messages" d="M4 5h16v11H8l-4 4z" />],
+    ["Settings", <g key="settings"><circle cx="12" cy="8" r="4" /><path d="M6 20a6 6 0 0 1 12 0" /></g>],
   ]
   return (
     <Frame className="p-0">
