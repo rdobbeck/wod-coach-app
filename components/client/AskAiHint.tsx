@@ -28,8 +28,9 @@ export default function AskAiHint({
   const [used, setUsed] = useState(false)
   return (
     <>
+      {/* Extra room below the card so the floating button never sits on it when Today is scrolled to the end. */}
       {!hasThread && (
-        <div className="mt-4">
+        <div className="mb-8 mt-4">
           <Hint id="ask-ai" done={used}>
             New: the red <span className="font-semibold">Ask AI</span> button. Tell it what&apos;s going on and it reshapes your upcoming sessions.
             Nothing changes until you tap Apply, and {coachName ?? "your coach"} can undo anything.
