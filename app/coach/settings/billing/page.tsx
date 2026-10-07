@@ -8,6 +8,7 @@ import { BuyButton, CatalogSetup, ManageBillingButton, PlanPicker } from "@/comp
 import { PAID_PLANS, PLANS, activeClientCount, formatDollars, getCoachPlan } from "@/lib/plans"
 import { billingConfigured, stripeTestMode } from "@/lib/stripe-platform"
 import { missingPrices } from "@/lib/stripe-catalog"
+import { syncCustomer } from "@/lib/billing"
 
 const card = "rounded-2xl border border-[#e4dfd5] bg-white p-5"
 const label = "font-display text-xs font-semibold uppercase tracking-[0.14em] text-[#857c70]"
@@ -16,6 +17,13 @@ const fmtDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day
 export default async function BillingPage({ searchParams }: { searchParams: { done?: string } }) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== "COACH") redirect("/")
+
+  // Back from Stripe Checkout: read the result from Stripe now rather than
+  // waiting on the webhook, so a paying coach never sees Free.
+  if (searchParams.done && billingConfigured()) {
+    const sub = await prisma.subscription.findFirst({ where: { coach: { userId: session.user.id } }, select: { stripeCustomerId: true } })
+    if (sub?.stripeCustomerId) await syncCustomer(sub.stripeCustomerId).catch((e) => console.error("[billing] return sync failed:", e))
+  }
 
   const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1))
   const [cp, clients, profile, aiPrograms] = await Promise.all([

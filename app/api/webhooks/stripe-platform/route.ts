@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import type Stripe from "stripe"
 import { prisma } from "@/lib/prisma"
-import { syncSubscription } from "@/lib/billing"
+import { creditAiTopUp, syncSubscription } from "@/lib/billing"
 import { platformStripe, stripeTestMode } from "@/lib/stripe-platform"
 import { alertRyan } from "@/lib/alert"
 
@@ -53,17 +53,7 @@ export async function POST(req: Request) {
         if (s.metadata?.kind === "ai") {
           const pi = typeof s.payment_intent === "string" ? s.payment_intent : s.payment_intent?.id
           const cents = Number(s.metadata.amountCents ?? s.amount_total ?? 0)
-          if (pi && cents > 0) {
-            const seen = await prisma.aICreditPurchase.findFirst({ where: { stripePaymentIntentId: pi }, select: { id: true } })
-            if (!seen) {
-              await prisma.$transaction([
-                prisma.aICreditPurchase.create({
-                  data: { coachId: coachProfileId, creditsAmount: 0, pricePerCredit: 0, totalAmount: cents / 100, stripePaymentIntentId: pi },
-                }),
-                prisma.coachProfile.update({ where: { id: coachProfileId }, data: { aiBalanceCents: { increment: cents } } }),
-              ])
-            }
-          }
+          if (pi) await creditAiTopUp(coachProfileId, pi, cents)
         }
         break
       }

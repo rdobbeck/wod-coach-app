@@ -74,3 +74,48 @@ export async function syncSubscription(sub: Stripe.Subscription) {
     },
   })
 }
+
+/** Adds a paid AI top-up to the coach's balance, once per payment intent. */
+export async function creditAiTopUp(coachProfileId: string, paymentIntentId: string, cents: number) {
+  if (!paymentIntentId || cents <= 0) return false
+  const seen = await prisma.aICreditPurchase.findFirst({ where: { stripePaymentIntentId: paymentIntentId }, select: { id: true } })
+  if (seen) return false
+  await prisma.$transaction([
+    prisma.aICreditPurchase.create({
+      data: { coachId: coachProfileId, creditsAmount: 0, pricePerCredit: 0, totalAmount: cents / 100, stripePaymentIntentId: paymentIntentId },
+    }),
+    prisma.coachProfile.update({ where: { id: coachProfileId }, data: { aiBalanceCents: { increment: cents } } }),
+  ])
+  return true
+}
+
+/**
+ * Reads a coach's state straight from Stripe and copies it over: their current
+ * subscription, a paid done-for-you setup, and any AI top-up the app hasn't
+ * credited. Webhooks normally do this; this is the backstop when one is late
+ * or never arrives (run when the coach comes back from checkout, and by the
+ * owner's repair). Safe to run any number of times.
+ */
+export async function syncCustomer(customerId: string) {
+  const stripe = platformStripe()
+  const row = await prisma.subscription.findFirst({ where: { stripeCustomerId: customerId }, select: { coachId: true } })
+  if (!row) return { synced: false as const }
+
+  const subs = (await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 })).data
+  const live = subs.find((s) => ["active", "trialing", "past_due", "unpaid"].includes(s.status)) ?? subs[0]
+  if (live) await syncSubscription(live)
+
+  let setupPaid = false
+  let aiCredited = 0
+  for (const s of (await stripe.checkout.sessions.list({ customer: customerId, limit: 30 })).data) {
+    if (s.status !== "complete" || s.payment_status !== "paid") continue
+    if (s.metadata?.setup === "true" || s.metadata?.kind === "setup") setupPaid = true
+    if (s.metadata?.kind === "ai") {
+      const pi = typeof s.payment_intent === "string" ? s.payment_intent : s.payment_intent?.id
+      const cents = Number(s.metadata.amountCents ?? s.amount_total ?? 0)
+      if (pi && (await creditAiTopUp(row.coachId, pi, cents))) aiCredited += cents
+    }
+  }
+  if (setupPaid) await prisma.subscription.update({ where: { coachId: row.coachId }, data: { setupPaid: true } })
+  return { synced: true as const, subscription: live ? `${live.status}` : "none", setupPaid, aiCredited }
+}
