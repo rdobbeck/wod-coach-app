@@ -72,7 +72,8 @@ export default function ClientActions({
           <input type="checkbox" checked={canMove} onChange={toggleMove} className="h-4 w-4 rounded border-gray-300" />
           Client can move workouts
         </label>
-        {assistantPlan ? (
+        {/* Shown while the plan has the assistant, or while the switch is on, so it can always be turned off. */}
+        {assistantPlan || canAskAi ? (
           <label className="flex items-center gap-2 text-sm text-gray-700" title="Spends from your AI allowance">
             <input type="checkbox" checked={askAi} onChange={toggleAskAi} className="h-4 w-4 rounded border-gray-300" />
             Client can ask AI

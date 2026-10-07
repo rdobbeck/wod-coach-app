@@ -24,6 +24,8 @@ async function handlePOST(req: Request) {
   const access = await aiAccess(body.clientId)
   if (isDenied(access)) return denialResponse(access)
   const coachId = access.coachId
+  // A client is spending their coach's allowance, so money messages are written for them, not the coach.
+  const forClient = (coachText: string) => (access.viewer === "client" ? "Your coach's AI allowance is used up for this month. Ask them to top it up." : coachText)
 
   // Included on Pro and Studio up to the monthly cap; otherwise (or past the cap)
   // each message comes out of the coach's AI balance.
@@ -40,13 +42,13 @@ async function handlePOST(req: Request) {
     } catch (e) {
       if (!(e instanceof AiCapError)) throw e
       if (balance < ASSIST_MIN_CENTS) {
-        return NextResponse.json({ error: e.message, code: e.code, meter: await spendMeter(coachId) }, { status: 402 })
+        return NextResponse.json({ error: forClient(e.message), code: e.code, meter: await spendMeter(coachId) }, { status: 402 })
       }
     }
   }
   if (mode === "balance" && balance < ASSIST_MIN_CENTS) {
     return NextResponse.json(
-      { error: "The AI assistant comes with Pro and Studio. Or add AI balance in Settings, Plan & billing and pay a few cents a message.", code: "AI_FUNDS", meter: await spendMeter(coachId) },
+      { error: forClient("The AI assistant comes with Pro and Studio. Or add AI balance in Settings, Plan & billing and pay a few cents a message."), code: "AI_FUNDS", meter: await spendMeter(coachId) },
       { status: 402 },
     )
   }

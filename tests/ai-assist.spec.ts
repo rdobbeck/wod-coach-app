@@ -5,6 +5,7 @@ import { dbUrl } from "../lib/db-url"
 import { dayKey } from "../lib/training-format"
 import { assertUnderCap, spendMeter, AiCapError, monthStart } from "../lib/ai/spend"
 import { parseProposal, isLoadBump, type Change, type Context } from "../lib/ai/assist"
+import { createThreadWriter } from "../lib/ai/thread-writer"
 
 /**
  * The AI box: the monthly spend cap, what the assistant is allowed to touch,
@@ -157,7 +158,9 @@ test("a client may use the assistant only when their coach switched it on", asyn
   await prisma.coachProfile.updateMany({ where: { userId: coachId }, data: { aiBalanceCents: 0 } })
   const on = await page.request.post("/api/ai/assist", { data: { clientId, message: "hi" } })
   expect(on.status()).toBe(402)
-  expect((await on.json()).code).toBe("AI_CAP")
+  const capped = await on.json()
+  expect(capped.code).toBe("AI_CAP")
+  expect(capped.error).toMatch(/your coach's AI allowance/i) // client-facing copy, not "add balance in Settings"
   await ctx.close()
   await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
 })
@@ -539,6 +542,50 @@ test("in the panel: a restored proposal whose session is now done is skipped, no
   await expect(page.getByText(/not found, is already done, or is in the past/)).toBeVisible()
   await expect(page.getByRole("button", { name: "Apply 1 change" })).toBeVisible() // back to pending
   await expect(page.getByText("Something went wrong")).toBeHidden()
+})
+
+test("thread writes go out one at a time, in order, so a slow save can never land after a later one", async () => {
+  const calls: { method: string; body: string; done: () => void }[] = []
+  const fakeFetch = (_url: string, init?: { method?: string; body?: string }) =>
+    new Promise<{ ok: boolean }>((resolve) => {
+      calls.push({ method: init?.method ?? "GET", body: String(init?.body ?? ""), done: () => resolve({ ok: true }) })
+    })
+  const writer = createThreadWriter("c1", fakeFetch as unknown as typeof fetch)
+  const first = writer.save([{ role: "user", text: "one" }])
+  const second = writer.save([{ role: "user", text: "one" }, { role: "assistant", text: "two" }])
+  const third = writer.clear()
+  await new Promise((r) => setTimeout(r, 20))
+  // Only the first request has gone out; the others wait for it.
+  expect(calls.map((c) => c.method)).toEqual(["PUT"])
+  calls[0].done()
+  await new Promise((r) => setTimeout(r, 20))
+  expect(calls.map((c) => c.method)).toEqual(["PUT", "PUT"])
+  expect(calls[1].body).toContain("two")
+  calls[1].done()
+  await new Promise((r) => setTimeout(r, 20))
+  expect(calls.map((c) => c.method)).toEqual(["PUT", "PUT", "DELETE"])
+  calls[2].done()
+  await Promise.all([first, second, third])
+})
+
+test("the switch can always be turned off, even after the coach's plan loses the assistant", async ({ page }) => {
+  const before = await prisma.coachProfile.findUniqueOrThrow({ where: { userId: coachId }, select: { createdAt: true } })
+  try {
+    // 30 days in: the trial is over and the test coach is on Free, which has no assistant.
+    await prisma.coachProfile.update({ where: { userId: coachId }, data: { createdAt: new Date(Date.now() - 30 * 86_400_000) } })
+    await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+    await page.goto(`/coach/clients/${clientId}`)
+    const box = page.getByRole("checkbox", { name: /Client can ask AI/ })
+    await expect(box).toBeChecked()
+    await box.uncheck()
+    await expect.poll(async () => (await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).canAskAi).toBe(false)
+    await page.reload()
+    await expect(page.getByText(/Ask AI for clients comes with Pro/)).toBeVisible()
+    await expect(page.getByRole("checkbox", { name: /Client can ask AI/ })).toBeHidden()
+  } finally {
+    await prisma.coachProfile.update({ where: { userId: coachId }, data: { createdAt: before.createdAt } })
+    await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+  }
 })
 
 test("in the panel: at the cap the box is switched off", async ({ page }) => {

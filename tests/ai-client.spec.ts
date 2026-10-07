@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client"
 import { dbUrl } from "../lib/db-url"
 import { dayKey } from "../lib/training-format"
 import { undoChangeSet } from "../lib/ai/apply"
+import { whoApplied } from "../lib/ai/who"
 
 /** Ask AI on the client's own Today page: gated by the coach's switch, paid by the coach. */
 const prisma = new PrismaClient({ datasources: { db: { url: dbUrl() } } })
@@ -131,4 +132,12 @@ test("the coach sees what the client changed and can undo it; a stranger coach c
   })
   const r = await undoChangeSet(stranger.id, id2)
   expect(r.ok).toBe(false)
+})
+
+test("the strip names who applied: you, the client, or another coach", () => {
+  const args = { clientId: "c1", viewerId: "coachA", clientFirst: "Sasha" }
+  expect(whoApplied({ appliedById: null, ...args })).toBe("you") // rows from before the column: coach-applied
+  expect(whoApplied({ appliedById: "coachA", ...args })).toBe("you")
+  expect(whoApplied({ appliedById: "c1", ...args })).toBe("Sasha")
+  expect(whoApplied({ appliedById: "coachB", ...args })).toBe("another coach")
 })

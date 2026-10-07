@@ -13,6 +13,7 @@ import HistoryView from "@/components/client/HistoryView"
 import AiAssistant from "@/components/coach/AiAssistant"
 import TrainTodayButton from "@/components/coach/TrainTodayButton"
 import RecentAiChanges, { type RecentAiChange } from "@/components/coach/RecentAiChanges"
+import { whoApplied } from "@/lib/ai/who"
 import { spendMeter } from "@/lib/ai/spend"
 import { getCoachPlan } from "@/lib/plans"
 import { dayKey, getClientSnapshot, getHistoryOverview } from "@/lib/training"
@@ -100,7 +101,7 @@ export default async function ClientDetailPage({
   const recentAi: RecentAiChange[] = aiSets.map((s) => ({
     id: s.id,
     when: fmt(s.createdAt, { month: "short", day: "numeric" }),
-    who: s.appliedById && s.appliedById !== session.user.id ? clientFirst : "you",
+    who: whoApplied({ appliedById: s.appliedById, clientId: client.id, viewerId: session.user.id, clientFirst }),
     request: s.request,
     count: Array.isArray(s.applied) ? (s.applied as unknown[]).length : 0,
     undone: !!s.undoneAt,
