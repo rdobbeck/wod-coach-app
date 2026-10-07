@@ -90,6 +90,11 @@ test("the Ask AI slide appears only when the coach switched Ask AI on", async ({
       if (!(await next.isVisible())) break
       await next.click()
     }
+    // Reaching the end marks the tour seen in the background; wait for that write so it
+    // cannot land after the next test's reset.
+    await expect
+      .poll(async () => (await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).tourSeenAt !== null)
+      .toBe(true)
     await ctx.close()
     return titles
   }
