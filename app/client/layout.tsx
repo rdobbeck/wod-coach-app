@@ -2,6 +2,7 @@ import { requireClient } from "@/lib/require-client"
 import { prisma } from "@/lib/prisma"
 import { resolveTheme } from "@/lib/themes"
 import BottomNav from "@/components/client/BottomNav"
+import PushFollow from "@/components/PushFollow"
 
 /** Mobile shell for everything under /client: narrow column, bottom tabs, client's theme. */
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,7 @@ export default async function ClientLayout({ children }: { children: React.React
       {/* Warm up connections so demo videos and thumbnails open fast. */}
       <link rel="preconnect" href="https://www.youtube-nocookie.com" />
       <link rel="preconnect" href="https://i.ytimg.com" />
+      <PushFollow />
       <main className="mx-auto max-w-md px-4 pt-4 pb-28">{children}</main>
       <BottomNav unread={unread} />
     </div>

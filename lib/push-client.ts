@@ -61,3 +61,24 @@ export async function disablePush() {
     await sub.unsubscribe()
   }
 }
+
+/**
+ * The signed-in account owns this phone's notifications. A device has one
+ * registration, so when someone signs into a different account on the same
+ * phone the existing subscription is re-saved under them; pushes then always
+ * match whoever is actually signed in. Runs on app open, asks for nothing, and
+ * does nothing on a phone that never turned notifications on.
+ */
+export async function followSignedInAccount(): Promise<boolean> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return false
+  if (Notification.permission !== "granted") return false
+  const reg = await navigator.serviceWorker.getRegistration()
+  const sub = await reg?.pushManager.getSubscription()
+  if (!sub) return false
+  const res = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sub.toJSON()),
+  })
+  return res.ok
+}
