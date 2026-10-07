@@ -33,7 +33,7 @@ export default function AskAiHint({
         <div className="mb-8 mt-4">
           <Hint id="ask-ai" done={used}>
             New: the red <span className="font-semibold">Ask AI</span> button. Tell it what&apos;s going on and it reshapes your upcoming sessions.
-            Nothing changes until you tap Apply, and {coachName ?? "your coach"} can undo anything.
+            Small load tweaks can go in on their own. Anything bigger waits until you tap Apply, and {coachName ?? "your coach"} can undo it.
           </Hint>
         </div>
       )}

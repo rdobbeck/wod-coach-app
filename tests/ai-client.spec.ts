@@ -155,6 +155,9 @@ test("the Ask AI hint shows once, and goes away after the first message or when 
   const hint = page.getByRole("note").filter({ hasText: /Ask AI/ })
   // The card appears once the page has hydrated; on a busy dev server that can take a while.
   await expect(hint).toBeVisible({ timeout: 15_000 })
+  // Same promise as the tour slide: load bumps can apply on their own, everything else waits for Apply.
+  await expect(hint).toContainText(/Small load tweaks can go in on their own/)
+  await expect(hint).toContainText(/Anything bigger waits until you tap Apply/)
   await page.getByRole("button", { name: /Ask AI about your training/ }).click()
   await page.getByPlaceholder("Ask a question or describe a change").fill("How many sessions are left?")
   await page.getByRole("button", { name: "Send" }).click()

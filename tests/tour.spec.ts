@@ -84,8 +84,11 @@ test("the Ask AI slide appears only when the coach switched Ask AI on", async ({
     // Today renders on the server behind a loading state; give it the same room as sign-in.
     await expect(tour).toBeVisible({ timeout: 15_000 })
     const titles: string[] = []
+    let askAi = ""
     for (let i = 0; i < 12; i++) {
-      titles.push((await tour.getByRole("heading").textContent()) ?? "")
+      const title = (await tour.getByRole("heading").textContent()) ?? ""
+      titles.push(title)
+      if (title === "Ask the AI about your training") askAi = (await tour.textContent()) ?? ""
       const next = tour.getByRole("button", { name: "Next" })
       if (!(await next.isVisible())) break
       await next.click()
@@ -96,17 +99,20 @@ test("the Ask AI slide appears only when the coach switched Ask AI on", async ({
       .poll(async () => (await prisma.clientProfile.findUniqueOrThrow({ where: { userId: clientId } })).tourSeenAt !== null)
       .toBe(true)
     await ctx.close()
-    return titles
+    return { titles, askAi }
   }
   await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
   const withAi = await walk()
-  expect(withAi).toContain("Ask the AI about your training")
+  expect(withAi.titles).toContain("Ask the AI about your training")
   // It sits after the week slide (when present) and before notifications.
-  expect(withAi.indexOf("Ask the AI about your training")).toBeLessThan(withAi.indexOf("Turn on notifications"))
+  expect(withAi.titles.indexOf("Ask the AI about your training")).toBeLessThan(withAi.titles.indexOf("Turn on notifications"))
+  // Honest about the one thing that applies without a tap: load bumps, which the panel switches on by default.
+  expect(withAi.askAi).toMatch(/Small load tweaks can go in on their own/)
+  expect(withAi.askAi).toMatch(/Anything bigger waits until you tap Apply/)
 
   await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
   const withoutAi = await walk()
-  expect(withoutAi).not.toContain("Ask the AI about your training")
+  expect(withoutAi.titles).not.toContain("Ask the AI about your training")
 })
 
 test("skipping counts as seen, so it never ambushes them twice", async ({ browser }) => {
