@@ -108,8 +108,9 @@ export default function AiAssistant({
   const [input, setInput] = useState("")
   const [busy, setBusy] = useState(false)
   const [meter, setMeter] = useState(initial)
-  // Load bumps (same movement, same sets and reps, different intensity) apply on their own.
-  const [auto, setAuto] = useState(true)
+  // Load bumps (same movement, same sets and reps, different intensity) apply on their own for the
+  // coach by default. A client reviews everything unless they switch this on themselves.
+  const [auto, setAuto] = useState(!isClient)
   const end = useRef<HTMLDivElement>(null)
   const first = clientName.split(" ")[0] || "this client"
   const whose = isClient ? "your" : `${first}'s`
@@ -175,7 +176,9 @@ export default function AiAssistant({
   }, [msgs, busy, open])
   useEffect(() => {
     try {
-      if (localStorage.getItem("ai-auto-load") === "off") setAuto(false)
+      const saved = localStorage.getItem("ai-auto-load")
+      if (saved === "off") setAuto(false)
+      if (saved === "on") setAuto(true)
     } catch {}
   }, [])
   const toggleAuto = (v: boolean) => {
@@ -311,7 +314,9 @@ export default function AiAssistant({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-display text-xl font-bold leading-none text-[#16181d]">Ask AI</p>
-                  <p className="text-xs text-[#6b6257]">About {about}. Nothing changes until you apply it.</p>
+                  <p className="text-xs text-[#6b6257]">
+                    About {about}. {auto ? "Load bumps go in on their own. Everything else waits for you to apply it." : "Nothing changes until you apply it."}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1">
                   {msgs.length > 0 && (

@@ -176,7 +176,7 @@ export function WeekVisual() {
   )
 }
 
-/** The red Ask AI button and one proposed change under it, as the client sees them. Static on purpose: no motion to respect. */
+/** The red Ask AI button and one proposed change under it, as the client sees them. Static on purpose: no motion to respect. The button and Apply keep the panel's own red in every theme. */
 export function AskAiVisual() {
   return (
     <Frame className="space-y-2 bg-app-surface">
@@ -190,12 +190,12 @@ export function AskAiVisual() {
           <span className="text-app-muted line-through">Strict Press</span> &rarr; <span className="font-semibold">Landmine Press</span>
         </p>
         <div className="mt-2 flex gap-2">
-          <span className="flex h-8 flex-1 items-center justify-center rounded-lg bg-app-accent font-display text-xs font-bold uppercase tracking-wide text-white">Apply 1 change</span>
+          <span className="flex h-8 flex-1 items-center justify-center rounded-lg bg-[#c1272d] font-display text-xs font-bold uppercase tracking-wide text-white">Apply 1 change</span>
           <span className="flex h-8 items-center rounded-lg border border-app-border px-3 text-xs font-semibold text-app-muted">Discard</span>
         </div>
       </div>
       <div className="flex justify-end">
-        <span className="flex items-center gap-1.5 rounded-full bg-app-accent px-3 py-1.5 font-display text-xs font-bold uppercase tracking-[0.06em] text-white shadow">
+        <span className="flex items-center gap-1.5 rounded-full bg-[#c1272d] px-3 py-1.5 font-display text-xs font-bold uppercase tracking-[0.06em] text-white shadow">
           &#10022; Ask AI
         </span>
       </div>

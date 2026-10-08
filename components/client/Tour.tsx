@@ -156,8 +156,8 @@ function buildSteps({
       body: (
         <p>
           Tell it what&apos;s going on. A cranky shoulder, a week with only dumbbells, squats that felt easy. It reshapes your upcoming
-          sessions. Small load tweaks can go in on their own (you can switch that off). Anything bigger waits until you tap{" "}
-          <span className="font-semibold text-app-text">Apply</span>, and {coachName || "your coach"} sees every change and can undo it.
+          sessions. Nothing changes until you tap <span className="font-semibold text-app-text">Apply</span>, and{" "}
+          {coachName || "your coach"} sees every change and can undo it.
         </p>
       ),
     })
