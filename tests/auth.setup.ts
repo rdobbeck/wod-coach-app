@@ -1,6 +1,8 @@
 import { test as setup, expect } from "@playwright/test"
+import { PrismaClient } from "@prisma/client"
 import { mkdirSync } from "node:fs"
 import { dirname } from "node:path"
+import { dbUrl } from "../lib/db-url"
 
 /**
  * Idempotent COACH signup/signin. Saves an authenticated storage state so
@@ -43,4 +45,11 @@ setup("authenticate as coach", async ({ page, request, baseURL }) => {
   await expect(page.locator("h1")).toContainText(/good (morning|afternoon|evening), playwright/i)
 
   await page.context().storageState({ path: STORAGE_STATE })
+
+  // The AI specs rely on the test coach's trial plan, which runs from the
+  // profile's creation date. Left alone it expires two weeks after the row
+  // was first seeded and every AI test starts failing with AI_FUNDS.
+  const prisma = new PrismaClient({ datasources: { db: { url: dbUrl() } } })
+  await prisma.coachProfile.updateMany({ where: { user: { email: TEST_EMAIL } }, data: { createdAt: new Date() } })
+  await prisma.$disconnect()
 })
