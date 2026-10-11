@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import DashboardHeader from "@/components/DashboardHeader"
 import { AddExerciseButton, VideoButton } from "@/components/coach/LibraryActions"
+import LibraryAiPanel from "@/components/coach/LibraryAiPanel"
+import { canUseLibraryAi } from "@/lib/library/access"
+import { spendMeter } from "@/lib/ai/spend"
 import { youTubeId } from "@/lib/library/youtube"
 import { ownerEmails } from "@/lib/plans"
 import type { Prisma } from "@prisma/client"
@@ -64,6 +67,8 @@ export default async function LibraryPage({
   const page = parsePage(searchParams.page)
   // The library is one pool every coach sees. A coach edits only what they added; owners edit anything.
   const isOwner = !!session.user.email && ownerEmails().includes(session.user.email.toLowerCase())
+  const aiAllowed = canUseLibraryAi(session.user.email)
+  const meter = aiAllowed ? await spendMeter(session.user.id) : null
 
   // Every entry: the synced CoachRx ones and the ones the coach added here or
   // from a session editor (those have no coachrxId).
@@ -144,7 +149,10 @@ export default async function LibraryPage({
               )}
             </p>
           </div>
-          <AddExerciseButton />
+          <div className="flex flex-wrap items-center gap-2">
+            {aiAllowed && meter && <LibraryAiPanel meter={meter} />}
+            <AddExerciseButton />
+          </div>
         </div>
 
         {/* Filters */}

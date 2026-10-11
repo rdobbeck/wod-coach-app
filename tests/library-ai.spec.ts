@@ -295,3 +295,63 @@ test("propose: only playlist lines means nothing to look up, answered without a 
   expect(out.dropped[0]).toContain("not a video link")
   expect(await prisma.aiUsage.count({ where: { coachId, kind: { in: ["library", "library_paid"] } } })).toBe(0)
 })
+
+// ---------- the panel ----------
+
+test("in the panel: propose (mocked), edit a name, untick a low-confidence row, save for real, see the card", async ({ page }) => {
+  const name = `${PREFIX}Panel Hip Lift`
+  await page.route("**/api/library/ai/propose", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    await route.fulfill({
+      json: {
+        entries: [
+          { line: 1, name: "90-90 Hip Lift", videoUrl: "https://youtu.be/aaaaaaaaaaa", thumbnailUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg", patterns: ["Core", "Mobility"], equipment: ["Bodyweight"], cues: "Exhale fully.", summary: "PRI reset.", confidence: "high", unknownEquipment: false, duplicate: null, alternatives: [] },
+          { line: 2, name: "Leg Day Vlog", videoUrl: "https://youtu.be/bbbbbbbbbbb", thumbnailUrl: null, patterns: ["Squat"], equipment: ["Barbell"], cues: "", summary: "", confidence: "low", unknownEquipment: false, duplicate: null, alternatives: [] },
+        ],
+        warnings: ["Line 2 looks like a vlog, not a demo."],
+        dropped: ["Line 3 is not a video link (playlists and channels are not supported)."],
+        meter: { spent: 0.5, cap: 25, level: "ok" },
+      },
+    })
+  })
+
+  await page.goto("/coach/library")
+  await page.getByRole("button", { name: "Add with AI" }).click()
+  const panel = page.getByRole("dialog", { name: "Add exercises with AI" })
+  await expect(panel).toBeVisible()
+  await panel.getByRole("textbox", { name: "Links or names" }).fill("https://youtu.be/aaaaaaaaaaa\nhttps://youtu.be/bbbbbbbbbbb\nhttps://www.youtube.com/playlist?list=PL1")
+  await panel.getByRole("button", { name: "Propose" }).click()
+
+  await expect(panel.getByText("Worth a look")).toBeVisible()
+  await expect(panel.getByText(/Left out:/)).toContainText("not a video link")
+  const rows = panel.locator("[data-entry]")
+  await expect(rows).toHaveCount(2)
+  // The confident row starts ticked, the low-confidence one unticked.
+  await expect(rows.nth(0).getByRole("checkbox")).toBeChecked()
+  await expect(rows.nth(1).getByRole("checkbox")).not.toBeChecked()
+  await expect(rows.nth(1).getByText("Low confidence")).toBeVisible()
+  await expect(panel.getByRole("button", { name: "Save 1 exercise" })).toBeVisible()
+
+  // Edit the name and drop a pattern before saving.
+  await rows.nth(0).getByRole("textbox", { name: "Name" }).fill(name)
+  await rows.nth(0).getByRole("button", { name: "Mobility" }).click() // toggles the chip off
+  await panel.getByRole("button", { name: "Save 1 exercise" }).click()
+
+  await page.waitForURL(/\/coach\/library\?q=/)
+  const card = page.locator(".grid > [data-card]", { hasText: name })
+  await expect(card).toBeVisible()
+  await expect(card.locator("img")).toHaveAttribute("src", /aaaaaaaaaaa/)
+  const row = await prisma.exerciseLibrary.findFirstOrThrow({ where: { name } })
+  expect(row.muscleGroups).toEqual(["Core"])
+  expect(row.instructions).toBe("Exhale fully.")
+  expect(await prisma.exerciseLibrary.count({ where: { name: "Leg Day Vlog" } })).toBe(0)
+})
+
+test("in the panel: a coach who is not allowed sees no button", async ({ browser }) => {
+  await ensureStranger()
+  const { ctx, page: sp } = await signInAs(browser, STRANGER.email, STRANGER.password)
+  await sp.goto("/coach/library")
+  await expect(sp.getByRole("heading", { name: "Exercise Library" })).toBeVisible()
+  await expect(sp.getByRole("button", { name: "Add with AI" })).toHaveCount(0)
+  await ctx.close()
+})
