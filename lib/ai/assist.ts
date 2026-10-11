@@ -24,14 +24,27 @@ const MAX_OUTPUT_TOKENS = 12000
 const MAX_SESSIONS = 40
 const MAX_CHANGES = 60
 
-export type CtxExercise = { ref: string; id: string; name: string; rx: string; locked: boolean }
+export type CtxExercise = {
+  ref: string
+  id: string
+  name: string
+  rx: string
+  locked: boolean
+  /** Linked to a library entry that has a demo video. */
+  hasVideo: boolean
+  /** For rows without a video: library names with a video that look like this one. */
+  suggestions?: string[]
+}
 export type CtxSession = { ref: string; id: string; date: string; name: string; exercises: CtxExercise[] }
 export type Context = { sessions: CtxSession[]; profile: string; recent: string }
+
+// Rows without a video that get library suggestions, so a long block cannot balloon the prompt.
+const MAX_SUGGESTED_ROWS = 80
 
 /** Sessions the assistant may edit: not done, from today on. Exercises with logged sets are locked. */
 export async function buildContext(clientId: string): Promise<Context> {
   const todayStart = new Date(`${dayKey(new Date())}T00:00:00.000Z`)
-  const [workouts, profile, logs] = await Promise.all([
+  const [workouts, profile, logs, match] = await Promise.all([
     prisma.workout.findMany({
       where: { clientId, isCompleted: false, scheduledDate: { gte: todayStart } },
       orderBy: [{ scheduledDate: "asc" }, { order: "asc" }],
@@ -46,7 +59,7 @@ export async function buildContext(clientId: string): Promise<Context> {
             id: true,
             name: true,
             prescription: true,
-            exercise: { select: { name: true } },
+            exercise: { select: { name: true, videoUrl: true } },
             _count: { select: { setLogs: true, exerciseLogs: true } },
           },
         },
@@ -65,20 +78,35 @@ export async function buildContext(clientId: string): Promise<Context> {
         workoutExercise: { select: { name: true, prescription: true, reps: true, exercise: { select: { name: true, tracking: true } } } },
       },
     }),
+    libraryMatcher(),
   ])
 
+  let suggested = 0
   const sessions: CtxSession[] = workouts.map((w, i) => ({
     ref: `s${i + 1}`,
     id: w.id,
     date: dayKey(w.scheduledDate),
     name: w.name,
-    exercises: w.exercises.map((e, j) => ({
-      ref: `s${i + 1}e${j + 1}`,
-      id: e.id,
-      name: e.name ?? e.exercise?.name ?? "Exercise",
-      rx: (e.prescription ?? "").replace(/\s+/g, " ").trim(),
-      locked: e._count.setLogs > 0 || e._count.exerciseLogs > 0,
-    })),
+    exercises: w.exercises.map((e, j) => {
+      const name = e.name ?? e.exercise?.name ?? "Exercise"
+      const hasVideo = !!e.exercise?.videoUrl
+      const row: CtxExercise = {
+        ref: `s${i + 1}e${j + 1}`,
+        id: e.id,
+        name,
+        rx: (e.prescription ?? "").replace(/\s+/g, " ").trim(),
+        locked: e._count.setLogs > 0 || e._count.exerciseLogs > 0,
+        hasVideo,
+      }
+      if (!hasVideo && !row.locked && suggested < MAX_SUGGESTED_ROWS) {
+        const s = match.suggest(name)
+        if (s.length) {
+          row.suggestions = s
+          suggested++
+        }
+      }
+      return row
+    }),
   }))
 
   const profileText = [
@@ -111,7 +139,9 @@ Rules:
 - If the message is only a question, answer it and return no changes.
 - If it asks for a change, change only what the request requires and leave everything else alone.
 - Only touch sessions and exercises listed below, and refer to them only by their ref codes (s3 for a session, s3e2 for an exercise). Exercises marked LOCKED already have logged sets and cannot be changed.
-- Actions: "replace" (ref is an exercise), "modify" (ref is an exercise, prescription only), "remove" (ref is an exercise), "add" (ref is a session; the exercise is added at the end).
+- Actions: "replace" (ref is an exercise), "modify" (ref is an exercise, prescription only), "remove" (ref is an exercise), "add" (ref is a session; the exercise is added at the end), "link" (ref is an exercise; attach a demo video, see below).
+- Demo videos come from the coach's exercise library. An exercise gets its video by being linked to a library entry whose name matches, so names matter. Exercises marked NO VIDEO are not linked to one; some list the closest library names in quotes.
+- When asked to add, attach or fix videos, use "link": keep the exercise as it is and put the library name to try in "newExercise", with up to four more names to try in order in "candidates". Prefer names listed in quotes beside the exercise; otherwise try plain standard names and common variations. Rows with no library names listed may well have no video in the library; try anyway and say so in "warnings".
 - Write exercise names the way a coach would list them in an exercise library: plain standard names, no brand names, no invented variations.
 - Write prescriptions in the same format as the existing ones (for example "3x8 @ RPE 7, rest 2 min").
 - Keep the intent of each session and a sensible balance of pushing, pulling, legs and trunk.
@@ -123,7 +153,7 @@ Reply with ONLY a JSON object:
 {
   "reply": "what you did or the answer, in two or three plain sentences",
   "changes": [
-    { "action": "replace" | "modify" | "remove" | "add", "ref": "s3e2", "newExercise": "name or null", "newPrescription": "text or null", "reason": "short reason" }
+    { "action": "replace" | "modify" | "remove" | "add" | "link", "ref": "s3e2", "newExercise": "name or null", "newPrescription": "text or null", "candidates": ["more library names to try, link only"], "reason": "short reason" }
   ],
   "warnings": ["anything the coach should double check"]
 }`
@@ -135,7 +165,17 @@ const render = (ctx: Context) =>
     `EDITABLE SESSIONS\n${
       ctx.sessions.length
         ? ctx.sessions
-            .map((s) => `${s.ref}  ${s.date}  ${s.name}\n${s.exercises.map((e) => `  ${e.ref}${e.locked ? " LOCKED" : ""}  ${e.name}: ${e.rx || "no prescription"}`).join("\n")}`)
+            .map(
+              (s) =>
+                `${s.ref}  ${s.date}  ${s.name}\n${s.exercises
+                  .map(
+                    (e) =>
+                      `  ${e.ref}${e.locked ? " LOCKED" : ""}${e.hasVideo ? "" : " NO VIDEO"}  ${e.name}: ${e.rx || "no prescription"}${
+                        e.suggestions?.length ? `  (library: ${e.suggestions.map((n) => `"${n}"`).join(", ")})` : ""
+                      }`
+                  )
+                  .join("\n")}`
+            )
             .join("\n\n")
         : "none: the client has no upcoming sessions"
     }`,
@@ -180,14 +220,14 @@ export async function callModel(ctx: Context, message: string, history: Turn[] =
 // ---------- validation ----------
 
 export type Change = {
-  action: "replace" | "modify" | "remove" | "add"
+  action: "replace" | "modify" | "remove" | "add" | "link"
   workoutId: string
   workoutName: string
   date: string
-  exerciseId?: string // the row being replaced, modified or removed
+  exerciseId?: string // the row being replaced, modified, removed or linked
   exercise?: string // its current name
   currentPrescription?: string
-  newExercise?: string
+  newExercise?: string // for "link": the library entry whose video is attached; the row keeps its own name
   newPrescription?: string
   libraryId?: string | null
   inLibrary?: boolean // false: no demo video exists for it
@@ -245,7 +285,8 @@ export function parseProposal(
   raw: string,
   ctx: Context,
   match: (name: string) => string | null,
-  libraryName: (id: string) => string | null
+  libraryName: (id: string) => string | null,
+  hasVideo: (id: string) => boolean = () => true
 ): Proposal {
   let j: any
   try {
@@ -280,7 +321,7 @@ export function parseProposal(
       changes.push({ action, workoutId: s.id, workoutName: s.name, date: s.date, newExercise: (id && libraryName(id)) || newExercise, newPrescription, libraryId: id, inLibrary: !!id, reason })
       continue
     }
-    if (action !== "replace" && action !== "modify" && action !== "remove") {
+    if (action !== "replace" && action !== "modify" && action !== "remove" && action !== "link") {
       dropped.push(`A change with an unknown action was left out.`)
       continue
     }
@@ -297,12 +338,27 @@ export function parseProposal(
       dropped.push(`${hit.e.name} on ${hit.s.date} was changed twice; only the first change was kept.`)
       continue
     }
-    if ((action === "replace" && !newExercise) || (action === "modify" && !newPrescription)) {
+    // Names to try for a video link, in the model's order, cleaned and deduplicated.
+    const candidates = Array.from(
+      new Set([newExercise, ...(Array.isArray(c?.candidates) ? c.candidates.slice(0, 4) : []).map((n: unknown) => str(n, 120))].filter(Boolean) as string[])
+    )
+    if ((action === "replace" && !newExercise) || (action === "modify" && !newPrescription) || (action === "link" && !candidates.length)) {
       dropped.push(`A change to ${hit.e.name} on ${hit.s.date} was incomplete.`)
       continue
     }
-    touched.add(hit.e.id)
     const base = { workoutId: hit.s.id, workoutName: hit.s.name, date: hit.s.date, exerciseId: hit.e.id, exercise: hit.e.name, currentPrescription: hit.e.rx, reason }
+    if (action === "link") {
+      // Only a library entry with a video is worth linking; the first name that reaches one wins.
+      const id = candidates.map((n) => match(n)).find((i): i is string => !!i && hasVideo(i)) ?? null
+      if (!id) {
+        dropped.push(`No library video matched ${hit.e.name} on ${hit.s.date} (tried: ${candidates.join(", ")}).`)
+        continue
+      }
+      touched.add(hit.e.id)
+      changes.push({ ...base, action, newExercise: libraryName(id) ?? candidates[0], libraryId: id, inLibrary: true })
+      continue
+    }
+    touched.add(hit.e.id)
     if (action === "replace") {
       const id = match(newExercise!)
       changes.push({ ...base, action, newExercise: (id && libraryName(id)) || newExercise, newPrescription: newPrescription ?? hit.e.rx, libraryId: id, inLibrary: !!id })

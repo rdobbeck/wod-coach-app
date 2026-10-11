@@ -42,6 +42,7 @@ const CHIP: Record<Change["action"], string> = {
   modify: "bg-[#fbf0dc] text-[#7a4f08]",
   remove: "bg-[#fbe7e7] text-[#a3262b]",
   add: "bg-[#e2f3ea] text-[#1f6b45]",
+  link: "bg-[#ece6f7] text-[#5b3f9e]",
 }
 
 function ChangeRow({ c, on, disabled, toggle }: { c: Change; on: boolean; disabled: boolean; toggle: () => void }) {
@@ -58,6 +59,11 @@ function ChangeRow({ c, on, disabled, toggle }: { c: Change; on: boolean; disabl
         {c.action === "add" && <span className="font-semibold">{c.newExercise}</span>}
         {c.action === "remove" && <span className="text-[#857c70] line-through">{c.exercise}</span>}
         {c.action === "modify" && <span className="font-semibold">{c.exercise}</span>}
+        {c.action === "link" && (
+          <>
+            <span className="font-semibold">{c.exercise}</span> <span aria-hidden>&rarr;</span> <span className="text-[#4a443c]">video: {c.newExercise}</span>
+          </>
+        )}
         {c.newExercise && c.inLibrary === false && (
           <span className="ml-1.5 rounded bg-[#f1ede5] px-1.5 py-0.5 text-[10px] font-semibold text-[#6b6257]" title="This name is not in your exercise library, so it will have no demo video">
             no demo video
