@@ -264,3 +264,34 @@ test("save: refuses a coach who is not allowed, and empty or oversized batches",
   expect((await page.request.post("/api/library/ai/save", { data: { entries: [] } })).status()).toBe(400)
   expect((await page.request.post("/api/library/ai/save", { data: { entries: Array.from({ length: 21 }, () => ({ name: "X", videoUrl: "https://youtu.be/x" })) } })).status()).toBe(400)
 })
+
+// ---------- proposing (gates only: no test calls YouTube or a model) ----------
+
+test("propose: refuses a coach who is not allowed, empty text, and a used-up cap before any fetch", async ({ page, browser }) => {
+  await ensureStranger()
+  const { ctx, page: sp } = await signInAs(browser, STRANGER.email, STRANGER.password)
+  expect((await sp.request.post("/api/library/ai/propose", { data: { text: "https://youtu.be/aaaaaaaaaaa" } })).status()).toBe(401)
+  await ctx.close()
+
+  expect((await page.request.post("/api/library/ai/propose", { data: { text: "   " } })).status()).toBe(400)
+
+  await prisma.aiUsage.deleteMany({ where: { coachId } })
+  await prisma.aiUsage.create({ data: { coachId, kind: "assist", model: "test", costUsd: 26 } })
+  try {
+    const res = await page.request.post("/api/library/ai/propose", { data: { text: "https://youtu.be/aaaaaaaaaaa" } })
+    expect(res.status()).toBe(402)
+    expect((await res.json()).code).toBe("AI_CAP")
+    expect(await prisma.aiUsage.count({ where: { coachId } })).toBe(1)
+  } finally {
+    await prisma.aiUsage.deleteMany({ where: { coachId, kind: "assist", model: "test" } })
+  }
+})
+
+test("propose: only playlist lines means nothing to look up, answered without a model call", async ({ page }) => {
+  const res = await page.request.post("/api/library/ai/propose", { data: { text: "https://www.youtube.com/playlist?list=PL1" } })
+  expect(res.ok()).toBe(true)
+  const out = await res.json()
+  expect(out.entries).toEqual([])
+  expect(out.dropped[0]).toContain("not a video link")
+  expect(await prisma.aiUsage.count({ where: { coachId, kind: { in: ["library", "library_paid"] } } })).toBe(0)
+})

@@ -57,7 +57,7 @@ export async function assertUnderCap(coachId: string) {
 export const recordUsage = (row: {
   coachId: string
   clientId?: string | null
-  kind: "assist" | "generate" | "assist_paid" | "generate_paid"
+  kind: "assist" | "generate" | "library" | "assist_paid" | "generate_paid" | "library_paid"
   model: string
   tokensIn?: number
   tokensOut?: number
