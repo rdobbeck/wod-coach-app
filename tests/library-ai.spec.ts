@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { dbUrl } from "../lib/db-url"
 import { canUseLibraryAi } from "../lib/library/access"
+import { libraryMatcher } from "../lib/ai/assist"
 
 /**
  * The AI library builder: who may use it, reading YouTube links and names,
@@ -196,4 +197,70 @@ test("save entries are validated the same way on the way in", () => {
   expect(validateSaveEntry({ name: "", videoUrl: "https://youtu.be/x" })).toMatchObject({ ok: false, error: "An entry had no name." })
   expect(validateSaveEntry({ name: "X", videoUrl: "ftp://nope" })).toMatchObject({ ok: false, error: "X: the video link must start with http." })
   expect(validateSaveEntry({ name: "X", videoUrl: "https://youtu.be/x", thumbnailUrl: "javascript:alert(1)" })).toMatchObject({ ok: true, value: { thumbnailUrl: null } })
+})
+
+// ---------- saving ----------
+
+async function signInAs(browser: import("@playwright/test").Browser, email: string, password: string) {
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await ctx.newPage()
+  await page.goto("/auth/signin")
+  await page.locator('input[name="email"]').fill(email)
+  await page.locator('input[name="password"]').fill(password)
+  await page.locator('button[type="submit"]').click()
+  await page.waitForURL(/\/coach|\/client/, { timeout: 15_000 })
+  return { ctx, page }
+}
+
+/** A coach who is neither an owner nor on the allowlist. Idempotent, so any test can call it first. */
+const STRANGER = { email: "playwright-libai-stranger@dev.local", password: "stranger-PW-1" }
+async function ensureStranger() {
+  return prisma.user.upsert({
+    where: { email: STRANGER.email },
+    update: {},
+    create: { email: STRANGER.email, name: "Stranger Coach", role: "COACH", hashedPassword: await bcrypt.hash(STRANGER.password, 10), coachProfile: { create: {} } },
+  })
+}
+
+test("save: creates entries with video and tags, replaces only the video on a duplicate, reports bad rows, and the matcher sees the result", async ({ page }) => {
+  const existing = await prisma.exerciseLibrary.create({
+    data: { name: `${PREFIX}Existing Front Squat`, category: "Custom", difficulty: "Any", videoUrl: "https://example.com/old.mp4", isCustom: true, createdBy: coachId, instructions: "Keep this", muscleGroups: ["Squat"], equipment: ["Barbell"] },
+  })
+  const res = await page.request.post("/api/library/ai/save", {
+    data: {
+      entries: [
+        { name: `${PREFIX}Hip Lift`, videoUrl: "https://youtu.be/aaaaaaaaaaa", thumbnailUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg", patterns: ["Core", "Mobility"], equipment: ["Bodyweight"], cues: "Exhale fully.", summary: "PRI reset." },
+        { name: `${PREFIX}Existing Front Squat`, videoUrl: "https://youtu.be/bbbbbbbbbbb", thumbnailUrl: null, patterns: ["Squat"], equipment: ["Barbell"], cues: "ignored on replace", summary: "", replaceId: existing.id },
+        { name: `${PREFIX}Gone`, videoUrl: "https://youtu.be/ccccccccccc", patterns: [], equipment: [], cues: "", summary: "", replaceId: "does-not-exist" },
+        { name: "", videoUrl: "https://youtu.be/ddddddddddd" },
+      ],
+    },
+  })
+  expect(res.ok()).toBe(true)
+  const out = await res.json()
+  expect(out.saved.map((s: { name: string }) => s.name)).toEqual([`${PREFIX}Hip Lift`, `${PREFIX}Existing Front Squat`])
+  expect(out.failed).toEqual([
+    { name: `${PREFIX}Gone`, error: "That library entry no longer exists." },
+    { name: "", error: "An entry had no name." },
+  ])
+
+  const made = await prisma.exerciseLibrary.findFirstOrThrow({ where: { name: `${PREFIX}Hip Lift` } })
+  expect(made).toMatchObject({ category: "Custom", difficulty: "Any", muscleGroups: ["Core", "Mobility"], equipment: ["Bodyweight"], instructions: "Exhale fully.", description: "PRI reset.", videoUrl: "https://youtu.be/aaaaaaaaaaa", thumbnailUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg", isCustom: true, createdBy: coachId, locked: true })
+  const replaced = await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: existing.id } })
+  expect(replaced).toMatchObject({ videoUrl: "https://youtu.be/bbbbbbbbbbb", thumbnailUrl: null, locked: true, instructions: "Keep this", muscleGroups: ["Squat"] })
+
+  // The new entry links through Ask AI's matcher right away (the cache was cleared).
+  const match = await libraryMatcher()
+  expect(match(`${PREFIX}Hip Lift`)).toBe(made.id)
+})
+
+test("save: refuses a coach who is not allowed, and empty or oversized batches", async ({ page, browser }) => {
+  await ensureStranger()
+  const { ctx, page: sp } = await signInAs(browser, STRANGER.email, STRANGER.password)
+  const denied = await sp.request.post("/api/library/ai/save", { data: { entries: [{ name: "X", videoUrl: "https://youtu.be/x" }] } })
+  expect(denied.status()).toBe(401)
+  await ctx.close()
+
+  expect((await page.request.post("/api/library/ai/save", { data: { entries: [] } })).status()).toBe(400)
+  expect((await page.request.post("/api/library/ai/save", { data: { entries: Array.from({ length: 21 }, () => ({ name: "X", videoUrl: "https://youtu.be/x" })) } })).status()).toBe(400)
 })
