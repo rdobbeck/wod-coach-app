@@ -12,7 +12,7 @@ import { dayKey } from "@/lib/training-format"
  * so those are never touched.
  */
 export type ChangeInput = {
-  action: "replace" | "modify" | "remove" | "add"
+  action: "replace" | "modify" | "remove" | "add" | "link"
   workoutId: string
   exerciseId?: string
   newExercise?: string
@@ -40,7 +40,7 @@ const ROW = {
 } as const
 
 type Applied =
-  | { action: "replace" | "modify"; workoutId: string; exerciseId: string; before: Row }
+  | { action: "replace" | "modify" | "link"; workoutId: string; exerciseId: string; before: Row }
   | { action: "remove"; workoutId: string; exerciseId: string; before: Row }
   | { action: "add"; workoutId: string; exerciseId: string }
 
@@ -102,6 +102,15 @@ export async function applyChanges(coachId: string, clientId: string, request: s
         if (c.action === "remove") {
           await tx.workoutExercise.delete({ where: { id: c.exerciseId } })
           applied.push({ action: "remove", workoutId: w.id, exerciseId: c.exerciseId, before })
+        } else if (c.action === "link") {
+          // Attach the demo video only: the row keeps its name, prescription and numbers.
+          const lib = c.libraryId ? await tx.exerciseLibrary.findUnique({ where: { id: c.libraryId }, select: { id: true, videoUrl: true } }) : null
+          if (!lib?.videoUrl) {
+            skipped.push(`No library video was found for ${e.name ?? "an exercise"}.`)
+            continue
+          }
+          await tx.workoutExercise.update({ where: { id: c.exerciseId }, data: { exerciseId: lib.id } })
+          applied.push({ action: "link", workoutId: w.id, exerciseId: c.exerciseId, before })
         } else if (c.action === "modify") {
           if (!newPrescription) {
             skipped.push(`A change to ${e.name ?? "an exercise"} was incomplete.`)

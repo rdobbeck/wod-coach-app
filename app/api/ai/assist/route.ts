@@ -80,7 +80,7 @@ async function handlePOST(req: Request) {
   }
 
   const match = await libraryMatcher()
-  const proposal = parseProposal(out.content, ctx, match, match.libraryName)
+  const proposal = parseProposal(out.content, ctx, match, match.libraryName, match.hasVideo)
   return NextResponse.json({ ...proposal, meter: await spendMeter(coachId) })
 }
 

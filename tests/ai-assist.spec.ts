@@ -6,6 +6,7 @@ import { dayKey } from "../lib/training-format"
 import { assertUnderCap, spendMeter, AiCapError, monthStart } from "../lib/ai/spend"
 import { parseProposal, isLoadBump, type Change, type Context } from "../lib/ai/assist"
 import { createThreadWriter } from "../lib/ai/thread-writer"
+import { suggestNames } from "../lib/exercise-match"
 
 /**
  * The AI box: the monthly spend cap, what the assistant is allowed to touch,
@@ -241,15 +242,51 @@ const ctx: Context = {
     {
       ref: "s1", id: "w1", date: "2026-10-01", name: "Day A",
       exercises: [
-        { ref: "s1e1", id: "e1", name: "Back Squat", rx: "3x5", locked: false },
-        { ref: "s1e2", id: "e2", name: "Strict Press", rx: "3x8", locked: true },
-        { ref: "s1e3", id: "e3", name: "Inverted row", rx: "3x10", locked: false },
+        { ref: "s1e1", id: "e1", name: "Back Squat", rx: "3x5", locked: false, hasVideo: true },
+        { ref: "s1e2", id: "e2", name: "Strict Press", rx: "3x8", locked: true, hasVideo: true },
+        { ref: "s1e3", id: "e3", name: "Inverted row", rx: "3x10", locked: false, hasVideo: false, suggestions: ["Inverted Row", "Ring Row"] },
       ],
     },
   ],
 }
-const match = (n: string) => (n === "Goblet Squat" ? "lib1" : null)
-const libName = (id: string) => (id === "lib1" ? "Goblet Squat" : null)
+const LIB: Record<string, { name: string; video: boolean }> = {
+  lib1: { name: "Goblet Squat", video: true },
+  lib2: { name: "Inverted Row", video: true },
+  lib3: { name: "Ring Row", video: false },
+}
+const match = (n: string) => Object.entries(LIB).find(([, v]) => v.name.toLowerCase() === n.toLowerCase())?.[0] ?? null
+const libName = (id: string) => LIB[id]?.name ?? null
+const hasVideo = (id: string) => !!LIB[id]?.video
+
+test("link: the first name that matches a library entry with a video wins, and the row keeps its own name", () => {
+  const answer = JSON.stringify({
+    reply: "Linked the row's video.",
+    changes: [
+      { action: "link", ref: "s1e3", newExercise: "Bodyweight Row", candidates: ["Ring Row", "Inverted Row"], reason: "demo video" },
+      { action: "link", ref: "s1e1", newExercise: "Nothing Like This", candidates: ["Ring Row"], reason: "no video anywhere" },
+      { action: "link", ref: "s1e2", newExercise: "Goblet Squat", reason: "locked" },
+      { action: "link", ref: "s1e3", reason: "no names at all" },
+    ],
+    warnings: [],
+  })
+  const p = parseProposal(answer, ctx, match, libName, hasVideo)
+  expect(p.changes).toHaveLength(1)
+  const link = p.changes[0]
+  expect(link.action).toBe("link")
+  expect(link.exerciseId).toBe("e3")
+  expect(link.exercise).toBe("Inverted row")
+  // "Bodyweight Row" matched nothing and "Ring Row" has no video, so "Inverted Row" is the one.
+  expect(link.libraryId).toBe("lib2")
+  expect(link.newExercise).toBe("Inverted Row")
+  expect(link.inLibrary).toBe(true)
+  expect(link.newPrescription).toBeUndefined()
+  // Every name tried is reported when none of them had a video.
+  expect(p.dropped.find((d) => d.includes("Back Squat"))).toMatch(/Nothing Like This.*Ring Row/)
+  expect(p.dropped.join(" ")).toContain("already has logged sets")
+  expect(p.dropped.length).toBe(3)
+  // Linking a video is never a load bump, so it waits for a person.
+  expect(p.autoApply).toBe(false)
+})
 
 test("the model's answer is checked before anyone sees it", () => {
   const answer = JSON.stringify({
@@ -383,6 +420,60 @@ test("applying edits respects locked, done and other clients' sessions, and undo
   // And it cannot be undone twice.
   const again = await page.request.post("/api/ai/assist/undo", { data: { changeSetId: out.changeSetId } })
   expect(again.status()).toBe(404)
+})
+
+test("linking a video attaches the library entry, keeps the coach's wording, and undo detaches it", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Link Me`)
+  const [squat, , row] = w.exercises
+  const withVideo = await prisma.exerciseLibrary.create({
+    data: { name: `${PREFIX}Inverted Row Demo`, category: "Upper Pull", difficulty: "Beginner", videoUrl: "https://example.com/row.mp4", isCustom: true, createdBy: coachId },
+  })
+  const noVideo = await prisma.exerciseLibrary.create({
+    data: { name: `${PREFIX}Silent Squat`, category: "Lower Push", difficulty: "Beginner", isCustom: true, createdBy: coachId },
+  })
+  try {
+    const res = await page.request.post("/api/ai/assist/apply", {
+      data: {
+        clientId,
+        request: "add videos",
+        changes: [
+          { action: "link", workoutId: w.id, exerciseId: row.id, newExercise: withVideo.name, libraryId: withVideo.id },
+          { action: "link", workoutId: w.id, exerciseId: squat.id, newExercise: noVideo.name, libraryId: noVideo.id }, // no video: refused
+          { action: "link", workoutId: w.id, exerciseId: squat.id, newExercise: "x", libraryId: "nope" }, // unknown entry: refused
+        ],
+      },
+    })
+    expect(res.ok()).toBe(true)
+    const out = await res.json()
+    expect(out.applied).toBe(1)
+    expect(out.skipped).toHaveLength(2)
+
+    const linked = await prisma.workoutExercise.findUniqueOrThrow({ where: { id: row.id } })
+    expect(linked.exerciseId).toBe(withVideo.id)
+    expect(linked.name).toBe("Inverted row")
+    expect(linked.prescription).toBe("3x10, rest 90 s")
+    expect((await prisma.workoutExercise.findUniqueOrThrow({ where: { id: squat.id } })).exerciseId).toBeNull()
+
+    const undo = await page.request.post("/api/ai/assist/undo", { data: { changeSetId: out.changeSetId } })
+    expect(undo.ok()).toBe(true)
+    expect((await prisma.workoutExercise.findUniqueOrThrow({ where: { id: row.id } })).exerciseId).toBeNull()
+  } finally {
+    await prisma.exerciseLibrary.deleteMany({ where: { id: { in: [withVideo.id, noVideo.id] } } })
+  }
+})
+
+test("library suggestions: closest video-backed names by shared words, nothing when nothing is close", () => {
+  const rows = [
+    { name: "90-90 Hip Lift", videoUrl: "v" },
+    { name: "90-90 Hip Lift with Balloon", videoUrl: "v" },
+    { name: "Hip Thrust", videoUrl: "v" },
+    { name: "Supine Hip Lift", videoUrl: null }, // no video, never suggested
+    { name: "Back Squat", videoUrl: "v" },
+  ]
+  expect(suggestNames("90/90 Hip Lift", rows)).toEqual(["90-90 Hip Lift", "90-90 Hip Lift with Balloon"])
+  expect(suggestNames("Hip Lift", rows)).toEqual(["90-90 Hip Lift", "90-90 Hip Lift with Balloon"])
+  expect(suggestNames("Left AIC Repositioning", rows)).toEqual([])
+  expect(suggestNames("Hip Thrust", rows, 1)).toEqual(["Hip Thrust"])
 })
 
 // ---------- the panel ----------
