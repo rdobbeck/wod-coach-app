@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import DashboardHeader from "@/components/DashboardHeader"
 import { AddExerciseButton, VideoButton } from "@/components/coach/LibraryActions"
+import { ownerEmails } from "@/lib/plans"
 import type { Prisma } from "@prisma/client"
 
 // CoachRx's coach-creatable pattern vocabulary, plus the admin-only ones
@@ -77,6 +78,8 @@ export default async function LibraryPage({
     ? searchParams.source
     : "all"
   const page = parsePage(searchParams.page)
+  // The library is one pool every coach sees. A coach edits only what they added; owners edit anything.
+  const isOwner = !!session.user.email && ownerEmails().includes(session.user.email.toLowerCase())
 
   // Every entry: the synced CoachRx ones and the ones the coach added here or
   // from a session editor (those have no coachrxId).
@@ -108,6 +111,7 @@ export default async function LibraryPage({
         equipment: true,
         isCustom: true,
         locked: true,
+        createdBy: true,
       },
     }),
     // Build the equipment dropdown from what's actually in the data.
@@ -291,9 +295,11 @@ export default async function LibraryPage({
                         </span>
                       ))}
                     </div>
-                    <div className="mt-2">
-                      <VideoButton id={row.id} name={row.name} videoUrl={row.videoUrl} />
-                    </div>
+                    {(isOwner || row.createdBy === session.user.id) && (
+                      <div className="mt-2">
+                        <VideoButton id={row.id} name={row.name} videoUrl={row.videoUrl} />
+                      </div>
+                    )}
                   </div>
                 </div>
               )
