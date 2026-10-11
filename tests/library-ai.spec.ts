@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs"
 import { dbUrl } from "../lib/db-url"
 import { canUseLibraryAi } from "../lib/library/access"
 import { libraryMatcher } from "../lib/ai/assist"
+import { spentThisMonth } from "../lib/ai/spend"
 
 /**
  * The AI library builder: who may use it, reading YouTube links and names,
@@ -55,16 +56,20 @@ test("lines: links, names, hints, playlists, and duplicates", () => {
       "https://www.youtube.com/playlist?list=PL123",
       "",
       "x".repeat(201),
+      "youtube.com/playlist?list=PL9", // no scheme: still a YouTube address, never a name to search
+      "www.youtube.com/watch?v=zzzzzzzzzzz",
     ].join("\n")
   )
   expect(requests).toEqual([
     { line: 1, raw: "https://youtu.be/dQw4w9WgXcQ", kind: "link", videoId: "dQw4w9WgXcQ", name: "90/90 Hip Lift" },
     { line: 3, raw: "https://www.youtube.com/shorts/abcdefghijk", kind: "link", videoId: "abcdefghijk" },
     { line: 4, raw: "Left AIC Repositioning", kind: "name", name: "Left AIC Repositioning" },
+    { line: 9, raw: "www.youtube.com/watch?v=zzzzzzzzzzz", kind: "link", videoId: "zzzzzzzzzzz" },
   ])
   expect(dropped).toEqual([
     "Line 5 is not a video link (playlists and channels are not supported).",
     "Line 7 is too long (over 200 characters).",
+    "Line 8 is not a video link (playlists and channels are not supported).",
   ])
   expect(youTubeId("https://www.youtube.com/embed/abcdefghijk?rel=0")).toBe("abcdefghijk")
   expect(youTubeId("https://vimeo.com/123")).toBeNull()
@@ -223,26 +228,35 @@ async function ensureStranger() {
 }
 
 test("save: creates entries with video and tags, replaces only the video on a duplicate, reports bad rows, and the matcher sees the result", async ({ page }) => {
+  const stranger = await ensureStranger()
+  const theirs = await prisma.exerciseLibrary.create({
+    data: { name: `${PREFIX}Theirs`, category: "Custom", difficulty: "Any", videoUrl: "https://example.com/theirs.mp4", isCustom: true, createdBy: stranger.id },
+  })
   const existing = await prisma.exerciseLibrary.create({
     data: { name: `${PREFIX}Existing Front Squat`, category: "Custom", difficulty: "Any", videoUrl: "https://example.com/old.mp4", isCustom: true, createdBy: coachId, instructions: "Keep this", muscleGroups: ["Squat"], equipment: ["Barbell"] },
   })
   const res = await page.request.post("/api/library/ai/save", {
     data: {
       entries: [
-        { name: `${PREFIX}Hip Lift`, videoUrl: "https://youtu.be/aaaaaaaaaaa", thumbnailUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg", patterns: ["Core", "Mobility"], equipment: ["Bodyweight"], cues: "Exhale fully.", summary: "PRI reset." },
+        { key: "hip", name: `${PREFIX}Hip Lift`, videoUrl: "https://youtu.be/aaaaaaaaaaa", thumbnailUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg", patterns: ["Core", "Mobility"], equipment: ["Bodyweight"], cues: "Exhale fully.", summary: "PRI reset." },
         { name: `${PREFIX}Existing Front Squat`, videoUrl: "https://youtu.be/bbbbbbbbbbb", thumbnailUrl: null, patterns: ["Squat"], equipment: ["Barbell"], cues: "ignored on replace", summary: "", replaceId: existing.id },
         { name: `${PREFIX}Gone`, videoUrl: "https://youtu.be/ccccccccccc", patterns: [], equipment: [], cues: "", summary: "", replaceId: "does-not-exist" },
         { name: "", videoUrl: "https://youtu.be/ddddddddddd" },
+        { key: "theirs", name: `${PREFIX}Theirs`, videoUrl: "https://youtu.be/eeeeeeeeeee", patterns: [], equipment: [], cues: "", summary: "", replaceId: theirs.id },
       ],
     },
   })
   expect(res.ok()).toBe(true)
   const out = await res.json()
   expect(out.saved.map((s: { name: string }) => s.name)).toEqual([`${PREFIX}Hip Lift`, `${PREFIX}Existing Front Squat`])
+  expect(out.saved[0].key).toBe("hip")
   expect(out.failed).toEqual([
     { name: `${PREFIX}Gone`, error: "That library entry no longer exists." },
     { name: "", error: "An entry had no name." },
+    // Another coach's entry, and the caller is allowlisted, not an owner. The key the panel sent comes back.
+    { key: "theirs", name: `${PREFIX}Theirs`, error: "You can only replace the video on exercises you added." },
   ])
+  expect((await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: theirs.id } })).videoUrl).toBe("https://example.com/theirs.mp4")
 
   const made = await prisma.exerciseLibrary.findFirstOrThrow({ where: { name: `${PREFIX}Hip Lift` } })
   expect(made).toMatchObject({ category: "Custom", difficulty: "Any", muscleGroups: ["Core", "Mobility"], equipment: ["Bodyweight"], instructions: "Exhale fully.", description: "PRI reset.", videoUrl: "https://youtu.be/aaaaaaaaaaa", thumbnailUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg", isCustom: true, createdBy: coachId, locked: true })
@@ -354,4 +368,51 @@ test("in the panel: a coach who is not allowed sees no button", async ({ browser
   await expect(sp.getByRole("heading", { name: "Exercise Library" })).toBeVisible()
   await expect(sp.getByRole("button", { name: "Add with AI" })).toHaveCount(0)
   await ctx.close()
+})
+
+test("library spend counts toward the same monthly cap as Ask AI", async ({ page }) => {
+  await prisma.aiUsage.deleteMany({ where: { coachId, model: "test" } })
+  await prisma.aiUsage.create({ data: { coachId, kind: "library", model: "test", costUsd: 26 } })
+  try {
+    expect(await spentThisMonth(coachId)).toBeGreaterThanOrEqual(26)
+    const res = await page.request.post("/api/library/ai/propose", { data: { text: "https://youtu.be/aaaaaaaaaaa" } })
+    expect(res.status()).toBe(402)
+    expect((await res.json()).code).toBe("AI_CAP")
+  } finally {
+    await prisma.aiUsage.deleteMany({ where: { coachId, model: "test" } })
+  }
+})
+
+test("in the panel: a likely duplicate starts as 'add', and a row the server refuses stays with its reason while the rest save", async ({ page }) => {
+  const name = `${PREFIX}Panel Kept`
+  await page.route("**/api/library/ai/propose", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    await route.fulfill({
+      json: {
+        entries: [
+          { line: 1, name: "Ghost Front Squat", videoUrl: "https://youtu.be/fffffffffff", thumbnailUrl: null, patterns: ["Squat"], equipment: ["Barbell"], cues: "", summary: "", confidence: "high", unknownEquipment: false, duplicate: { id: "does-not-exist", name: "Front Squat" }, alternatives: [] },
+          { line: 2, name, videoUrl: "https://youtu.be/ggggggggggg", thumbnailUrl: null, patterns: ["Core"], equipment: ["Bodyweight"], cues: "", summary: "", confidence: "high", unknownEquipment: false, duplicate: null, alternatives: [] },
+        ],
+        warnings: [],
+        dropped: [],
+        meter: { spent: 0.5, cap: 25, level: "ok" },
+      },
+    })
+  })
+  await page.goto("/coach/library")
+  await page.getByRole("button", { name: "Add with AI" }).click()
+  const panel = page.getByRole("dialog", { name: "Add exercises with AI" })
+  await panel.getByRole("textbox", { name: "Links or names" }).fill("https://youtu.be/fffffffffff\nhttps://youtu.be/ggggggggggg")
+  await panel.getByRole("button", { name: "Propose" }).click()
+  const rows = panel.locator("[data-entry]")
+  await expect(rows).toHaveCount(2)
+  // Replacing an existing entry's video is opt-in, never the default.
+  const replace = rows.nth(0).getByRole("checkbox", { name: "Replace the existing video" })
+  await expect(replace).not.toBeChecked()
+  await replace.check()
+  await panel.getByRole("button", { name: "Save 2 exercises" }).click()
+  // The refused row stays, with the server's reason; the other one saved.
+  await expect(rows).toHaveCount(1)
+  await expect(rows.nth(0).getByText("That library entry no longer exists.")).toBeVisible()
+  await expect.poll(() => prisma.exerciseLibrary.count({ where: { name } })).toBe(1)
 })

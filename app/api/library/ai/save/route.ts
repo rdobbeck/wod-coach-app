@@ -26,13 +26,17 @@ async function handlePOST(req: Request) {
     return NextResponse.json({ error: `Send 1 to ${MAX_ENTRIES} entries.` }, { status: 400 })
   }
 
-  const saved: { id: string; name: string }[] = []
-  const failed: { name: string; error: string }[] = []
+  // The panel's own key for each row comes back with the result, so a row that
+  // failed is matched by identity, not by a name the server may have cleaned.
+  const saved: { key?: string; id: string; name: string }[] = []
+  const failed: { key?: string; name: string; error: string }[] = []
   for (const input of body.entries) {
+    const given = (input ?? {}) as { key?: unknown; name?: unknown }
+    const key = typeof given.key === "string" && given.key.length <= 64 ? given.key : undefined
+    const withKey = <T extends object>(o: T) => (key === undefined ? o : { key, ...o })
     const v = validateSaveEntry(input)
     if (!v.ok) {
-      const given = (input as { name?: unknown } | null)?.name
-      failed.push({ name: typeof given === "string" ? given : "", error: v.error })
+      failed.push(withKey({ name: typeof given.name === "string" ? given.name : "", error: v.error }))
       continue
     }
     const e = v.value
@@ -40,11 +44,11 @@ async function handlePOST(req: Request) {
       if (e.replaceId) {
         const existing = await prisma.exerciseLibrary.findUnique({ where: { id: e.replaceId }, select: { id: true, createdBy: true } })
         if (!existing) {
-          failed.push({ name: e.name, error: "That library entry no longer exists." })
+          failed.push(withKey({ name: e.name, error: "That library entry no longer exists." }))
           continue
         }
         if (!isOwner && existing.createdBy !== session.user.id) {
-          failed.push({ name: e.name, error: "You can only replace the video on exercises you added." })
+          failed.push(withKey({ name: e.name, error: "You can only replace the video on exercises you added." }))
           continue
         }
         const row = await prisma.exerciseLibrary.update({
@@ -52,7 +56,7 @@ async function handlePOST(req: Request) {
           data: { videoUrl: e.videoUrl, thumbnailUrl: e.thumbnailUrl, locked: true },
           select: { id: true, name: true },
         })
-        saved.push(row)
+        saved.push(withKey(row))
       } else {
         const row = await prisma.exerciseLibrary.create({
           data: {
@@ -71,10 +75,10 @@ async function handlePOST(req: Request) {
           },
           select: { id: true, name: true },
         })
-        saved.push(row)
+        saved.push(withKey(row))
       }
     } catch {
-      failed.push({ name: e.name, error: "Could not save this one. Try again." })
+      failed.push(withKey({ name: e.name, error: "Could not save this one. Try again." }))
     }
   }
   if (saved.length) invalidateLibraryMatcher()

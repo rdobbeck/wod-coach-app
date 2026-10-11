@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import { PATTERNS, type ProposedEntry } from "@/lib/library/propose"
 
 type Meter = { spent: number; cap: number; level: "ok" | "warn" | "capped" }
-type Row = ProposedEntry & { picked: boolean; replace: boolean; error?: string }
+type Row = ProposedEntry & { key: string; picked: boolean; replace: boolean; error?: string }
 
 const money = (n: number) => `$${n.toFixed(2)}`
 const length = (s: number | null) => (s == null ? "" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`)
@@ -44,7 +44,8 @@ export default function LibraryAiPanel({ meter: initial }: { meter: Meter }) {
     const d = res ? await res.json().catch(() => ({})) : {}
     if (d.meter) setMeter(d.meter)
     if (!res?.ok) return toast.error(d.error ?? "Could not reach the AI. Try again.")
-    setRows((d.entries as ProposedEntry[]).map((e) => ({ ...e, picked: e.confidence !== "low", replace: !!e.duplicate })))
+    // Replacing an existing entry's video is opt-in: a wrong fuzzy match must never overwrite a curated video by default.
+    setRows((d.entries as ProposedEntry[]).map((e) => ({ ...e, key: `${e.line}-${e.videoUrl}`, picked: e.confidence !== "low", replace: false })))
     setWarnings(d.warnings ?? [])
     setDropped(d.dropped ?? [])
     if (!d.entries?.length) toast.message("Nothing to propose from those lines.")
@@ -59,6 +60,7 @@ export default function LibraryAiPanel({ meter: initial }: { meter: Meter }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         entries: chosen.map((r) => ({
+          key: r.key,
           name: r.name, videoUrl: r.videoUrl, thumbnailUrl: r.thumbnailUrl, patterns: r.patterns, equipment: r.equipment, cues: r.cues, summary: r.summary,
           ...(r.replace && r.duplicate ? { replaceId: r.duplicate.id } : {}),
         })),
@@ -67,12 +69,13 @@ export default function LibraryAiPanel({ meter: initial }: { meter: Meter }) {
     setBusy("")
     const d = res ? await res.json().catch(() => ({})) : {}
     if (!res?.ok) return toast.error(d.error ?? "Could not save. Try again.")
-    const failed = new Map<string, string>((d.failed ?? []).map((f: { name: string; error: string }) => [f.name, f.error]))
+    const failed = new Map<string, string>((d.failed ?? []).map((f: { key?: string; error: string }) => [f.key ?? "", f.error]))
     const n = (d.saved ?? []).length
     if (n) toast.success(`Saved ${n} ${n === 1 ? "exercise" : "exercises"} to your library`)
     if (failed.size) {
       // Failed rows stay with their reason; saved rows leave the list.
-      setRows((cur) => cur.filter((r) => !r.picked || failed.has(r.name)).map((r) => (failed.has(r.name) ? { ...r, error: failed.get(r.name) } : r)))
+      setRows((cur) => cur.filter((r) => !r.picked || failed.has(r.key)).map((r) => (failed.has(r.key) ? { ...r, error: failed.get(r.key) } : r)))
+      router.refresh()
       return
     }
     setRows([])
@@ -140,7 +143,7 @@ export default function LibraryAiPanel({ meter: initial }: { meter: Meter }) {
               {busy === "reading" && <p className="animate-pulse text-sm text-[#6b6257]">Reading the videos, then thinking&hellip;</p>}
 
               {rows.map((r, i) => (
-                <div key={`${r.line}-${r.videoUrl}`} data-entry className={`rounded-2xl border bg-white p-3 ${r.picked ? "border-[#e0dad0]" : "border-[#eee9e0] opacity-80"}`}>
+                <div key={r.key} data-entry className={`rounded-2xl border bg-white p-3 ${r.picked ? "border-[#e0dad0]" : "border-[#eee9e0] opacity-80"}`}>
                   <div className="flex gap-3">
                     <input type="checkbox" checked={r.picked} onChange={(e) => patch(i, { picked: e.target.checked })} disabled={!!busy} className="mt-1 h-4 w-4 shrink-0 accent-[#c1272d]" aria-label={`Save ${r.name}`} />
                     <a href={r.videoUrl} target="_blank" rel="noopener noreferrer" className="block w-24 shrink-0 overflow-hidden rounded bg-[#e7e2d9]" aria-label="Open the video">
@@ -188,7 +191,7 @@ export default function LibraryAiPanel({ meter: initial }: { meter: Meter }) {
 
                   {r.duplicate && (
                     <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-[#4a443c]">
-                      <input type="checkbox" checked={r.replace} onChange={(e) => patch(i, { replace: e.target.checked })} className="h-3.5 w-3.5 accent-[#c1272d]" />
+                      <input type="checkbox" checked={r.replace} onChange={(e) => patch(i, { replace: e.target.checked })} aria-label="Replace the existing video" className="h-3.5 w-3.5 accent-[#c1272d]" />
                       <span>
                         Looks like <span className="font-semibold">{r.duplicate.name}</span> (has a video). Replace that entry&apos;s video instead of adding a new one.
                       </span>

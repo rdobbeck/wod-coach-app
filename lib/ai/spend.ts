@@ -33,7 +33,8 @@ export const monthStart = (at = new Date()) => new Date(Date.UTC(at.getUTCFullYe
 
 export async function spentThisMonth(coachId: string, at = new Date()) {
   const r = await prisma.aiUsage.aggregate({
-    where: { coachId, kind: "assist", createdAt: { gte: monthStart(at) } },
+    // Ask AI and the library builder share one cap; paid (balance) calls and plan programs are outside it.
+    where: { coachId, kind: { in: ["assist", "library"] }, createdAt: { gte: monthStart(at) } },
     _sum: { costUsd: true },
   })
   return r._sum.costUsd ?? 0

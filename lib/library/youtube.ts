@@ -42,7 +42,9 @@ export function youTubeId(url: string | null | undefined): string | null {
   return null
 }
 
-const looksLikeUrl = (s: string) => /https?:\/\/\S+/i.test(s)
+// A web address, with or without a scheme, or anything that names a YouTube host.
+const URL_RE = /https?:\/\/\S+|(?:^|\s)(?:[\w-]+\.)*(?:youtube\.com|youtu\.be)\/\S*/i
+const looksLikeUrl = (s: string) => URL_RE.test(s)
 
 /**
  * One request per non-empty line. A line holding a YouTube video link is a link
@@ -69,9 +71,9 @@ export function parseLines(text: string): { requests: LineRequest[]; dropped: st
       dropped.push(`Line ${line} is too long (over ${MAX_LINE_CHARS} characters).`)
       continue
     }
-    const urlMatch = raw.match(/https?:\/\/\S+/i)
+    const urlMatch = raw.match(URL_RE)
     if (urlMatch) {
-      const videoId = youTubeId(urlMatch[0])
+      const videoId = youTubeId(urlMatch[0].trim())
       if (!videoId) {
         dropped.push(`Line ${line} is not a video link (playlists and channels are not supported).`)
         continue
