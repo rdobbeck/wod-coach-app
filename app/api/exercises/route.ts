@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { invalidateLibraryMatcher } from "@/lib/ai/assist"
 import { prisma } from "@/lib/prisma"
 
 /**
@@ -28,5 +29,6 @@ export async function POST(req: Request) {
     },
     select: { id: true, name: true, videoUrl: true },
   })
+  invalidateLibraryMatcher()
   return NextResponse.json({ exercise })
 }

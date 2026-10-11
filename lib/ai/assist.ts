@@ -265,6 +265,10 @@ const MAX_AUTO_CHANGES = 40
 export const canAutoApply = (changes: Change[]) => changes.length > 0 && changes.length <= MAX_AUTO_CHANGES && changes.every(isLoadBump)
 
 let matcherCache: { at: number; match: Awaited<ReturnType<typeof buildExerciseMatcher>> } | null = null
+/** Call after the library changes so the next ask sees the new entry or video, not a ten-minute-old list. */
+export function invalidateLibraryMatcher() {
+  matcherCache = null
+}
 export async function libraryMatcher() {
   if (!matcherCache || Date.now() - matcherCache.at > 10 * 60_000) {
     matcherCache = { at: Date.now(), match: await buildExerciseMatcher(prisma as never) }
