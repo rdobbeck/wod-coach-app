@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import DashboardHeader from "@/components/DashboardHeader"
+import { AddExerciseButton, VideoButton } from "@/components/coach/LibraryActions"
 import type { Prisma } from "@prisma/client"
 
 // CoachRx's coach-creatable pattern vocabulary, plus the admin-only ones
@@ -77,9 +78,9 @@ export default async function LibraryPage({
     : "all"
   const page = parsePage(searchParams.page)
 
-  const where: Prisma.ExerciseLibraryWhereInput = {
-    coachrxId: { not: null },
-  }
+  // Every entry: the synced CoachRx ones and the ones the coach added here or
+  // from a session editor (those have no coachrxId).
+  const where: Prisma.ExerciseLibraryWhereInput = {}
   if (q) {
     where.name = { contains: q, mode: "insensitive" }
   }
@@ -142,17 +143,20 @@ export default async function LibraryPage({
     <div className="min-h-screen bg-gray-50">
       <DashboardHeader userName={session.user.name || "Coach"} role="COACH" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Exercise Library</h1>
-          <p className="mt-1 text-gray-600">
-            {total.toLocaleString()} exercises with demo videos.
-            {total > 0 && (
-              <>
-                {" "}
-                Showing {showingFrom.toLocaleString()} to {showingTo.toLocaleString()}.
-              </>
-            )}
-          </p>
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Exercise Library</h1>
+            <p className="mt-1 text-gray-600">
+              {total.toLocaleString()} exercises with demo videos.
+              {total > 0 && (
+                <>
+                  {" "}
+                  Showing {showingFrom.toLocaleString()} to {showingTo.toLocaleString()}.
+                </>
+              )}
+            </p>
+          </div>
+          <AddExerciseButton />
         </div>
 
         {/* Filters */}
@@ -218,12 +222,12 @@ export default async function LibraryPage({
             {rows.map((row) => {
               const ytId = youTubeId(row.videoUrl)
               return (
+                <div key={row.id} data-card className="bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden flex flex-col">
                 <a
-                  key={row.id}
                   href={row.videoUrl ?? "#"}
                   target={row.videoUrl ? "_blank" : undefined}
                   rel="noopener noreferrer"
-                  className="bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden block"
+                  className="block"
                 >
                   <div className="aspect-video bg-gray-100 relative">
                     {ytId ? (
@@ -253,10 +257,13 @@ export default async function LibraryPage({
                       </span>
                     )}
                   </div>
-                  <div className="p-3">
+                  <div className="px-3 pt-3">
                     <div className="font-medium text-gray-900 text-sm line-clamp-2 min-h-[2.5rem]">
                       {row.name}
                     </div>
+                  </div>
+                </a>
+                  <div className="px-3 pb-3 mt-auto">
                     <div className="mt-2 flex flex-wrap gap-1">
                       {row.isCustom ? (
                         <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-800 rounded">
@@ -284,8 +291,11 @@ export default async function LibraryPage({
                         </span>
                       ))}
                     </div>
+                    <div className="mt-2">
+                      <VideoButton id={row.id} name={row.name} videoUrl={row.videoUrl} />
+                    </div>
                   </div>
-                </a>
+                </div>
               )
             })}
           </div>

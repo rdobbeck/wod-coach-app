@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test"
 import {
+  getAdmin,
   lockRowByCoachrxId,
   unlockRowByCoachrxId,
   getNameForCoachrxId,
@@ -10,7 +11,7 @@ import {
 // while the test runs. Use a row that's unlikely to be renamed.
 const LOCK_TEST_COACHRX_ID = "33937997" // "1 1/4 Back Squat"
 
-const CARD_SELECTOR = ".grid > a"
+const CARD_SELECTOR = ".grid > [data-card]"
 const NAME_SELECTOR = ".font-medium.text-gray-900"
 const HEADER_PARA = "p.text-gray-600"
 
@@ -115,7 +116,7 @@ test.describe("Exercise Library — signed in as coach", () => {
 
   test("video card opens correct URL in a new tab", async ({ page, context }) => {
     await page.goto("/coach/library")
-    const firstCard = page.locator(CARD_SELECTOR).first()
+    const firstCard = page.locator(CARD_SELECTOR).first().locator("a").first()
     const href = await firstCard.getAttribute("href")
     expect(href).toBeTruthy()
     expect(href).toMatch(/youtu\.be|youtube\.com|vimeo\.com/)
@@ -126,6 +127,51 @@ test.describe("Exercise Library — signed in as coach", () => {
     // Popup URL should match (Chrome may follow short-url to full URL — accept the id substring).
     expect(popup.url()).toContain(href!.split("/").pop()!.split("?")[0])
     await popup.close()
+  })
+
+  test("coach adds an exercise, sets its video, changes it, and removes it from the library page", async ({ page }) => {
+    const admin = getAdmin()
+    const name = `PW Lib ${Date.now()}`
+    await admin.exerciseLibrary.deleteMany({ where: { name: { startsWith: "PW Lib " } } })
+    try {
+      await page.goto("/coach/library")
+      await page.getByRole("button", { name: "New exercise" }).click()
+      const form = page.getByRole("form", { name: "New exercise" })
+      await form.getByLabel("Name").fill(name)
+      await form.getByRole("button", { name: "Save" }).click()
+
+      // The new entry shows on the library page even though it has no CoachRx id, and has no video yet.
+      await page.waitForURL(/\/coach\/library\?q=/)
+      const card = page.locator(CARD_SELECTOR, { hasText: name })
+      await expect(card).toBeVisible()
+      await expect(card.getByText("No video")).toBeVisible()
+      await expect(card.getByText("Custom")).toBeVisible()
+      const row = await admin.exerciseLibrary.findFirstOrThrow({ where: { name } })
+      expect(row.videoUrl).toBeNull()
+
+      // Add a video: the card turns into a YouTube thumbnail that links to it.
+      await card.getByRole("button", { name: "Add video" }).click()
+      const videoForm = card.getByRole("form", { name: `Video for ${name}` })
+      await videoForm.getByRole("textbox").fill("https://youtu.be/dQw4w9WgXcQ")
+      await videoForm.getByRole("button", { name: "Save" }).click()
+      await expect(card.locator("img")).toHaveAttribute("src", /dQw4w9WgXcQ/)
+      await expect(card.locator("a").first()).toHaveAttribute("href", "https://youtu.be/dQw4w9WgXcQ")
+      await expect.poll(async () => (await admin.exerciseLibrary.findFirstOrThrow({ where: { name } })).locked).toBe(true)
+
+      // Remove it again.
+      await card.getByRole("button", { name: "Change video" }).click()
+      await card.getByRole("button", { name: "Remove video" }).click()
+      await expect(card.getByText("No video")).toBeVisible()
+      expect((await admin.exerciseLibrary.findFirstOrThrow({ where: { name } })).videoUrl).toBeNull()
+
+      // The API refuses links that are not http(s) and ids that do not exist.
+      const bad = await page.request.patch(`/api/exercises/${row.id}`, { data: { videoUrl: "ftp://nope" } })
+      expect(bad.status()).toBe(400)
+      const missing = await page.request.patch(`/api/exercises/does-not-exist`, { data: { videoUrl: "https://example.com/v" } })
+      expect(missing.status()).toBe(404)
+    } finally {
+      await admin.exerciseLibrary.deleteMany({ where: { name: { startsWith: "PW Lib " } } })
+    }
   })
 
   test("locked rows render the yellow Locked badge", async ({ page }) => {
