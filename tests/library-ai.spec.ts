@@ -131,3 +131,69 @@ test("oembedInfo: title and channel without a key; null when the video is gone",
   const gone = fakeFetch(() => ({ status: 404, body: {} }))
   expect(await oembedInfo("eeeeeeeeeee", gone)).toBeNull()
 })
+import { PATTERNS, renderPrompt, parseEntries, findDuplicate, validateSaveEntry, type ProposeItem } from "../lib/library/propose"
+
+// ---------- the prompt and the model's answer ----------
+
+const vid = (id: string, title: string, description = ""): VideoInfo => ({ id, url: `https://www.youtube.com/watch?v=${id}`, title, description, channel: "Ryan", seconds: 45, thumbnailUrl: `https://i.ytimg.com/vi/${id}/mqdefault.jpg` })
+const items: ProposeItem[] = [
+  { line: 1, hint: "90/90 Hip Lift", video: vid("aaaaaaaaaaa", "90-90 Hip Lift Demo", "Feet on wall, lift hips an inch."), alternatives: [], duplicate: null },
+  { line: 2, video: vid("bbbbbbbbbbb", "Front Squat"), alternatives: [vid("ccccccccccc", "Front Squat (alt)")], duplicate: { id: "lib9", name: "Front Squat" } },
+]
+const vocab = ["Barbell", "Bodyweight", "Dumbbell"]
+
+test("the prompt carries each video, the coach's hint, the vocabulary and the likely duplicate", () => {
+  const p = renderPrompt(items, vocab)
+  expect(p).toContain("1  90-90 Hip Lift Demo")
+  expect(p).toContain("coach calls it: 90/90 Hip Lift")
+  expect(p).toContain("Feet on wall")
+  expect(p).toContain("already in the library as: Front Squat")
+  expect(p).toContain(PATTERNS.join(", "))
+  expect(p).toContain("Barbell, Bodyweight, Dumbbell")
+})
+
+test("entries: vocabulary is enforced, bad rows are dropped, unknown lines are ignored", () => {
+  const raw = JSON.stringify({
+    entries: [
+      { line: 1, name: "90-90 Hip Lift — PRI", patterns: ["Core", "Mobility", "Yoga"], equipment: ["Bodyweight", "Wall"], cues: "Exhale fully.", summary: "PRI reset.", confidence: "high" },
+      { line: 2, patterns: ["Squat"], equipment: [], cues: "", summary: "" }, // no name: dropped, and does not block the real answer below
+      { line: 3, name: "Ghost", patterns: ["Pull"], equipment: [], cues: "", summary: "" },
+      { line: 1, name: "Second answer for line 1", patterns: [], equipment: [], cues: "", summary: "" },
+      { line: 2, name: "Front Squat", patterns: ["Squat"], equipment: ["Barbell"], cues: "", summary: "", confidence: "nope" },
+    ],
+    warnings: ["Line 2 might be a vlog"],
+  })
+  const { entries, warnings, dropped } = parseEntries(raw, items, vocab)
+  expect(entries).toHaveLength(2)
+  expect(entries[0]).toMatchObject({
+    line: 1, name: "90-90 Hip Lift, PRI", videoUrl: "https://www.youtube.com/watch?v=aaaaaaaaaaa", thumbnailUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg",
+    patterns: ["Core", "Mobility"], equipment: ["Bodyweight", "Wall"], unknownEquipment: true, cues: "Exhale fully.", summary: "PRI reset.", confidence: "high", duplicate: null, alternatives: [],
+  })
+  expect(entries[1]).toMatchObject({ line: 2, name: "Front Squat", confidence: "medium", duplicate: { id: "lib9", name: "Front Squat" }, unknownEquipment: false })
+  expect(entries[1].alternatives).toEqual([{ url: "https://www.youtube.com/watch?v=ccccccccccc", title: "Front Squat (alt)", seconds: 45, thumbnailUrl: "https://i.ytimg.com/vi/ccccccccccc/mqdefault.jpg" }])
+  expect(warnings).toEqual(["Line 2 might be a vlog"])
+  expect(dropped).toEqual(["The answer for line 2 had no name.", "The model answered for line 3, which was not asked about.", "A second answer for line 1 was ignored."])
+})
+
+test("entries: an answer that is not JSON gives no entries and a plain message", () => {
+  const { entries, dropped } = parseEntries("Sorry, I cannot do that.", items, vocab)
+  expect(entries).toEqual([])
+  expect(dropped).toEqual(["The model did not answer in the expected format. Try again."])
+})
+
+test("duplicate: the first name that reaches a library entry with a video", () => {
+  const match = (n: string) => ({ "front squat": "lib9", "goblet squat": "lib2" })[n.toLowerCase()] ?? null
+  const libName = (id: string) => ({ lib9: "Front Squat", lib2: "Goblet Squat" })[id] ?? null
+  const hasVideo = (id: string) => id === "lib9"
+  expect(findDuplicate(["Front Squat Demo", "Front Squat"], match, libName, hasVideo)).toEqual({ id: "lib9", name: "Front Squat" })
+  expect(findDuplicate(["Goblet Squat"], match, libName, hasVideo)).toBeNull() // no video: not a duplicate worth replacing
+  expect(findDuplicate(["Nothing"], match, libName, hasVideo)).toBeNull()
+})
+
+test("save entries are validated the same way on the way in", () => {
+  const good = validateSaveEntry({ name: " Front Squat ", videoUrl: "https://youtu.be/bbbbbbbbbbb", thumbnailUrl: null, patterns: ["Squat", "Nope"], equipment: ["Barbell"], cues: "Elbows up.", summary: "", replaceId: "lib9" })
+  expect(good).toEqual({ ok: true, value: { name: "Front Squat", videoUrl: "https://youtu.be/bbbbbbbbbbb", thumbnailUrl: null, patterns: ["Squat"], equipment: ["Barbell"], cues: "Elbows up.", summary: "", replaceId: "lib9" } })
+  expect(validateSaveEntry({ name: "", videoUrl: "https://youtu.be/x" })).toMatchObject({ ok: false, error: "An entry had no name." })
+  expect(validateSaveEntry({ name: "X", videoUrl: "ftp://nope" })).toMatchObject({ ok: false, error: "X: the video link must start with http." })
+  expect(validateSaveEntry({ name: "X", videoUrl: "https://youtu.be/x", thumbnailUrl: "javascript:alert(1)" })).toMatchObject({ ok: true, value: { thumbnailUrl: null } })
+})
