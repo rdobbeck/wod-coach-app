@@ -236,6 +236,7 @@ test("the coach switches Ask AI on and off per client", async ({ page }) => {
 // ---------- reading the model's answer ----------
 
 const ctx: Context = {
+  today: "2026-09-30",
   profile: "Units: lb",
   recent: "",
   sessions: [
@@ -744,4 +745,122 @@ test("with the switch off, a load bump waits for Apply like anything else", asyn
   await apply.click()
   await expect(page.getByText(/Applied 1 change to/)).toBeVisible()
   await page.evaluate(() => localStorage.removeItem("ai-auto-load")) // leave the switch as we found it
+})
+
+// ---------- creating whole sessions ----------
+
+test("create: a new session needs a date from today on, a name, and at least one complete exercise", () => {
+  const answer = JSON.stringify({
+    reply: "Added swim sessions.",
+    changes: [
+      { action: "create", date: "2026-10-03", name: "Swim: Efficiency Drills", exercises: [{ name: "Goblet Squat", prescription: "3x8" }, { name: "Catch-Up Drill", prescription: "4x50 m, rest 20 s" }, { name: "No prescription" }], reason: "weekly swim" },
+      { action: "create", date: "2026-09-29", name: "Yesterday", exercises: [{ name: "Goblet Squat", prescription: "3x8" }], reason: "in the past" },
+      { action: "create", date: "2026-10-03", name: "Empty", exercises: [], reason: "no exercises" },
+      { action: "create", date: "soon", name: "Bad date", exercises: [{ name: "Goblet Squat", prescription: "3x8" }], reason: "bad date" },
+      { action: "create", date: "2026-10-04", exercises: [{ name: "Goblet Squat", prescription: "3x8" }], reason: "no name" },
+    ],
+    warnings: [],
+  })
+  const p = parseProposal(answer, ctx, match, libName)
+  expect(p.changes).toHaveLength(1)
+  const c = p.changes[0]
+  expect(c).toMatchObject({ action: "create", workoutId: "", workoutName: "Swim: Efficiency Drills", date: "2026-10-03", reason: "weekly swim" })
+  // Each exercise is matched to the library like an add, and an incomplete one is left out of the session, not fatal.
+  expect(c.exercises).toEqual([
+    { name: "Goblet Squat", prescription: "3x8", libraryId: "lib1", inLibrary: true },
+    { name: "Catch-Up Drill", prescription: "4x50 m, rest 20 s", libraryId: null, inLibrary: false },
+  ])
+  expect(p.dropped).toEqual([
+    "A new session on 2026-09-29 is in the past, so it was left out.",
+    "A new session (Empty) had no complete exercises.",
+    "A new session had no date in the form YYYY-MM-DD.",
+    "A new session on 2026-10-04 had no name.",
+  ])
+  // Creating a session is never a load bump.
+  expect(p.autoApply).toBe(false)
+})
+
+test("create: applying makes a standalone session with its exercises; undo removes it unless something was logged", async ({ page, browser }) => {
+  const date = dayKey(tomorrow())
+  const res = await page.request.post("/api/ai/assist/apply", {
+    data: {
+      clientId,
+      request: "weekly swim",
+      changes: [
+        { action: "create", workoutId: "", date, workoutName: `${PREFIX}Swim Drills`, exercises: [{ name: "Goblet Squat", prescription: "3x8", libraryId: null }, { name: "Catch-Up Drill", prescription: "4x50 m" }] },
+        { action: "create", workoutId: "", date: "2020-01-01", workoutName: `${PREFIX}Past`, exercises: [{ name: "Goblet Squat", prescription: "3x8" }] }, // past: refused
+        { action: "create", workoutId: "", date, workoutName: `${PREFIX}No Exercises`, exercises: [] }, // refused
+      ],
+    },
+  })
+  expect(res.ok()).toBe(true)
+  const out = await res.json()
+  expect(out.applied).toBe(1)
+  expect(out.skipped).toHaveLength(2)
+  const made = await prisma.workout.findFirstOrThrow({ where: { clientId, name: `${PREFIX}Swim Drills` }, include: { exercises: { orderBy: { order: "asc" } } } })
+  expect(dayKey(made.scheduledDate)).toBe(date)
+  expect(made.dayOfWeek).toBe(made.scheduledDate.getUTCDay())
+  expect(made.programId).toBeNull()
+  expect(made.exercises.map((e) => [e.name, e.prescription, e.order])).toEqual([["Goblet Squat", "3x8", 1], ["Catch-Up Drill", "4x50 m", 2]])
+  expect(await prisma.workout.count({ where: { clientId, name: { in: [`${PREFIX}Past`, `${PREFIX}No Exercises`] } } })).toBe(0)
+
+  // Undo removes the whole session.
+  const undo = await page.request.post("/api/ai/assist/undo", { data: { changeSetId: out.changeSetId } })
+  expect(undo.ok()).toBe(true)
+  expect(await prisma.workout.findUnique({ where: { id: made.id } })).toBeNull()
+
+  // But a created session the client has since logged on stays.
+  const again = await page.request.post("/api/ai/assist/apply", {
+    data: { clientId, request: "again", changes: [{ action: "create", workoutId: "", date, workoutName: `${PREFIX}Swim Logged`, exercises: [{ name: "Goblet Squat", prescription: "3x8" }] }] },
+  })
+  const out2 = await again.json()
+  const logged = await prisma.workout.findFirstOrThrow({ where: { clientId, name: `${PREFIX}Swim Logged` }, include: { exercises: true } })
+  const cctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const cp = await cctx.newPage()
+  await cp.goto("/auth/signin")
+  await cp.locator('input[name="email"]').fill("playwright-client@dev.local")
+  await cp.locator('input[name="password"]').fill("playwright-test-PW-1")
+  await cp.locator('button[type="submit"]').click()
+  await cp.waitForURL(/\/client$/, { timeout: 15_000 })
+  const log = await cp.request.put(`/api/workouts/${logged.id}/log`, {
+    data: { exercises: [{ workoutExerciseId: logged.exercises[0].id, resultText: "", rpe: null, sets: [{ weight: 50, reps: 8, rpe: null, done: true }] }], complete: false },
+  })
+  expect(log.ok()).toBe(true)
+  await cctx.close()
+  const undo2 = await page.request.post("/api/ai/assist/undo", { data: { changeSetId: out2.changeSetId } })
+  expect(undo2.ok()).toBe(true)
+  expect((await undo2.json()).skipped[0]).toMatch(/logged/)
+  expect(await prisma.workout.findUnique({ where: { id: logged.id } })).not.toBeNull()
+})
+
+test("in the panel: a new session shows as its own group with a CREATE row listing the exercises, and applies", async ({ page }) => {
+  const date = dayKey(tomorrow())
+  await page.route("**/api/ai/assist", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    await route.fulfill({
+      json: {
+        reply: "Added a swim session.",
+        changes: [
+          { action: "create", workoutId: "", workoutName: `${PREFIX}Panel Swim`, date, exercises: [{ name: "Catch-Up Drill", prescription: "4x50 m", libraryId: null, inLibrary: false }, { name: "Kick Set", prescription: "6x25 m", libraryId: null, inLibrary: false }], reason: "Weekly swim" },
+        ],
+        warnings: [],
+        dropped: [],
+        autoApply: false,
+        meter: { spent: 0.5, cap: 25, level: "ok" },
+      },
+    })
+  })
+  await openPanel(page)
+  const dialog = page.getByRole("dialog", { name: "AI assistant" })
+  await dialog.getByRole("textbox").fill("Add a weekly swim session")
+  await dialog.getByRole("button", { name: "Send" }).click()
+  await expect(dialog.getByText("create", { exact: true })).toBeVisible()
+  // The name shows twice on purpose: as the group heading for the new date and in the row itself.
+  await expect(dialog.getByText(`${PREFIX}Panel Swim`).first()).toBeVisible()
+  await expect(dialog.getByText("Catch-Up Drill")).toBeVisible()
+  await expect(dialog.getByText("Kick Set")).toBeVisible()
+  await dialog.getByRole("button", { name: "Apply 1 change" }).click()
+  await expect(dialog.getByText(/Applied 1 change/)).toBeVisible()
+  const made = await prisma.workout.findFirstOrThrow({ where: { clientId, name: `${PREFIX}Panel Swim` }, include: { exercises: true } })
+  expect(made.exercises).toHaveLength(2)
 })

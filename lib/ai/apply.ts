@@ -12,13 +12,18 @@ import { dayKey } from "@/lib/training-format"
  * so those are never touched.
  */
 export type ChangeInput = {
-  action: "replace" | "modify" | "remove" | "add" | "link"
+  action: "replace" | "modify" | "remove" | "add" | "link" | "create"
   workoutId: string
   exerciseId?: string
   newExercise?: string
   newPrescription?: string
   libraryId?: string | null
+  // "create" only: a new standalone session on `date` named `workoutName` with these exercises in order.
+  date?: string
+  workoutName?: string
+  exercises?: { name?: string; prescription?: string; libraryId?: string | null }[]
 }
+const MAX_CREATE_EXERCISES = 20
 
 type Row = {
   exerciseId: string | null
@@ -43,6 +48,7 @@ type Applied =
   | { action: "replace" | "modify" | "link"; workoutId: string; exerciseId: string; before: Row }
   | { action: "remove"; workoutId: string; exerciseId: string; before: Row }
   | { action: "add"; workoutId: string; exerciseId: string }
+  | { action: "create"; workoutId: string }
 
 const clean = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? noLongDashes(v.trim()).slice(0, max) : undefined)
 
@@ -54,6 +60,46 @@ export async function applyChanges(coachId: string, clientId: string, request: s
   await prisma.$transaction(
     async (tx) => {
       for (const c of changes.slice(0, 60)) {
+        if (c.action === "create") {
+          const name = clean(c.workoutName, 120)
+          const date = typeof c.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.date) ? c.date : null
+          if (!name || !date) {
+            skipped.push("A new session was missing its name or date.")
+            continue
+          }
+          if (date < dayKey(new Date())) {
+            skipped.push(`A new session on ${date} is in the past, so it was left out.`)
+            continue
+          }
+          const rows: { name: string; prescription: string; libraryId: string | null }[] = []
+          for (const x of (Array.isArray(c.exercises) ? c.exercises : []).slice(0, MAX_CREATE_EXERCISES)) {
+            const n = clean(x?.name, 120)
+            const rx = clean(x?.prescription, 300)
+            if (n && rx) rows.push({ name: n, prescription: rx, libraryId: typeof x?.libraryId === "string" ? x.libraryId : null })
+          }
+          if (!rows.length) {
+            skipped.push(`A new session (${name}) had no complete exercises.`)
+            continue
+          }
+          const libIds = Array.from(new Set(rows.map((r) => r.libraryId).filter((id): id is string => !!id)))
+          const libs = libIds.length ? await tx.exerciseLibrary.findMany({ where: { id: { in: libIds } }, select: { id: true } }) : []
+          const known = new Set(libs.map((l) => l.id))
+          const day = new Date(`${date}T00:00:00.000Z`)
+          const count = await tx.workout.count({ where: { clientId, scheduledDate: day } })
+          const made = await tx.workout.create({
+            data: {
+              clientId,
+              name,
+              scheduledDate: day,
+              dayOfWeek: day.getUTCDay(),
+              order: count + 1,
+              exercises: { create: rows.map((r, i) => ({ name: r.name, prescription: r.prescription, exerciseId: r.libraryId && known.has(r.libraryId) ? r.libraryId : null, order: i + 1 })) },
+            },
+            select: { id: true },
+          })
+          applied.push({ action: "create", workoutId: made.id })
+          continue
+        }
         const w = await tx.workout.findFirst({
           where: { id: c.workoutId, clientId, isCompleted: false, scheduledDate: { gte: todayStart } },
           select: { id: true, name: true },
@@ -175,7 +221,19 @@ export async function undoChangeSet(userId: string, changeSetId: string) {
           const n = await tx.workoutExercise.findUnique({ where: { id }, select: { _count: { select: { setLogs: true, exerciseLogs: true } } } })
           return !!n && (n._count.setLogs > 0 || n._count.exerciseLogs > 0)
         }
-        if (a.action === "add") {
+        if (a.action === "create") {
+          const w = await tx.workout.findUnique({
+            where: { id: a.workoutId },
+            select: { isCompleted: true, exercises: { select: { _count: { select: { setLogs: true, exerciseLogs: true } } } } },
+          })
+          if (!w) skipped.push("A created session was already removed.")
+          else if (w.isCompleted || w.exercises.some((e) => e._count.setLogs > 0 || e._count.exerciseLogs > 0)) {
+            skipped.push("A created session has since been logged, so it stays.")
+          } else {
+            await tx.workout.delete({ where: { id: a.workoutId } })
+            restored++
+          }
+        } else if (a.action === "add") {
           if (await logged(a.exerciseId)) skipped.push("An added exercise has since been logged, so it stays.")
           else {
             await tx.workoutExercise.deleteMany({ where: { id: a.exerciseId } })
