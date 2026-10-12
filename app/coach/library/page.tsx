@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import DashboardHeader from "@/components/DashboardHeader"
 import { AddExerciseButton, VideoButton } from "@/components/coach/LibraryActions"
+import LibraryAiPanel from "@/components/coach/LibraryAiPanel"
+import { canUseLibraryAi } from "@/lib/library/access"
+import { spendMeter } from "@/lib/ai/spend"
+import { youTubeId } from "@/lib/library/youtube"
 import { ownerEmails } from "@/lib/plans"
 import type { Prisma } from "@prisma/client"
 
@@ -29,23 +33,6 @@ const PATTERN_OPTIONS = [
 
 const PAGE_SIZE = 48
 
-// Strip a YouTube watch / short / shorts URL down to its video id. Returns
-// null for non-YouTube urls (e.g. Vimeo) so the caller can render a fallback.
-function youTubeId(url: string | null | undefined): string | null {
-  if (!url) return null
-  // youtu.be/<id> and youtube.com/{watch?v=,shorts/,embed/}<id>
-  const patterns = [
-    /youtu\.be\/([A-Za-z0-9_-]{11})/,
-    /youtube\.com\/watch\?[^#]*v=([A-Za-z0-9_-]{11})/,
-    /youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/,
-    /youtube\.com\/embed\/([A-Za-z0-9_-]{11})/,
-  ]
-  for (const p of patterns) {
-    const m = url.match(p)
-    if (m) return m[1]
-  }
-  return null
-}
 
 type SearchParams = {
   q?: string
@@ -80,6 +67,8 @@ export default async function LibraryPage({
   const page = parsePage(searchParams.page)
   // The library is one pool every coach sees. A coach edits only what they added; owners edit anything.
   const isOwner = !!session.user.email && ownerEmails().includes(session.user.email.toLowerCase())
+  const aiAllowed = canUseLibraryAi(session.user.email)
+  const meter = aiAllowed ? await spendMeter(session.user.id) : null
 
   // Every entry: the synced CoachRx ones and the ones the coach added here or
   // from a session editor (those have no coachrxId).
@@ -160,7 +149,10 @@ export default async function LibraryPage({
               )}
             </p>
           </div>
-          <AddExerciseButton />
+          <div className="flex flex-wrap items-center gap-2">
+            {aiAllowed && meter && <LibraryAiPanel meter={meter} />}
+            <AddExerciseButton />
+          </div>
         </div>
 
         {/* Filters */}

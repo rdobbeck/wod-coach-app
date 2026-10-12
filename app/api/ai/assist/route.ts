@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server"
 import { aiAccess, denialResponse, isDenied } from "@/lib/ai/access"
 import { withAlert } from "@/lib/alert"
-import { AiCapError, assertUnderCap, spendMeter } from "@/lib/ai/spend"
-import { ASSIST_MIN_CENTS, settleAiCall } from "@/lib/ai-billing"
-import { getCoachPlan } from "@/lib/plans"
-import { prisma } from "@/lib/prisma"
+import { decideAssistFunding } from "@/lib/ai/funding"
+import { spendMeter } from "@/lib/ai/spend"
+import { settleAiCall } from "@/lib/ai-billing"
 import { buildContext, callModel, libraryMatcher, parseProposal, type Turn } from "@/lib/ai/assist"
 
 // A large redesign can take a minute or two.
@@ -27,31 +26,11 @@ async function handlePOST(req: Request) {
   // A client is spending their coach's allowance, so money messages are written for them, not the coach.
   const forClient = (coachText: string) => (access.viewer === "client" ? "Your coach's AI allowance is used up for this month. Ask them to top it up." : coachText)
 
-  // Included on Pro and Studio up to the monthly cap; otherwise (or past the cap)
-  // each message comes out of the coach's AI balance.
-  const [{ plan }, profile] = await Promise.all([
-    getCoachPlan(coachId),
-    prisma.coachProfile.findUnique({ where: { userId: coachId }, select: { aiBalanceCents: true } }),
-  ])
-  const balance = profile?.aiBalanceCents ?? 0
-  let mode: "allowance" | "balance" = "balance"
-  if (plan.assistant) {
-    try {
-      await assertUnderCap(coachId)
-      mode = "allowance"
-    } catch (e) {
-      if (!(e instanceof AiCapError)) throw e
-      if (balance < ASSIST_MIN_CENTS) {
-        return NextResponse.json({ error: forClient(e.message), code: e.code, meter: await spendMeter(coachId) }, { status: 402 })
-      }
-    }
+  const funding = await decideAssistFunding(coachId)
+  if ("deny" in funding) {
+    return NextResponse.json({ error: forClient(funding.deny.error), code: funding.deny.code, meter: await spendMeter(coachId) }, { status: 402 })
   }
-  if (mode === "balance" && balance < ASSIST_MIN_CENTS) {
-    return NextResponse.json(
-      { error: forClient("The AI assistant comes with Pro and Studio. Or add AI balance in Settings, Plan & billing and pay a few cents a message."), code: "AI_FUNDS", meter: await spendMeter(coachId) },
-      { status: 402 },
-    )
-  }
+  const mode = funding.mode
 
   const history = (Array.isArray(body.history) ? body.history : [])
     .filter((t) => (t?.role === "user" || t?.role === "assistant") && typeof t.content === "string")

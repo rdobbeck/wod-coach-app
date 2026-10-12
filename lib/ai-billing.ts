@@ -82,7 +82,7 @@ export async function fundProgram(userId: string): Promise<Funding> {
 export async function settleAiCall(
   userId: string,
   funding: Pick<Funding, "mode">,
-  call: { kind: "generate" | "assist"; model: string; costUsd: number; tokensIn?: number; tokensOut?: number; clientId?: string | null },
+  call: { kind: "generate" | "assist" | "library"; model: string; costUsd: number; tokensIn?: number; tokensOut?: number; clientId?: string | null },
 ) {
   if (funding.mode === "byok") return 0
   const paid = funding.mode === "balance"
