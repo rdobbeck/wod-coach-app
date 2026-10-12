@@ -43,6 +43,7 @@ const CHIP: Record<Change["action"], string> = {
   remove: "bg-[#fbe7e7] text-[#a3262b]",
   add: "bg-[#e2f3ea] text-[#1f6b45]",
   link: "bg-[#ece6f7] text-[#5b3f9e]",
+  create: "bg-[#e2f3ea] text-[#1f6b45]",
 }
 
 function ChangeRow({ c, on, disabled, toggle }: { c: Change; on: boolean; disabled: boolean; toggle: () => void }) {
@@ -59,6 +60,19 @@ function ChangeRow({ c, on, disabled, toggle }: { c: Change; on: boolean; disabl
         {c.action === "add" && <span className="font-semibold">{c.newExercise}</span>}
         {c.action === "remove" && <span className="text-[#857c70] line-through">{c.exercise}</span>}
         {c.action === "modify" && <span className="font-semibold">{c.exercise}</span>}
+        {c.action === "create" && (
+          <>
+            <span className="font-semibold">{c.workoutName}</span>
+            <span className="mt-0.5 block font-mono text-xs text-[#16181d]">
+              {(c.exercises ?? []).map((e, k) => (
+                <span key={k} className="block">
+                  {e.name}: {e.prescription}
+                  {!e.inLibrary && <span className="ml-1 text-[10px] text-[#857c70]">(no demo video)</span>}
+                </span>
+              ))}
+            </span>
+          </>
+        )}
         {c.action === "link" && (
           <>
             <span className="font-semibold">{c.exercise}</span> <span aria-hidden>&rarr;</span> <span className="text-[#4a443c]">video: {c.newExercise}</span>
