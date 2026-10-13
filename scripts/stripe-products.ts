@@ -21,6 +21,8 @@ const PLAN: CouponPlan[] = [
   { name: "Group session credit", coupon: { amount_off: 2_500, currency: "usd", duration: "once", appliesToFirstSession: true }, codes: [{ code: "GROUP25" }] },
   // Past-client email went out 2026-10-01; the code expires 30 days after that run.
   { name: "Welcome back 15%", coupon: { percent_off: 15, duration: "once" }, codes: [{ code: "COMEBACK", expiresInDays: 30 }] },
+  // Jenny (new client, 2026-10-13): Ryan covers half her Gym Pod membership as $35 off whatever she buys.
+  { name: "Jenny: pod split $35", coupon: { amount_off: 3_500, currency: "usd", duration: "once" }, codes: [{ code: "JENNYPOD" }] },
 ]
 
 const email = process.argv[2]
