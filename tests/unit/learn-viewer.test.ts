@@ -55,7 +55,7 @@ test("layer toggles hide only structures whose every layer is off", () => {
     ],
   } as Scene
   assert.equal(hiddenByLayers(scene, new Set(["heart", "veins", "arteries"])), null)
-  assert.deepEqual([...hiddenByLayers(scene, new Set(["heart"]))!].sort(), ["femoral-artery"])
-  assert.deepEqual([...hiddenByLayers(scene, new Set())!].sort(), ["coronary-sinus", "femoral-artery", "left-ventricle"])
+  assert.deepEqual(Array.from(hiddenByLayers(scene, new Set(["heart"]))!).sort(), ["femoral-artery"])
+  assert.deepEqual(Array.from(hiddenByLayers(scene, new Set())!).sort(), ["coronary-sinus", "femoral-artery", "left-ventricle"])
   assert.equal(hiddenByLayers({ ...scene, layers: undefined }, new Set()), null)
 })

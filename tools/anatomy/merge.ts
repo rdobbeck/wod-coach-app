@@ -63,7 +63,7 @@ export function mergeLearn(i: MergeInputs): Learn {
       ;(s.nodes[a.id] ??= []).push(name)
       ids.add(id)
     }
-    const ordered = [...ids].sort((x, y) => structures[x].label.localeCompare(structures[y].label))
+    const ordered = Array.from(ids).sort((x, y) => structures[x].label.localeCompare(structures[y].label))
     const scene: Scene = { id: a.id, kind: a.kind, title: a.title, blurb: noLongDashes(a.blurb), file: { path: file.path, bytes: file.bytes, sha256: file.sha256 }, structures: ordered }
 
     if (a.kind === "joint") {

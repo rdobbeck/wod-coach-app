@@ -63,7 +63,7 @@ export function hiddenByLayers(scene: Scene, on: Set<string>): Set<string> | nul
   const inSome = new Set<string>()
   const inOn = new Set<string>()
   for (const l of scene.layers) for (const id of l.structures) { inSome.add(id); if (on.has(l.id)) inOn.add(id) }
-  const hidden = new Set([...inSome].filter((id) => !inOn.has(id)))
+  const hidden = new Set(Array.from(inSome).filter((id) => !inOn.has(id)))
   return hidden.size ? hidden : null
 }
 
