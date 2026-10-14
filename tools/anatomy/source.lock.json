@@ -1,0 +1,17 @@
+{
+  "zanatomy": {
+    "repo": "https://github.com/Z-Anatomy/Models-of-human-anatomy",
+    "commit": "7b8d2e3333d2",
+    "zip": "Z-Anatomy.zip",
+    "sha256": "e029688545627bd0214b269e1063143abb580aad72b2c2445d6d8a9a0d9da736",
+    "blend": "Z-Anatomy/Startup.blend",
+    "blendBytes": 306838281,
+    "license": "CC-BY-SA-4.0"
+  },
+  "atlas": {
+    "repo": "https://github.com/maikleonhg/atlas",
+    "commit": "7a21273d7bfe984541aa320de3c0438d42c5b7a2",
+    "license": "CC-BY-SA-4.0"
+  },
+  "tools": { "blender": "5.2.2", "gltfTransform": "4.5.0" }
+}

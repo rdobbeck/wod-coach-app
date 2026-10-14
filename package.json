@@ -16,7 +16,8 @@
     "backup:db": "tsx scripts/backup-db.ts",
     "strip:dashes": "tsx scripts/strip-dashes.ts",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "anatomy:fetch": "bash tools/anatomy/fetch.sh"
   },
   "dependencies": {
     "@apollo/client": "^4.1.6",
