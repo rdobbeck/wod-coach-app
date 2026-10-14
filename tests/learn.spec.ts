@@ -33,6 +33,7 @@ test("knee: selecting from the list fills the card with the role; the slider mov
   await expect(card).toContainText("antagonist")
   await expect(card).toContainText("opposes it")
   await expect(card).toContainText("Coach's note")
+  await expect(card).toContainText("edited") // CC BY-SA: say the excerpt was changed
   await expect(page.getByRole("link", { name: "Train with Ryan" })).toBeVisible()
   await page.getByRole("slider", { name: "Knee flexion" }).fill("90")
   await expect(page.getByTestId("angle-out")).toHaveText("90°")
@@ -72,6 +73,52 @@ test("scene files are cached as immutable", async ({ request }) => {
   const res = await request.head(learn.scenes[0].file.path)
   expect(res.ok()).toBeTruthy()
   expect(res.headers()["cache-control"]).toContain("immutable")
+})
+
+test("on a layered scene the error line is readable: solid, and not under the layer chips", async ({ page }) => {
+  await page.route("**/anatomy/heart.*.glb", (route) => route.fulfill({ status: 404, body: "" }))
+  await page.goto("/learn/heart")
+  const alert = page.getByTestId("viewer-error")
+  await expect(alert).toBeVisible({ timeout: 60_000 })
+  const a = (await alert.boundingBox())!
+  for (const chip of await page.getByRole("group", { name: "Layers" }).getByRole("button").all()) {
+    const c = (await chip.boundingBox())!
+    const overlap = a.x < c.x + c.width && c.x < a.x + a.width && a.y < c.y + c.height && c.y < a.y + a.height
+    expect(overlap, "error line overlaps a layer chip").toBe(false)
+  }
+  expect(await alert.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)")
+})
+
+test("on a phone, picking from the list shows what was picked without scrolling back up", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto("/learn/knee")
+  await ready(page)
+  await page.getByPlaceholder("Search structures").fill("rectus")
+  await page.getByRole("button", { name: "Rectus femoris", exact: true }).click()
+  const bar = page.getByTestId("selection-bar")
+  await expect(bar).toContainText("Rectus femoris")
+  await expect(bar).toContainText("antagonist")
+  await expect(bar).toBeInViewport()
+})
+
+test("posters are not cached forever, because their names carry no content hash", async ({ request }) => {
+  const res = await request.head("/anatomy/posters/knee.jpg")
+  expect(res.ok()).toBeTruthy()
+  expect(res.headers()["cache-control"] ?? "").not.toContain("immutable")
+})
+
+test("the search box is at least 16px, so iOS Safari does not zoom the page on focus", async ({ page }) => {
+  await page.goto("/learn/knee")
+  const size = await page.getByPlaceholder("Search structures").evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+  expect(size).toBeGreaterThanOrEqual(16)
+})
+
+test("client scene pages keep a full-width viewer on wide screens", async ({ page }) => {
+  await signInAsClient(page)
+  await page.goto("/client/learn/knee")
+  await ready(page)
+  const box = (await page.getByTestId("anatomy-viewer").boundingBox())!
+  expect(box.width).toBeGreaterThan(300)
 })
 
 test("clients get a Learn tab that opens the same scenes", async ({ page }) => {

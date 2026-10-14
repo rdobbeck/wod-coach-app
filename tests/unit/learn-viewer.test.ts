@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { filterStructures, hiddenByLayers, isTap, kindColor, morphInfluence, originalName, structureNameOf, PALETTE } from "../../lib/learn-viewer"
+import { createTapTracker, filterStructures, hiddenByLayers, isTap, kindColor, morphInfluence, originalName, selectionStyle, structureNameOf, PALETTE } from "../../lib/learn-viewer"
 import type { Scene } from "../../lib/learn-types"
 
 test("the original glTF name wins over the sanitised one", () => {
@@ -28,6 +28,58 @@ test("veins are blue, arteries red, bones off-white", () => {
   assert.equal(kindColor("vessel", "Femoral artery"), PALETTE.vessel)
   assert.equal(kindColor("bone", "Femur"), PALETTE.bone)
   assert.equal(kindColor(null, "anything"), PALETTE.other)
+})
+
+test("plural vein names are veins too", () => {
+  assert.equal(kindColor("vessel", "Brachial veins"), PALETTE.vein)
+  assert.equal(kindColor("vessel", "Inferior vena cava (abdominal part)"), PALETTE.vein)
+  assert.equal(kindColor("vessel", "Right pulmonary artery"), PALETTE.vessel)
+})
+
+test("nothing selected: every part is opaque and writes depth", () => {
+  assert.deepEqual(selectionStyle("femur", "bone", null), { opacity: 1, transparent: false, depthWrite: true, glow: false })
+  assert.deepEqual(selectionStyle("rectus-femoris-muscle", "muscle", null), { opacity: 1, transparent: false, depthWrite: true, glow: false })
+})
+
+test("with a selection, other non-bone parts fade and stop writing depth; bone and the selection stay solid", () => {
+  assert.deepEqual(selectionStyle("vastus-lateralis-muscle", "muscle", "rectus-femoris-muscle"), { opacity: 0.35, transparent: true, depthWrite: false, glow: false })
+  assert.deepEqual(selectionStyle("femur", "bone", "rectus-femoris-muscle"), { opacity: 1, transparent: false, depthWrite: true, glow: false })
+  assert.deepEqual(selectionStyle("rectus-femoris-muscle", "muscle", "rectus-femoris-muscle"), { opacity: 1, transparent: false, depthWrite: true, glow: true })
+})
+
+test("a single short press is a tap", () => {
+  const t = createTapTracker()
+  t.down(1, 100, 100, true)
+  t.move(1, 103, 102)
+  assert.equal(t.up(1, 104, 103), true)
+})
+
+test("a drag that wanders and comes back is not a tap", () => {
+  const t = createTapTracker()
+  t.down(1, 100, 100, true)
+  t.move(1, 140, 100)
+  t.move(1, 102, 100)
+  assert.equal(t.up(1, 101, 100), false)
+})
+
+test("a pinch is never a tap, even when one finger stays put; the next single press works again", () => {
+  const t = createTapTracker()
+  t.down(1, 100, 100, true)
+  t.down(2, 200, 200, true)
+  t.move(2, 260, 260)
+  assert.equal(t.up(1, 100, 100), false)
+  assert.equal(t.up(2, 260, 260), false)
+  t.down(3, 50, 50, true)
+  assert.equal(t.up(3, 51, 50), true)
+})
+
+test("right and middle clicks are not taps; a cancelled pointer is not a tap", () => {
+  const t = createTapTracker()
+  t.down(1, 10, 10, false)
+  assert.equal(t.up(1, 10, 10), false)
+  t.down(2, 10, 10, true)
+  t.cancel(2)
+  assert.equal(t.up(2, 10, 10), false)
 })
 
 test("morph influence eases from 0 to 1 across the range and clamps", () => {

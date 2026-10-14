@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { mergeLearn, clipDefinition, type MergeInputs } from "./merge"
+import { mergeLearn, clipDefinition, cleanDefinition, selectDefinitions, type MergeInputs } from "./merge"
 
 function inputs(over: Partial<MergeInputs> = {}): MergeInputs {
   return {
@@ -74,6 +74,36 @@ test("a role for a structure the joint scene does not draw fails by name", () =>
   const a = inputs().authored
   a.roles.knee.roles["diaphragm"] = "synergist"
   assert.throws(() => mergeLearn(inputs({ authored: a })), /role.*diaphragm/)
+})
+
+test("a role outside the four values fails the merge by scene and slug", () => {
+  const a = inputs().authored
+  a.roles.knee.roles["rectus-femoris-muscle"] = "stabiliser" as never
+  assert.throws(() => mergeLearn(inputs({ authored: a })), /knee.*rectus-femoris-muscle.*stabiliser/)
+})
+
+test("a range that is not two increasing numbers from 0 to 180 fails by scene", () => {
+  for (const range of [[130, 0], [0, 200], ["0", 130], [0], [-5, 90]]) {
+    const a = inputs().authored
+    a.roles.knee.range = range as never
+    assert.throws(() => mergeLearn(inputs({ authored: a })), /knee.*range/, JSON.stringify(range))
+  }
+})
+
+test("definitions lose empty parentheses, pronunciation strings and trailing links", () => {
+  assert.equal(cleanDefinition("The semimembranosus muscle () is the most medial."), "The semimembranosus muscle is the most medial.")
+  assert.equal(cleanDefinition("The obliquus capitis inferior muscle (/əˈblaɪkwəs ˈkæpɪtɪs/) is the larger."), "The obliquus capitis inferior muscle is the larger.")
+  assert.equal(cleanDefinition("The arytenoid muscle /ærɪˈtiːnɔɪd/ is a single muscle."), "The arytenoid muscle is a single muscle.")
+  assert.equal(cleanDefinition("It joins the sternum. https://en.wikipedia.org/wiki/Pectoralis_major"), "It joins the sternum.")
+  assert.equal(cleanDefinition("The femur (, pl. femurs or femora ), or thigh bone, is long."), "The femur (pl. femurs or femora), or thigh bone, is long.")
+  assert.equal(cleanDefinition("Flexes and/or rotates the hip (see below)."), "Flexes and/or rotates the hip (see below).")
+})
+
+test("the committed inputs keep only definitions for structures a scene draws", () => {
+  assert.deepEqual(
+    selectDefinitions({ Femur: "a", "Rectus femoris muscle": "b", Pons: "c" }, { knee: ["Femur.r", "Rectus femoris muscle.r"] }),
+    { Femur: "a", "Rectus femoris muscle": "b" },
+  )
 })
 
 test("a scene with no built file fails by name", () => {

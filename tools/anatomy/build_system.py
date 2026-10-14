@@ -53,4 +53,8 @@ index = {'id': RID,
          'objects': [{'name': n, 'kind': kinds.get(base(n)) or KIND.get(c, 'other')} for n, (o, c) in sorted(chosen.items())],
          'missing': missing}
 json.dump(index, open(os.path.join(HERE, '.work', 'systems', f'{RID}.index.json'), 'w'), ensure_ascii=False, indent=1)
-print('exported', len(objs), 'objects; missing', len(missing), 'done')
+if missing:
+    # No done marker: build.sh stops here, before a thinner scene can reach public/.
+    print(f'MISSING in {RID}.allowlist.json (no object has this name): ' + '; '.join(missing))
+    sys.exit(1)
+print('exported', len(objs), 'objects; missing 0 done')

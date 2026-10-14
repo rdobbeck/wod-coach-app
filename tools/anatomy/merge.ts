@@ -19,6 +19,42 @@ export type MergeInputs = {
 const LICENSE = "Geometry and definitions CC BY-SA 4.0: Z-Anatomy (from BodyParts3D © DBCLS, CC BY 4.0), region method maikleonhg/atlas. See public/anatomy/LICENSE.md."
 const DEFINITION_MAX = 600
 
+const ROLES = new Set(["agonist", "antagonist", "synergist", "stabilizer"])
+const IPA = /[ˈˌːæðŋɔəɛɪʃʊʌʒθɑɒɜ]/
+
+/** Wikipedia residue Z-Anatomy keeps: empty "()", pronunciation strings, trailing links, "(, pl. …)". */
+export function cleanDefinition(text: string) {
+  return text
+    .replace(/\s*https?:\/\/\S+/g, "")
+    .replace(/\s*\(\/[^)]*\/\)/g, "")
+    .replace(/\s*\/[^/\s][^/]{0,80}\//g, (m) => (IPA.test(m) ? "" : m))
+    .replace(/\s*\(\s*\)/g, "")
+    .replace(/\(\s*,\s*/g, "(")
+    .replace(/\s+\)/g, ")")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim()
+}
+
+/** The definitions the scenes actually draw, keyed by base name: what the committed inputs need. */
+export function selectDefinitions(definitions: Record<string, string>, nodesByScene: Record<string, string[]>) {
+  const out: Record<string, string> = {}
+  for (const names of Object.values(nodesByScene))
+    for (const n of names) {
+      const b = baseName(n)
+      if (definitions[b] !== undefined) out[b] = definitions[b]
+    }
+  return out
+}
+
+function checkRoles(sceneId: string, r: AuthoredRoles[string]) {
+  const [min, max] = Array.isArray(r.range) ? r.range : []
+  const ok = Array.isArray(r.range) && r.range.length === 2 && typeof min === "number" && typeof max === "number" && min >= 0 && min < max && max <= 180
+  if (!ok) throw new Error(`${sceneId}: range must be two numbers from 0 to 180, smallest first (got ${JSON.stringify(r.range)})`)
+  for (const [id, role] of Object.entries(r.roles))
+    if (!ROLES.has(role)) throw new Error(`${sceneId}: role for ${id} is "${role}"; use agonist, antagonist, synergist or stabilizer`)
+}
+
 /** Cuts at the last sentence end that fits; falls back to a hard cut with an ellipsis. */
 export function clipDefinition(text: string, max = DEFINITION_MAX) {
   if (text.length <= max) return text
@@ -70,6 +106,7 @@ export function mergeLearn(i: MergeInputs): Learn {
       const meta = i.regionMeta[a.id]
       const roles = i.authored.roles[a.id]
       if (!meta || !roles || !a.movement) throw new Error(`joint scene ${a.id} needs meta, roles and an authored movement label`)
+      checkRoles(a.id, roles)
       for (const id of Object.keys(roles.roles)) if (!ids.has(id)) throw new Error(`role for ${id} but scene ${a.id} does not draw it`)
       scene.movement = {
         id: "flex", label: a.movement.label, range: roles.range,
@@ -87,7 +124,7 @@ export function mergeLearn(i: MergeInputs): Learn {
   for (const s of Object.values(structures)) {
     const first = Object.values(s.nodes)[0]?.[0]
     const text = first ? i.definitions[baseName(first)] : undefined
-    if (text) s.definition = { text: clipDefinition(noLongDashes(text)), source: "Z-Anatomy", license: "CC-BY-SA-4.0" }
+    if (text) s.definition = { text: clipDefinition(noLongDashes(cleanDefinition(text))), source: "Z-Anatomy", license: "CC-BY-SA-4.0" }
   }
   for (const [id, note] of Object.entries(i.authored.coachNotes)) {
     if (!structures[id]) throw new Error(`coach note for unknown structure ${id}`)
@@ -96,39 +133,55 @@ export function mergeLearn(i: MergeInputs): Learn {
   return { generatedAt: i.now ?? new Date().toISOString(), license: LICENSE, scenes, structures }
 }
 
-/** CLI: reads the pipeline's .work output and the authored folder, writes generated/ and learn.json. */
-function main() {
-  const here = __dirname
-  const root = join(here, "..", "..")
-  const work = join(here, ".work")
-  const authoredDir = join(root, "data", "anatomy", "authored")
-  const read = (p: string) => JSON.parse(readFileSync(p, "utf8"))
+/** What the pipeline hands merge, committed so authored edits never need Blender: data/anatomy/generated/inputs.json. */
+export type BuildInputs = Pick<MergeInputs, "files" | "regionIndex" | "regionMeta" | "systemIndex" | "definitions">
+
+const ROOT = join(__dirname, "..", "..")
+const INPUTS = join(ROOT, "data", "anatomy", "generated", "inputs.json")
+const read = (p: string) => JSON.parse(readFileSync(p, "utf8"))
+
+/** Reads the hashed GLBs in public/ for the node names each scene draws. */
+function nodesFor(files: MergeInputs["files"]) {
+  const out: Record<string, string[]> = {}
+  for (const [id, f] of Object.entries(files)) out[id] = meshNodeNames(readGlbJson(join(ROOT, "public", f.path)))
+  return out
+}
+
+/** After a Blender build: gathers .work output into the committed inputs file. */
+function collect() {
+  const work = join(__dirname, ".work")
+  if (!existsSync(join(work, "files.json"))) throw new Error("run compress.sh first")
   const files = read(join(work, "files.json")) as MergeInputs["files"]
-  const nodesByScene: Record<string, string[]> = {}
-  for (const [id, f] of Object.entries(files)) nodesByScene[id] = meshNodeNames(readGlbJson(join(root, "public", f.path)))
-  const regionIndex: MergeInputs["regionIndex"] = {}
-  const regionMeta: MergeInputs["regionMeta"] = {}
-  const systemIndex: MergeInputs["systemIndex"] = {}
+  const inputs: BuildInputs = { files, regionIndex: {}, regionMeta: {}, systemIndex: {}, definitions: {} }
   for (const [id, f] of Object.entries(files)) {
     if (f.kind === "region") {
-      regionIndex[id] = read(join(work, "regions", `${id}.index.json`))
-      regionMeta[id] = read(join(work, "regions", `${id}.meta.json`))
-    } else systemIndex[id] = read(join(work, "systems", `${id}.index.json`))
+      inputs.regionIndex[id] = read(join(work, "regions", `${id}.index.json`))
+      inputs.regionMeta[id] = read(join(work, "regions", `${id}.meta.json`))
+    } else inputs.systemIndex[id] = read(join(work, "systems", `${id}.index.json`))
   }
+  inputs.definitions = selectDefinitions(read(join(work, "definitions.json")), nodesFor(files))
+  mkdirSync(join(ROOT, "data", "anatomy", "generated"), { recursive: true })
+  writeFileSync(INPUTS, JSON.stringify(inputs, null, 1))
+}
+
+/** Committed inputs + Ryan's authored files -> generated/ and learn.json. */
+function main() {
+  if (!existsSync(INPUTS)) throw new Error(`${INPUTS} is missing: run npm run anatomy:build once`)
+  const inputs = read(INPUTS) as BuildInputs
+  const authoredDir = join(ROOT, "data", "anatomy", "authored")
   const out = mergeLearn({
-    files, nodesByScene, regionIndex, regionMeta, systemIndex,
-    definitions: read(join(work, "definitions.json")),
+    ...inputs,
+    nodesByScene: nodesFor(inputs.files),
     authored: { scenes: read(join(authoredDir, "scenes.json")), roles: read(join(authoredDir, "roles.json")), coachNotes: read(join(authoredDir, "coach-notes.json")) },
   })
-  const gen = join(root, "data", "anatomy", "generated")
-  mkdirSync(gen, { recursive: true })
+  const gen = join(ROOT, "data", "anatomy", "generated")
   writeFileSync(join(gen, "structures.json"), JSON.stringify(out.structures, null, 1))
   writeFileSync(join(gen, "scenes.json"), JSON.stringify(out.scenes, null, 1))
-  writeFileSync(join(root, "data", "anatomy", "learn.json"), JSON.stringify(out))
+  writeFileSync(join(ROOT, "data", "anatomy", "learn.json"), JSON.stringify(out))
   console.log(`merged ${out.scenes.length} scenes, ${Object.keys(out.structures).length} structures`)
 }
 
 if (process.argv[1]?.endsWith("merge.ts")) {
-  if (!existsSync(join(__dirname, ".work", "files.json"))) throw new Error("run compress.sh first")
+  if (process.argv.includes("--collect")) collect()
   main()
 }

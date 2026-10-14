@@ -27,7 +27,7 @@ for src in .work/regions/*.glb .work/systems/*.glb; do
   fi
   sha=$(shasum -a 256 "$tmp" | cut -c1-64)
   h8=${sha:0:8}
-  rm -f "$OUT/$id".*.glb
+  # Old hashes stay until merge and verify pass; prune.ts removes the unreferenced ones after that.
   cp "$tmp" "$OUT/$id.$h8.glb"
   bytes=$(stat -f%z "$OUT/$id.$h8.glb")
   node -e "const fs=require('fs');const f=JSON.parse(fs.readFileSync('.work/files.json','utf8'));f['$id']={kind:'$kind',path:'/anatomy/$id.$h8.glb',bytes:$bytes,sha256:'$sha'};fs.writeFileSync('.work/files.json',JSON.stringify(f,null,1))"

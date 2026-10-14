@@ -20,6 +20,7 @@
     "anatomy:fetch": "bash tools/anatomy/fetch.sh",
     "anatomy:build": "bash tools/anatomy/build.sh",
     "anatomy:verify": "tsx tools/anatomy/verify.ts",
+    "anatomy:merge": "tsx tools/anatomy/merge.ts && tsx tools/anatomy/verify.ts",
     "anatomy:posters": "tsx scripts/anatomy-posters.ts",
     "test:unit": "tsx --test 'tools/anatomy/*.test.ts' 'tests/unit/*.test.ts'"
   },

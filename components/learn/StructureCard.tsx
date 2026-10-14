@@ -28,7 +28,7 @@ export default function StructureCard({ structure, role, movementLabel }: { stru
       {structure.definition && (
         <div>
           <p className="text-sm text-app-text">{structure.definition.text}</p>
-          <p className="mt-1 text-[11px] text-app-muted">Definition from Wikipedia via Z-Anatomy, CC BY-SA.</p>
+          <p className="mt-1 text-[11px] text-app-muted">Excerpt from Wikipedia via Z-Anatomy, edited. CC BY-SA.</p>
         </div>
       )}
     </div>

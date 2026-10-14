@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { existsSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import type { Learn } from "../../lib/learn-types"
 import { readGlbJson, triangleCount } from "./glb"
@@ -23,13 +23,10 @@ export function verifyLearn(learn: Learn, opts: { bytesOf: (path: string) => num
 function main() {
   const root = join(__dirname, "..", "..")
   const learn = JSON.parse(readFileSync(join(root, "data", "anatomy", "learn.json"), "utf8")) as Learn
+  // The committed build inputs carry each system's unmatched allowlist names, so this check never depends on .work.
+  const inputs = JSON.parse(readFileSync(join(root, "data", "anatomy", "generated", "inputs.json"), "utf8")) as { systemIndex: Record<string, { missing: string[] }> }
   const missing: Record<string, string[]> = {}
-  const sysDir = join(__dirname, ".work", "systems")
-  if (existsSync(sysDir))
-    for (const f of readdirSync(sysDir).filter((f) => f.endsWith(".index.json"))) {
-      const idx = JSON.parse(readFileSync(join(sysDir, f), "utf8")) as { id: string; missing: string[] }
-      missing[idx.id] = idx.missing
-    }
+  for (const [id, idx] of Object.entries(inputs.systemIndex)) missing[id] = idx.missing
   const errors = verifyLearn(learn, {
     bytesOf: (p) => (existsSync(join(root, "public", p)) ? statSync(join(root, "public", p)).size : null),
     missing,

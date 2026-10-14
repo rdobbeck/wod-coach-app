@@ -16,7 +16,7 @@ export default async function ClientLearnScene({ params }: { params: { scene: st
         <p className="mt-1 text-sm text-app-muted">{scene.blurb}</p>
       </div>
       <Suspense fallback={<div className="h-[58vh] animate-pulse rounded-2xl bg-app-surface2" />}>
-        <SceneView scene={scene} structures={structuresFor(scene)} />
+        <SceneView scene={scene} structures={structuresFor(scene)} layout="stack" />
       </Suspense>
       <LearnCredits creditsHref="/learn/credits" />
     </div>

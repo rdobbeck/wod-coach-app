@@ -6,8 +6,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js"
 import { slugify } from "@/lib/learn-slug"
-import { accentColor, isTap, kindColor, morphInfluence, structureNameOf } from "@/lib/learn-viewer"
+import { accentColor, createTapTracker, kindColor, morphInfluence, selectionStyle, structureNameOf } from "@/lib/learn-viewer"
 import type { Kind, Scene, Structure } from "@/lib/learn-types"
+import { pickMesh } from "./pick"
 
 export type ViewerProps = {
   scene: Scene
@@ -37,6 +38,8 @@ type Rig = {
   raf: number
   disposed: boolean
   angle: number
+  /** The angle the skinned meshes' bounds were last computed at (see pick.ts); null = never. */
+  boundsAngle: number | null
   dir: 1 | -1
   accent: THREE.Color
   invalidate?: () => void
@@ -86,7 +89,7 @@ export default function AnatomyViewer(props: ViewerProps) {
     const key = new THREE.DirectionalLight("#ffffff", 1.6); key.position.set(2, 3, 2); scene3.add(key)
     const fill = new THREE.DirectionalLight("#9fb4ff", 0.6); fill.position.set(-3, 1, -2); scene3.add(fill)
 
-    const rig: Rig = { renderer, scene3, camera, controls, parts: [], byId: new Map(), distal: null, restQ: new THREE.Quaternion(), axisLocal: null, raf: 0, disposed: false, angle: propsRef.current.angle, dir: 1, accent: new THREE.Color(accentColor(el)) }
+    const rig: Rig = { renderer, scene3, camera, controls, parts: [], byId: new Map(), distal: null, restQ: new THREE.Quaternion(), axisLocal: null, raf: 0, disposed: false, angle: propsRef.current.angle, boundsAngle: null, dir: 1, accent: new THREE.Color(accentColor(el)) }
     rigRef.current = rig
 
     const frame = () => {
@@ -120,20 +123,25 @@ export default function AnatomyViewer(props: ViewerProps) {
     const onLost = (e: Event) => { e.preventDefault(); propsRef.current.onError("The 3D view stopped. Reload the page to bring it back.") }
     renderer.domElement.addEventListener("webglcontextlost", onLost)
 
-    // Tap to select: pointer up within 6 px of pointer down; empty space clears.
-    let down: [number, number] | null = null
-    const onDown = (e: PointerEvent) => { down = [e.clientX, e.clientY] }
+    // Tap to select: one main-button pointer that stayed within 6 px, never part of a pinch; empty space clears.
+    const taps = createTapTracker()
+    const onDown = (e: PointerEvent) => { taps.down(e.pointerId, e.clientX, e.clientY, e.button === 0) }
+    const onMove = (e: PointerEvent) => { taps.move(e.pointerId, e.clientX, e.clientY) }
+    const onCancel = (e: PointerEvent) => { taps.cancel(e.pointerId) }
     const onUp = (e: PointerEvent) => {
-      if (!isTap(down, [e.clientX, e.clientY])) return
+      if (!taps.up(e.pointerId, e.clientX, e.clientY)) return
       const r = renderer.domElement.getBoundingClientRect()
       const ptr = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
       const ray = new THREE.Raycaster()
       ray.setFromCamera(ptr, camera)
-      const hit = ray.intersectObjects(rig.parts.filter((p) => p.mesh.visible && p.id).map((p) => p.mesh), false)[0]
-      const part = hit ? rig.parts.find((p) => p.mesh === hit.object) : undefined
+      scene3.updateMatrixWorld()
+      const hit = pickMesh(ray, rig.parts.filter((p) => p.mesh.visible && p.id).map((p) => p.mesh), rig)
+      const part = hit ? rig.parts.find((p) => p.mesh === hit) : undefined
       propsRef.current.onSelect(part?.id ?? null)
     }
     renderer.domElement.addEventListener("pointerdown", onDown)
+    renderer.domElement.addEventListener("pointermove", onMove)
+    renderer.domElement.addEventListener("pointercancel", onCancel)
     renderer.domElement.addEventListener("pointerup", onUp)
 
     const loader = new GLTFLoader()
@@ -152,7 +160,7 @@ export default function AnatomyViewer(props: ViewerProps) {
             const id = slugify(structureNameOf(mesh))
             const s = structures[id] ?? null
             const kind = s?.kind ?? null
-            const mat = new THREE.MeshStandardMaterial({ color: kindColor(kind, s?.label ?? ""), roughness: kind === "bone" ? 0.72 : 0.55, metalness: 0, transparent: true, opacity: 1 })
+            const mat = new THREE.MeshStandardMaterial({ color: kindColor(kind, s?.label ?? ""), roughness: kind === "bone" ? 0.72 : 0.55, metalness: 0, transparent: false, opacity: 1 })
             mesh.material = mat
             mesh.frustumCulled = false
             if (!s) mesh.visible = false // insertion areas and anything not in the scene's structure list
@@ -198,6 +206,8 @@ export default function AnatomyViewer(props: ViewerProps) {
       controls.dispose()
       renderer.domElement.removeEventListener("webglcontextlost", onLost)
       renderer.domElement.removeEventListener("pointerdown", onDown)
+      renderer.domElement.removeEventListener("pointermove", onMove)
+      renderer.domElement.removeEventListener("pointercancel", onCancel)
       renderer.domElement.removeEventListener("pointerup", onUp)
       scene3.traverse((o) => {
         const m = o as THREE.Mesh
@@ -226,13 +236,18 @@ function applyPose(r: Rig, scene: Scene, angle: number) {
   for (const p of r.parts) if (p.mesh.morphTargetInfluences?.length) p.mesh.morphTargetInfluences[0] = c
 }
 
-/** Selected: accent glow. Everything else that is not bone: 35% so the selection reads through. */
+/**
+ * Selected: accent glow. Everything else that is not bone fades to 35% and stops writing depth, so
+ * it never hides the selection. Only faded parts are transparent: opaque parts keep the cheap pass.
+ */
 function applySelection(r: Rig, selectedId: string | null) {
   for (const p of r.parts) {
-    const isSel = !!selectedId && p.id === selectedId
+    const st = selectionStyle(p.id, p.kind, selectedId)
     p.mat.emissive.set(0x000000)
-    if (isSel) p.mat.emissive.copy(r.accent).multiplyScalar(0.35)
-    p.mat.opacity = selectedId && !isSel && p.kind !== "bone" ? 0.35 : 1
+    if (st.glow) p.mat.emissive.copy(r.accent).multiplyScalar(0.35)
+    p.mat.opacity = st.opacity
+    p.mat.transparent = st.transparent
+    p.mat.depthWrite = st.depthWrite
     p.mat.needsUpdate = true
   }
 }

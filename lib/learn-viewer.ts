@@ -27,6 +27,44 @@ export function structureNameOf(o: Named): string {
 export const isTap = (down: [number, number] | null, up: [number, number], max = 6) =>
   !!down && Math.hypot(up[0] - down[0], up[1] - down[1]) <= max
 
+/**
+ * Tells taps from drags and pinches across pointer events. A gesture is a tap only when one
+ * main-button pointer went down, no second pointer joined, and it never strayed more than `max` px.
+ */
+export function createTapTracker(max = 6) {
+  const active = new Set<number>()
+  let g: { id: number; x: number; y: number; far: boolean; multi: boolean; main: boolean; cancelled: boolean } | null = null
+  const strayed = (x: number, y: number) => !!g && Math.hypot(x - g.x, y - g.y) > max
+  return {
+    down(id: number, x: number, y: number, mainButton: boolean) {
+      if (active.size === 0) g = { id, x, y, far: false, multi: false, main: mainButton, cancelled: false }
+      else if (g) g.multi = true
+      active.add(id)
+    },
+    move(id: number, x: number, y: number) {
+      if (g && id === g.id && strayed(x, y)) g.far = true
+    },
+    up(id: number, x: number, y: number): boolean {
+      const wasActive = active.delete(id)
+      const tap = wasActive && !!g && id === g.id && !g.multi && g.main && !g.cancelled && !g.far && !strayed(x, y)
+      if (active.size === 0) g = null
+      return tap
+    },
+    cancel(id: number) {
+      active.delete(id)
+      if (g && id === g.id) g.cancelled = true
+      if (active.size === 0) g = null
+    },
+  }
+}
+
+/** How a part looks given the current selection. Faded parts blend and stop writing depth so they never hide the selection. */
+export function selectionStyle(partId: string | null, kind: Kind | null, selectedId: string | null) {
+  const isSel = !!selectedId && partId === selectedId
+  const faded = !!selectedId && !isSel && kind !== "bone"
+  return { opacity: faded ? 0.35 : 1, transparent: faded, depthWrite: !faded, glow: isSel }
+}
+
 /** A fixed anatomical palette that reads on every app theme. Only the selection highlight follows the theme. */
 export const PALETTE = {
   bone: "#e9dfcb",
@@ -38,7 +76,7 @@ export const PALETTE = {
   other: "#9aa3b2",
 } as const
 
-const VEIN_RE = /\b(vein|vena cava|sinus)\b/i
+const VEIN_RE = /\b(veins?|vena cava|sinus)\b/i
 
 export function kindColor(kind: Kind | null, label: string) {
   if (kind === "vessel") return VEIN_RE.test(label) ? PALETTE.vein : PALETTE.vessel

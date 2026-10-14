@@ -16,7 +16,7 @@ export default function StructureList({ items, selectedId, onSelect }: { items: 
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search structures"
           aria-label="Search structures"
-          className="h-11 w-full rounded-xl border border-app-border bg-app-bg px-3 text-sm"
+          className="h-11 w-full rounded-xl border border-app-border bg-app-bg px-3 text-base"
         />
       </div>
       <ul className="max-h-[40vh] overflow-y-auto px-2 pb-2 md:max-h-[48vh]">
