@@ -1,0 +1,16 @@
+{
+  "id": "breathing",
+  "collections": ["8: Visceral systems", "4: Muscular system"],
+  "include": [
+    "Trachea", "Right main bronchus", "Left main bronchus", "Intermediate bronchus",
+    "Right superior lobar bronchus", "Middle lobar bronchus", "Right inferior lobar bronchus",
+    "Left superior lobar bronchus", "Left inferior lobar bronchus",
+    "Superior lobe of right lung", "Middle lobe of right lung", "Inferior lobe of right lung",
+    "Superior lobe of left lung", "Inferior lobe of left lung",
+    "Diaphragm", "External intercostal muscles", "Internal intercostal muscles", "Innermost intercostal muscles",
+    "Scalenus anterior muscle", "Scalenus medius muscle", "Scalenus posterior muscle", "Sternocleidomastoid muscle",
+    "Serratus posterior superior muscle", "Serratus posterior inferior muscle", "Transversus thoracis muscle"
+  ],
+  "exclude": [],
+  "ratio": 0.25, "curveResolution": 4, "bevelResolution": 2, "simplify": null
+}

@@ -1,0 +1,24 @@
+{
+  "id": "heart",
+  "collections": ["5: Cardiovascular system"],
+  "include": [
+    { "name": "Right atrium", "kind": "organ" }, { "name": "Right ventricle", "kind": "organ" },
+    { "name": "Left atrium", "kind": "organ" }, { "name": "Left ventricle", "kind": "organ" },
+    { "name": "Pulmonary trunk", "kind": "vessel" },
+    "Right coronary artery", "Left coronary artery", "Circumflex artery of heart", "Coronary sinus",
+    "Ascending aorta", "Thoracic aorta", "Abdominal aorta",
+    "Left pulmonary artery", "Right pulmonary artery",
+    "Right superior pulmonary vein", "Right inferior pulmonary vein", "Left superior pulmonary vein", "Left inferior pulmonary vein",
+    "Superior vena cava", "Inferior vena cava (thoracic part)", "Inferior vena cava (abdominal part)",
+    "Right brachiocephalic vein", "Left brachiocephalic vein",
+    "Right subclavian vein", "Left subclavian vein", "Axillary vein", "Brachial veins", "Cephalic vein", "Basilic vein", "Median cubital vein", "Radial veins", "Ulnar veins",
+    "Common iliac vein", "External iliac vein", "Internal iliac vein", "Femoral vein", "Deep femoral vein", "Great saphenous vein", "Small saphenous vein", "Popliteal vein", "Anterior tibial veins", "Posterior tibial veins",
+    "Right common carotid artery", "Left common carotid artery", "Internal carotid artery", "External carotid artery",
+    "Internal jugular vein", "External jugular vein",
+    "Right subclavian artery", "Left subclavian artery", "Axillary artery", "Brachial artery", "Radial artery", "Ulnar artery",
+    "Common iliac artery", "External iliac artery", "Internal iliac artery",
+    "Femoral artery", "Deep femoral artery", "Popliteal artery", "Anterior tibial artery", "Posterior tibial artery"
+  ],
+  "exclude": [],
+  "ratio": 0.25, "curveResolution": 4, "bevelResolution": 2, "simplify": null
+}

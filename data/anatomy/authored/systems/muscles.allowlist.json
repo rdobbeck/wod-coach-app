@@ -1,0 +1,1 @@
+{ "id": "muscles", "collections": ["4: Muscular system"], "include": "*", "exclude": [], "ratio": 0.25, "curveResolution": 4, "bevelResolution": 2, "simplify": null }

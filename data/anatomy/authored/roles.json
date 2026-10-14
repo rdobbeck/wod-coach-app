@@ -1,0 +1,124 @@
+{
+ "knee": {
+  "range": [
+   0,
+   130
+  ],
+  "roles": {
+   "rectus-femoris-muscle": "antagonist",
+   "vastus-lateralis-muscle": "antagonist",
+   "vastus-medialis-muscle": "antagonist",
+   "vastus-intermedius-muscle": "antagonist",
+   "long-head-of-biceps-femoris": "agonist",
+   "short-head-of-biceps-femoris": "agonist",
+   "semitendinosus-muscle": "agonist",
+   "semimembranosus-muscle": "agonist",
+   "sartorius-muscle": "synergist",
+   "gracilis-muscle": "synergist",
+   "lateral-head-of-gastrocnemius": "synergist",
+   "medial-head-of-gastrocnemius": "synergist",
+   "plantaris-muscle": "synergist",
+   "popliteus-muscle": "synergist"
+  }
+ },
+ "hip": {
+  "range": [
+   0,
+   90
+  ],
+  "roles": {
+   "psoas-major": "agonist",
+   "iliacus-muscle": "agonist",
+   "rectus-femoris-muscle": "agonist",
+   "sartorius-muscle": "synergist",
+   "tensor-fasciae-latae": "synergist",
+   "pectineus-muscle": "synergist",
+   "adductor-longus": "synergist",
+   "adductor-brevis": "synergist",
+   "adductor-magnus": "antagonist",
+   "gluteus-maximus-muscle": "antagonist",
+   "long-head-of-biceps-femoris": "antagonist",
+   "semitendinosus-muscle": "antagonist",
+   "semimembranosus-muscle": "antagonist"
+  }
+ },
+ "shoulder": {
+  "range": [
+   0,
+   150
+  ],
+  "roles": {
+   "acromial-part-of-deltoid-muscle": "agonist",
+   "supraspinatus-muscle": "agonist",
+   "clavicular-part-of-deltoid-muscle": "synergist",
+   "scapular-spinal-part-of-deltoid-muscle": "synergist",
+   "infraspinatus-muscle": "synergist",
+   "teres-minor-muscle": "synergist",
+   "subscapularis-muscle": "synergist",
+   "long-head-of-biceps-brachii": "synergist",
+   "teres-major-muscle": "antagonist",
+   "clavicular-head-of-pectoralis-major-muscle": "antagonist",
+   "sternocostal-head-of-pectoralis-major-muscle": "antagonist",
+   "abdominal-part-of-pectoralis-major-muscle": "antagonist",
+   "latissimus-dorsi-muscle": "antagonist",
+   "coracobrachialis-muscle": "antagonist",
+   "long-head-of-triceps-brachii": "antagonist"
+  }
+ },
+ "elbow": {
+  "range": [
+   0,
+   135
+  ],
+  "roles": {
+   "long-head-of-biceps-brachii": "agonist",
+   "short-head-of-biceps-brachii": "agonist",
+   "brachialis-muscle": "agonist",
+   "brachioradialis-muscle": "agonist",
+   "long-head-of-triceps-brachii": "antagonist",
+   "lateral-head-of-triceps-brachii": "antagonist",
+   "medial-head-of-triceps-brachii": "antagonist",
+   "anconeus-muscle": "antagonist",
+   "superficial-head-of-pronator-teres": "synergist",
+   "deep-head-of-pronator-teres": "synergist",
+   "extensor-carpi-radialis-longus": "synergist"
+  }
+ },
+ "lumbar": {
+  "range": [
+   0,
+   60
+  ],
+  "roles": {
+   "rectus-abdominis-muscle": "agonist",
+   "external-abdominal-oblique-muscle": "agonist",
+   "internal-abdominal-oblique-muscle": "agonist",
+   "transversus-abdominis-muscle": "synergist",
+   "psoas-major": "synergist",
+   "iliocostalis-lumborum-muscle": "antagonist",
+   "longissimus-thoracis-muscle": "antagonist",
+   "multifidus-lumborum-muscle": "antagonist"
+  }
+ },
+ "neck": {
+  "range": [
+   0,
+   45
+  ],
+  "roles": {
+   "sternocleidomastoid-muscle": "agonist",
+   "longus-colli-muscle": "agonist",
+   "longus-capitis-muscle": "agonist",
+   "scalenus-anterior-muscle": "synergist",
+   "sternohyoid-muscle": "synergist",
+   "sternothyroid-muscle": "synergist",
+   "thyrohyoid-muscle": "synergist",
+   "omohyoid-muscle": "synergist",
+   "splenius-capitis-muscle": "antagonist",
+   "splenius-colli-muscle": "antagonist",
+   "semispinalis-colli-muscle": "antagonist",
+   "longissimus-capitis-muscle": "antagonist",
+   "ascending-part-of-trapezius-muscle": "antagonist"
+  }
+ }
+}

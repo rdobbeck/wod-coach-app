@@ -1,0 +1,27 @@
+{
+  "id": "nerves",
+  "collections": ["7: Nervous system & Sense organs"],
+  "include": [
+    { "name": "Midbrain", "kind": "organ" }, { "name": "Pons", "kind": "organ" }, { "name": "Medulla oblongata", "kind": "organ" },
+    { "name": "Thalamus", "kind": "organ" }, { "name": "Hypothalamus", "kind": "organ" }, { "name": "Caudate nucleus", "kind": "organ" },
+    { "name": "Superior frontal gyrus", "kind": "organ" }, { "name": "Middle frontal gyrus", "kind": "organ" },
+    { "name": "Opercular part of inferior frontal gyrus", "kind": "organ" }, { "name": "Triangular part of inferior frontal gyrus", "kind": "organ" },
+    { "name": "Orbital part of  inferior frontal gyrus", "kind": "organ" }, { "name": "Orbital gyri (Frontomarginal gyrus and sulcus*)", "kind": "organ" },
+    { "name": "Straight gyrus (Gyrus rectus)", "kind": "organ" }, { "name": "Transverse frontopolar gyrus and sulcus*", "kind": "organ" },
+    { "name": "Precentral gyrus", "kind": "organ" }, { "name": "Postcentral gyrus", "kind": "organ" }, { "name": "Paracentral gyrus and sulcus*", "kind": "organ" },
+    { "name": "Supramarginal gyrus", "kind": "organ" }, { "name": "Angular gyrus", "kind": "organ" },
+    { "name": "Superior temporal gyrus (Lateral part)", "kind": "organ" }, { "name": "Middle temporal gyrus", "kind": "organ" }, { "name": "Inferior temporal gyrus", "kind": "organ" },
+    { "name": "Lateral occipital gyrus (Middle occipital gyrus*)", "kind": "organ" }, { "name": "Inferior occipital gyrus and sulcus*", "kind": "organ" },
+    { "name": "Lingual gyrus", "kind": "organ" }, { "name": "Lateral occipitotemporal gyrus", "kind": "organ" }, { "name": "Medial occipitotemporal gyrus (Parahippocampal*)", "kind": "organ" },
+    { "name": "Cingulate gyrus and sulcus (Middle anterior part)", "kind": "organ" }, { "name": "Cingulate gyrus and sulcus (Middle posterior part)", "kind": "organ" },
+    { "name": "Cingulate gyrus and sulcus (Posterior dorsal part)", "kind": "organ" }, { "name": "Cingulate gyrus (Posteroventral part*)", "kind": "organ" },
+    { "name": "Insula (Subcentral gyrus and ant. and post. sulci*)", "kind": "organ" },
+    { "name": "Tonsil of cerebellum", "kind": "organ" }, { "name": "Superior cerebellar peduncle", "kind": "organ" }, { "name": "Lingula of cerebellum", "kind": "organ" },
+    { "name": "Spinal dura", "kind": "organ" }, "Cauda equina", "Spinal ganglion",
+    "Roots of brachial plexus", "Superior trunk of brachial plexus", "Middle trunk of brachial plexus", "Inferior trunk of brachial plexus",
+    "Posterior cord of brachial plexus", "Axillary nerve", "Musculocutaneous nerve", "Radial nerve", "Median nerve", "Ulnar nerve",
+    "Femoral nerve", "Obturator nerve", "Sciatic nerve", "Tibial nerve", "Common fibular nerve", "Superficial fibular nerve", "Deep fibular nerve", "Vagus nerve (X)"
+  ],
+  "exclude": [],
+  "ratio": 0.2, "curveResolution": 4, "bevelResolution": 2, "simplify": null
+}

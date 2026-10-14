@@ -1,0 +1,284 @@
+[
+  {
+    "id": "knee",
+    "kind": "joint",
+    "title": "Knee",
+    "blurb": "The hinge you load every squat, lunge and step. Bend it and watch the hamstrings pull while the quads let go.",
+    "movement": {
+      "label": "Knee flexion"
+    }
+  },
+  {
+    "id": "hip",
+    "kind": "joint",
+    "title": "Hip",
+    "blurb": "The biggest joint in the body and the engine of the squat and the deadlift. Flex it and see what the hip flexors and glutes are doing.",
+    "movement": {
+      "label": "Hip flexion"
+    }
+  },
+  {
+    "id": "shoulder",
+    "kind": "joint",
+    "title": "Shoulder",
+    "blurb": "The most mobile joint you own, held together by muscle more than bone. Raise the arm and watch the deltoid and the rotator cuff share the work.",
+    "movement": {
+      "label": "Shoulder abduction"
+    }
+  },
+  {
+    "id": "elbow",
+    "kind": "joint",
+    "title": "Elbow",
+    "blurb": "A simple hinge with three muscles that bend it and one big one that straightens it. Curl and see which head does what.",
+    "movement": {
+      "label": "Elbow flexion"
+    }
+  },
+  {
+    "id": "lumbar",
+    "kind": "joint",
+    "title": "Lumbar spine",
+    "blurb": "Five vertebrae, the discs between them, and the muscles that brace and bend them. This is what a neutral spine actually means.",
+    "movement": {
+      "label": "Trunk flexion"
+    }
+  },
+  {
+    "id": "neck",
+    "kind": "joint",
+    "title": "Neck",
+    "blurb": "Seven vertebrae and a lot of small muscles. Nod forward and see what holds the head up all day.",
+    "movement": {
+      "label": "Neck flexion"
+    }
+  },
+  {
+    "id": "muscles",
+    "kind": "system",
+    "title": "Muscular system",
+    "blurb": "Every skeletal muscle in the body, each one a structure you can tap. Spin it, find what hurts after leg day, and read what it does."
+  },
+  {
+    "id": "skeleton",
+    "kind": "system",
+    "title": "Skeletal system",
+    "blurb": "The frame the muscles pull on. Bones are living tissue and they adapt to load the same way muscle does."
+  },
+  {
+    "id": "heart",
+    "kind": "system",
+    "title": "Heart and circulation",
+    "blurb": "Four chambers and the main roads out of them. This is the pump that conditioning trains.",
+    "layers": [
+      {
+        "id": "heart",
+        "label": "Heart",
+        "defaultOn": true,
+        "structures": [
+          "right-atrium",
+          "right-ventricle",
+          "left-atrium",
+          "left-ventricle",
+          "pulmonary-trunk",
+          "right-coronary-artery",
+          "left-coronary-artery",
+          "circumflex-artery-of-heart",
+          "coronary-sinus"
+        ]
+      },
+      {
+        "id": "arteries",
+        "label": "Arteries",
+        "defaultOn": true,
+        "structures": [
+          "ascending-aorta",
+          "thoracic-aorta",
+          "abdominal-aorta",
+          "left-pulmonary-artery",
+          "right-pulmonary-artery",
+          "right-common-carotid-artery",
+          "left-common-carotid-artery",
+          "internal-carotid-artery",
+          "external-carotid-artery",
+          "right-subclavian-artery",
+          "left-subclavian-artery",
+          "axillary-artery",
+          "brachial-artery",
+          "radial-artery",
+          "ulnar-artery",
+          "common-iliac-artery",
+          "external-iliac-artery",
+          "internal-iliac-artery",
+          "femoral-artery",
+          "deep-femoral-artery",
+          "popliteal-artery",
+          "anterior-tibial-artery",
+          "posterior-tibial-artery"
+        ]
+      },
+      {
+        "id": "veins",
+        "label": "Veins",
+        "defaultOn": true,
+        "structures": [
+          "right-superior-pulmonary-vein",
+          "right-inferior-pulmonary-vein",
+          "left-superior-pulmonary-vein",
+          "left-inferior-pulmonary-vein",
+          "superior-vena-cava",
+          "inferior-vena-cava-thoracic-part",
+          "inferior-vena-cava-abdominal-part",
+          "right-brachiocephalic-vein",
+          "left-brachiocephalic-vein",
+          "internal-jugular-vein",
+          "external-jugular-vein",
+          "right-subclavian-vein",
+          "left-subclavian-vein",
+          "axillary-vein",
+          "brachial-veins",
+          "cephalic-vein",
+          "basilic-vein",
+          "median-cubital-vein",
+          "radial-veins",
+          "ulnar-veins",
+          "common-iliac-vein",
+          "external-iliac-vein",
+          "internal-iliac-vein",
+          "femoral-vein",
+          "deep-femoral-vein",
+          "great-saphenous-vein",
+          "small-saphenous-vein",
+          "popliteal-vein",
+          "anterior-tibial-veins",
+          "posterior-tibial-veins"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "breathing",
+    "kind": "system",
+    "title": "Breathing",
+    "blurb": "Air in through the trachea, down the bronchi, into two lungs. The diaphragm does most of the work and the muscles around the ribs do the rest.",
+    "layers": [
+      {
+        "id": "airway",
+        "label": "Airway and lungs",
+        "defaultOn": true,
+        "structures": [
+          "trachea",
+          "right-main-bronchus",
+          "left-main-bronchus",
+          "intermediate-bronchus",
+          "right-superior-lobar-bronchus",
+          "middle-lobar-bronchus",
+          "right-inferior-lobar-bronchus",
+          "left-superior-lobar-bronchus",
+          "left-inferior-lobar-bronchus",
+          "superior-lobe-of-right-lung",
+          "middle-lobe-of-right-lung",
+          "inferior-lobe-of-right-lung",
+          "superior-lobe-of-left-lung",
+          "inferior-lobe-of-left-lung"
+        ]
+      },
+      {
+        "id": "muscles",
+        "label": "Breathing muscles",
+        "defaultOn": true,
+        "structures": [
+          "diaphragm",
+          "external-intercostal-muscles",
+          "internal-intercostal-muscles",
+          "innermost-intercostal-muscles",
+          "scalenus-anterior-muscle",
+          "scalenus-medius-muscle",
+          "scalenus-posterior-muscle",
+          "sternocleidomastoid-muscle",
+          "serratus-posterior-superior-muscle",
+          "serratus-posterior-inferior-muscle",
+          "transversus-thoracis-muscle"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "nerves",
+    "kind": "system",
+    "title": "Brain and nerves",
+    "blurb": "The wiring. Every rep starts as a signal here, and strength in the first weeks of training is mostly this system learning the movement.",
+    "layers": [
+      {
+        "id": "brain",
+        "label": "Brain and spinal cord",
+        "defaultOn": true,
+        "structures": [
+          "midbrain",
+          "pons",
+          "medulla-oblongata",
+          "thalamus",
+          "hypothalamus",
+          "caudate-nucleus",
+          "superior-frontal-gyrus",
+          "middle-frontal-gyrus",
+          "opercular-part-of-inferior-frontal-gyrus",
+          "triangular-part-of-inferior-frontal-gyrus",
+          "orbital-part-of-inferior-frontal-gyrus",
+          "orbital-gyri-frontomarginal-gyrus-and-sulcus",
+          "straight-gyrus-gyrus-rectus",
+          "transverse-frontopolar-gyrus-and-sulcus",
+          "precentral-gyrus",
+          "postcentral-gyrus",
+          "paracentral-gyrus-and-sulcus",
+          "supramarginal-gyrus",
+          "angular-gyrus",
+          "superior-temporal-gyrus-lateral-part",
+          "middle-temporal-gyrus",
+          "inferior-temporal-gyrus",
+          "lateral-occipital-gyrus-middle-occipital-gyrus",
+          "inferior-occipital-gyrus-and-sulcus",
+          "lingual-gyrus",
+          "lateral-occipitotemporal-gyrus",
+          "medial-occipitotemporal-gyrus-parahippocampal",
+          "cingulate-gyrus-and-sulcus-middle-anterior-part",
+          "cingulate-gyrus-and-sulcus-middle-posterior-part",
+          "cingulate-gyrus-and-sulcus-posterior-dorsal-part",
+          "cingulate-gyrus-posteroventral-part",
+          "insula-subcentral-gyrus-and-ant-and-post-sulci",
+          "tonsil-of-cerebellum",
+          "superior-cerebellar-peduncle",
+          "lingula-of-cerebellum",
+          "spinal-dura"
+        ]
+      },
+      {
+        "id": "nerves",
+        "label": "Nerves",
+        "defaultOn": true,
+        "structures": [
+          "cauda-equina",
+          "spinal-ganglion",
+          "roots-of-brachial-plexus",
+          "superior-trunk-of-brachial-plexus",
+          "middle-trunk-of-brachial-plexus",
+          "inferior-trunk-of-brachial-plexus",
+          "posterior-cord-of-brachial-plexus",
+          "axillary-nerve",
+          "musculocutaneous-nerve",
+          "radial-nerve",
+          "median-nerve",
+          "ulnar-nerve",
+          "femoral-nerve",
+          "obturator-nerve",
+          "sciatic-nerve",
+          "tibial-nerve",
+          "common-fibular-nerve",
+          "superficial-fibular-nerve",
+          "deep-fibular-nerve",
+          "vagus-nerve-x"
+        ]
+      }
+    ]
+  }
+]

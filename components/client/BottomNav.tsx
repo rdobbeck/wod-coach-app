@@ -22,6 +22,18 @@ const tabs = [
     ),
   },
   {
+    href: "/client/learn",
+    label: "Learn",
+    match: (p: string) => p.startsWith("/client/learn"),
+    icon: (
+      <>
+        <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" />
+        <path d="M4 20.5V5.5" />
+        <path d="M9 7h7M9 10.5h7" />
+      </>
+    ),
+  },
+  {
     href: "/client/messages",
     label: "Messages",
     match: (p: string) => p.startsWith("/client/messages"),
@@ -44,7 +56,7 @@ export default function BottomNav({ unread = 0 }: { unread?: number }) {
   const pathname = usePathname()
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-app-border bg-app-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-      <div className="mx-auto grid max-w-md grid-cols-4">
+      <div className="mx-auto grid max-w-md grid-cols-5">
         {tabs.map((t) => {
           const active = t.match(pathname)
           return (
