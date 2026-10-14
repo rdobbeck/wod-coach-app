@@ -776,6 +776,162 @@
       ]
     },
     {
+      "key": "swim",
+      "label": "Swim",
+      "items": [
+        {
+          "id": "speedo-vanquisher-2-goggles",
+          "name": "Speedo Vanquisher 2.0 Mirrored Goggles",
+          "brand": "Speedo",
+          "blurb": "The lap-swim default. Low profile, seals well, and four nose bridges so it actually fits your face. Mirrored lens cuts glare in outdoor pools.",
+          "imageUrl": "https://m.media-amazon.com/images/I/71j-LPNKS4L._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/B07T3HWW7C?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "swim",
+          "priceBand": "$",
+          "featured": false
+        },
+        {
+          "id": "speedo-silicone-swim-cap",
+          "name": "Speedo Elastomeric Silicone Swim Cap",
+          "brand": "Speedo",
+          "blurb": "Keeps hair out of your face and chlorine off your scalp. Silicone lasts for years and doesn't pull hair like latex.",
+          "imageUrl": "https://m.media-amazon.com/images/I/21YumywwM-L._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/B00KRNCIPA?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "swim",
+          "priceBand": "$",
+          "featured": false
+        },
+        {
+          "id": "speedo-adult-kickboard",
+          "name": "Speedo Adult Training Kickboard",
+          "brand": "Speedo",
+          "blurb": "Kick sets are where I fix body position. Basic foam board, nothing fancy, and it's the one most pools have on deck.",
+          "imageUrl": "https://m.media-amazon.com/images/I/41oeLR+IgUL._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/B0172GZZNG?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "swim",
+          "priceBand": "$",
+          "featured": false
+        },
+        {
+          "id": "speedo-pull-buoy",
+          "name": "Speedo Adult Pull Buoy",
+          "brand": "Speedo",
+          "blurb": "Floats your hips so you can isolate the pull. Wedge it high between the thighs and your stroke problems show up fast.",
+          "imageUrl": "https://m.media-amazon.com/images/I/319xKvYMDUL._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/B0172GZVAS?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "swim",
+          "priceBand": "$",
+          "featured": false
+        },
+        {
+          "id": "finis-zoomers-gold-fins",
+          "name": "FINIS Z2 Gold Zoomers (Short-Blade Fins)",
+          "brand": "FINIS",
+          "blurb": "Short blade forces a fast, narrow kick instead of a lazy one. Great for ankle flexibility and for making drill sets feel easy.",
+          "imageUrl": "https://m.media-amazon.com/images/I/31Zty29x7YL._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/B00BKMAFCU?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "swim",
+          "priceBand": "$$",
+          "featured": false
+        },
+        {
+          "id": "finis-agility-paddles",
+          "name": "FINIS Agility Paddles (Strapless)",
+          "brand": "FINIS",
+          "blurb": "No straps. If your hand enters wrong or you drop your elbow, the paddle slips off. Instant feedback on the catch.",
+          "imageUrl": "https://m.media-amazon.com/images/I/61fbf8-E9ML._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/B0H7TKYR87?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "swim",
+          "priceBand": "$$",
+          "featured": false
+        },
+        {
+          "id": "finis-swimmers-snorkel",
+          "name": "FINIS Original Swimmer's Snorkel",
+          "brand": "FINIS",
+          "blurb": "Center-mount so you can swim with your head still and work on alignment without thinking about breathing. The best drill tool in the bag.",
+          "imageUrl": "https://m.media-amazon.com/images/I/31HaWI0qd4L._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/B004O6ECL4?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "swim",
+          "priceBand": "$$",
+          "featured": false
+        },
+        {
+          "id": "finis-tempo-trainer-pro",
+          "name": "FINIS Tempo Trainer Pro",
+          "brand": "FINIS",
+          "blurb": "A waterproof metronome that sits under your cap. Set a stroke rate or a pace per length and hold it. I use it to stop people from rushing.",
+          "imageUrl": "https://m.media-amazon.com/images/I/41q8AlzvwQL._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/B005TVYVI2?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "swim",
+          "priceBand": "$$",
+          "featured": false
+        },
+        {
+          "id": "speedo-eco-endurance-jammer",
+          "name": "Speedo Men's ECO Endurance+ Jammer",
+          "brand": "Speedo",
+          "blurb": "Chlorine-resistant fabric that keeps its shape for seasons. Board shorts drag. A jammer doesn't.",
+          "imageUrl": "https://m.media-amazon.com/images/I/51llW4YGQFL._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/B094DNQBT4?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "swim",
+          "priceBand": "$$",
+          "featured": false
+        },
+        {
+          "id": "macks-aquablock-earplugs",
+          "name": "Mack's AquaBlock Swimming Earplugs (3 Pair)",
+          "brand": "Mack's",
+          "blurb": "Cheap insurance against swimmer's ear. Soft silicone, reusable, and they actually stay in.",
+          "imageUrl": "https://m.media-amazon.com/images/I/514m3S6731L._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/B083QRZGLK?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "swim",
+          "priceBand": "$",
+          "featured": false
+        }
+      ]
+    },
+    {
       "key": "recovery",
       "label": "Recovery",
       "items": [
@@ -1840,6 +1996,21 @@
           "category": "books",
           "priceBand": "$$",
           "featured": false
+        },
+        {
+          "id": "total-immersion-laughlin",
+          "name": "Total Immersion: The Revolutionary Way to Swim Better, Faster, and Easier",
+          "brand": "Terry Laughlin",
+          "blurb": "The book that teaches adults to swim efficiently instead of just harder. Balance, streamline, then speed. Read it before you try to swim faster.",
+          "imageUrl": "https://m.media-amazon.com/images/I/51bZALWCMZL._AC_SX679_.jpg",
+          "url": "https://www.amazon.com/dp/0743253434?tag=ryandobbeck-20",
+          "cta": "View on Amazon",
+          "code": null,
+          "deal": null,
+          "source": "amazon",
+          "category": "books",
+          "priceBand": "$",
+          "featured": false
         }
       ]
     },
@@ -1923,5 +2094,5 @@
   "disclaimers": {
     "nutrition": "Always check with your doctor before adding new supplements."
   },
-  "updated": "2026-10-05"
+  "updated": "2026-10-14"
 }

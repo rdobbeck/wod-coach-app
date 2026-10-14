@@ -94,6 +94,7 @@ const SOURCE: Record<string, { cta: string; deal?: string }> = {
 
 export const CATEGORY_LABEL: Record<string, string> = {
   training_gear: "Training gear",
+  swim: "Swim",
   recovery: "Recovery",
   nutrition: "Nutrition",
   books: "Books",
