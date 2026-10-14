@@ -17,7 +17,8 @@
     "strip:dashes": "tsx scripts/strip-dashes.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "anatomy:fetch": "bash tools/anatomy/fetch.sh"
+    "anatomy:fetch": "bash tools/anatomy/fetch.sh",
+    "test:unit": "tsx --test 'tools/anatomy/*.test.ts' 'tests/unit/*.test.ts'"
   },
   "dependencies": {
     "@apollo/client": "^4.1.6",

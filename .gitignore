@@ -55,8 +55,9 @@ backups/
 # Local launchd job output
 logs/
 
-# anatomy pipeline working files (downloaded source, intermediate exports)
+# anatomy pipeline working files (downloaded source, intermediate exports, test fixtures)
 tools/anatomy/.work/
+tools/anatomy/fixtures/*.glb
 
 # plan-execution scratch (ledgers, briefs)
 .superpowers/
