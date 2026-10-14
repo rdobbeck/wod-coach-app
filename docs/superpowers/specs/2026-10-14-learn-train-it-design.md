@@ -129,7 +129,11 @@ a pure function over ordered name rules, most specific first. Examples of the in
 | calf raise | calves | |
 
 Names that match no rule stay untagged: conditioning (air bike, run), mobility and stretches, and
-skill drills. Untagged exercises appear in neither "Train it" nor muscle chips. The rules are
+skill drills. Untagged exercises appear in neither "Train it" nor muscle chips.
+
+Tags show to clients as soon as they exist, reviewed or not, so the feature works on day one. The
+review queue is ordered by use, so the exercises clients see most are the first Ryan corrects. The
+alternative, showing only reviewed tags, keeps everything hidden until the review is done. The rules are
 calibrated by hand against the 300 most-used exercises; a unit test pins the expected tags of at
 least 40 of them, including the top 20 by use.
 
