@@ -19,9 +19,14 @@ export function slugify(name: string) {
     .replace(/^-+|-+$/g, "")
 }
 
-/** "Rectus femoris muscle" -> "Rectus femoris"; "(Adductor minimus)" -> "Adductor minimus". */
+/**
+ * "Rectus femoris muscle" -> "Rectus femoris"; "(Adductor minimus)" -> "Adductor minimus".
+ * Z-Anatomy marks some names with an editorial asterisk and a few carry doubled spaces; both go.
+ */
 export function labelFrom(base: string) {
   const s = base
+    .replace(/\*/g, "")
+    .replace(/\s{2,}/g, " ")
     .replace(/^\((.*)\)$/, "$1")
     .replace(/\s+muscles?$/i, "")
     .trim()

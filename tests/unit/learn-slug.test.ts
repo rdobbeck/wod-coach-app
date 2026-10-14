@@ -25,3 +25,9 @@ test("labels drop the word muscle and wrapping parentheses", () => {
   assert.equal(labelFrom("Femur"), "Femur")
   assert.equal(labelFrom("long head of biceps femoris"), "Long head of biceps femoris")
 })
+
+test("labels drop Z-Anatomy's editorial asterisks and doubled spaces", () => {
+  assert.equal(labelFrom("Paracentral gyrus and sulcus*"), "Paracentral gyrus and sulcus")
+  assert.equal(labelFrom("Lateral occipital gyrus (Middle occipital gyrus*)"), "Lateral occipital gyrus (Middle occipital gyrus)")
+  assert.equal(labelFrom("Orbital part of  inferior frontal gyrus"), "Orbital part of inferior frontal gyrus")
+})

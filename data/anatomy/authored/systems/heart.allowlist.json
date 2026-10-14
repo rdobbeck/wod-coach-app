@@ -1,0 +1,20 @@
+{
+  "id": "heart",
+  "collections": ["5: Cardiovascular system"],
+  "include": [
+    { "name": "Right atrium", "kind": "organ" }, { "name": "Right ventricle", "kind": "organ" },
+    { "name": "Left atrium", "kind": "organ" }, { "name": "Left ventricle", "kind": "organ" },
+    { "name": "Pulmonary trunk", "kind": "vessel" },
+    "Right coronary artery", "Left coronary artery", "Circumflex artery of heart", "Coronary sinus",
+    "Ascending aorta", "Thoracic aorta", "Abdominal aorta",
+    "Left pulmonary artery", "Right superior pulmonary vein",
+    "Superior vena cava", "Right brachiocephalic vein", "Left brachiocephalic vein",
+    "Right common carotid artery", "Left common carotid artery", "Internal carotid artery", "External carotid artery",
+    "Internal jugular vein", "External jugular vein",
+    "Right subclavian artery", "Left subclavian artery", "Axillary artery", "Brachial artery", "Radial artery", "Ulnar artery",
+    "Common iliac artery", "External iliac artery", "Internal iliac artery",
+    "Femoral artery", "Deep femoral artery", "Popliteal artery", "Anterior tibial artery", "Posterior tibial artery"
+  ],
+  "exclude": [],
+  "ratio": 0.25, "curveResolution": 4, "bevelResolution": 2, "simplify": null
+}
