@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 
 /** The parts of the glTF JSON chunk the pipeline reads. */
 export type GlbJson = {
-  nodes?: { name?: string; mesh?: number; skin?: number }[]
+  nodes?: { name?: string; mesh?: number; skin?: number; children?: number[] }[]
   meshes?: { name?: string; primitives: { indices?: number; attributes: Record<string, number>; targets?: unknown[] }[] }[]
   accessors?: { count: number }[]
   skins?: unknown[]
@@ -22,8 +22,25 @@ export function readGlbJson(path: string): GlbJson {
 
 export const nodeNames = (j: GlbJson) => (j.nodes ?? []).map((n) => n.name ?? "").filter(Boolean)
 
-export const meshNodeNames = (j: GlbJson) =>
-  (j.nodes ?? []).filter((n) => n.mesh !== undefined).map((n) => n.name ?? "").filter(Boolean)
+/**
+ * The structure names that draw something: for every node with a mesh, the name of the nearest
+ * named ancestor (itself first). glTF-Transform's quantizer parks a mesh on an unnamed child node
+ * when the named node also has children, which Z-Anatomy's vessel trees do.
+ */
+export function meshNodeNames(j: GlbJson): string[] {
+  const nodes = j.nodes ?? []
+  const parent = new Map<number, number>()
+  nodes.forEach((n, i) => (n.children ?? []).forEach((c) => parent.set(c, i)))
+  const out: string[] = []
+  nodes.forEach((n, i) => {
+    if (n.mesh === undefined) return
+    let k: number | undefined = i
+    while (k !== undefined && !nodes[k].name) k = parent.get(k)
+    const name = k === undefined ? "" : nodes[k].name ?? ""
+    if (name && !out.includes(name)) out.push(name)
+  })
+  return out
+}
 
 export function triangleCount(j: GlbJson) {
   let t = 0

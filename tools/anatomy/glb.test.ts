@@ -36,6 +36,20 @@ test("reads names and counts triangles from the JSON chunk", () => {
   assert.equal(triangleCount(j), 3 + 100)
 })
 
+test("a mesh on an unnamed child node counts for its nearest named ancestor, once", () => {
+  // glTF-Transform's quantizer moves a mesh onto an unnamed child when the named node also has children.
+  const j = {
+    nodes: [
+      { name: "Left coronary artery", children: [1, 2] },
+      { name: "Circumflex artery of heart", mesh: 0 },
+      { mesh: 1 },
+      { mesh: 2 }, // unnamed and unparented: nothing to attribute it to
+    ],
+    meshes: [{ primitives: [] }, { primitives: [] }, { primitives: [] }],
+  }
+  assert.deepEqual(meshNodeNames(j), ["Circumflex artery of heart", "Left coronary artery"])
+})
+
 test("rejects a file that is not a GLB", () => {
   const p = join(__dirname, "fixtures", "not.glb")
   writeFileSync(p, "hello")
