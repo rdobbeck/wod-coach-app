@@ -1,0 +1,242 @@
+'use client'
+
+import { useEffect, useRef } from "react"
+import * as THREE from "three"
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js"
+import { slugify } from "@/lib/learn-slug"
+import { accentColor, isTap, kindColor, morphInfluence, structureNameOf } from "@/lib/learn-viewer"
+import type { Kind, Scene, Structure } from "@/lib/learn-types"
+
+export type ViewerProps = {
+  scene: Scene
+  structures: Record<string, Structure>
+  selectedId: string | null
+  onSelect: (id: string | null) => void
+  angle: number
+  onAngle: (angle: number) => void
+  playing: boolean
+  hiddenIds: Set<string> | null
+  onReady: () => void
+  onError: (message: string) => void
+}
+
+type Part = { mesh: THREE.Mesh; id: string | null; kind: Kind | null; mat: THREE.MeshStandardMaterial }
+
+type Rig = {
+  renderer: THREE.WebGLRenderer
+  scene3: THREE.Scene
+  camera: THREE.PerspectiveCamera
+  controls: OrbitControls
+  parts: Part[]
+  byId: Map<string, Part[]>
+  distal: THREE.Bone | null
+  restQ: THREE.Quaternion
+  axisLocal: THREE.Vector3 | null
+  raf: number
+  disposed: boolean
+  angle: number
+  dir: 1 | -1
+  accent: THREE.Color
+  invalidate?: () => void
+}
+
+declare global {
+  interface Window {
+    __wodLearn?: { ready: boolean; select: (id: string | null) => void; selected: () => string | null; parts: () => number }
+  }
+}
+
+const PLAY_STEP = 1.2 // degrees per frame
+
+/**
+ * Renders one Learn scene. Draws only when something changed (orbit, selection,
+ * slider, resize, play), so an idle phone pays nothing. Everything three.js
+ * lives in this file; SceneView loads it with next/dynamic, ssr: false.
+ */
+export default function AnatomyViewer(props: ViewerProps) {
+  const host = useRef<HTMLDivElement>(null)
+  const rigRef = useRef<Rig | null>(null)
+  const propsRef = useRef(props)
+  propsRef.current = props
+
+  // Build the scene once per file; tear it down completely on unmount or file change.
+  useEffect(() => {
+    const el = host.current
+    if (!el) return
+    const probe = document.createElement("canvas").getContext("webgl2")
+    if (!probe) { propsRef.current.onError("This phone or browser can't show 3D here."); return }
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setSize(el.clientWidth, Math.max(el.clientHeight, 1), false)
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.domElement.style.width = "100%"
+    renderer.domElement.style.height = "100%"
+    renderer.domElement.style.touchAction = "none"
+    renderer.domElement.style.display = "block"
+    el.appendChild(renderer.domElement)
+
+    const scene3 = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(40, el.clientWidth / Math.max(el.clientHeight, 1), 0.01, 100)
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = false
+    scene3.add(new THREE.HemisphereLight("#ffffff", "#3a3f4b", 1.4))
+    const key = new THREE.DirectionalLight("#ffffff", 1.6); key.position.set(2, 3, 2); scene3.add(key)
+    const fill = new THREE.DirectionalLight("#9fb4ff", 0.6); fill.position.set(-3, 1, -2); scene3.add(fill)
+
+    const rig: Rig = { renderer, scene3, camera, controls, parts: [], byId: new Map(), distal: null, restQ: new THREE.Quaternion(), axisLocal: null, raf: 0, disposed: false, angle: propsRef.current.angle, dir: 1, accent: new THREE.Color(accentColor(el)) }
+    rigRef.current = rig
+
+    const frame = () => {
+      rig.raf = 0
+      if (rig.disposed) return
+      if (propsRef.current.playing) {
+        const max = propsRef.current.scene.movement?.range[1] ?? 0
+        let a = rig.angle + rig.dir * PLAY_STEP
+        if (a >= max) { a = max; rig.dir = -1 }
+        if (a <= 0) { a = 0; rig.dir = 1 }
+        rig.angle = a
+        applyPose(rig, propsRef.current.scene, a)
+        propsRef.current.onAngle(a)
+      }
+      renderer.render(scene3, camera)
+      if (propsRef.current.playing) invalidate()
+    }
+    const invalidate = () => { if (!rig.raf && !rig.disposed) rig.raf = requestAnimationFrame(frame) }
+    rig.invalidate = invalidate
+    controls.addEventListener("change", invalidate)
+
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth, h = Math.max(el.clientHeight, 1)
+      renderer.setSize(w, h, false)
+      camera.aspect = w / h
+      camera.updateProjectionMatrix()
+      invalidate()
+    })
+    ro.observe(el)
+
+    const onLost = (e: Event) => { e.preventDefault(); propsRef.current.onError("The 3D view stopped. Reload the page to bring it back.") }
+    renderer.domElement.addEventListener("webglcontextlost", onLost)
+
+    // Tap to select: pointer up within 6 px of pointer down; empty space clears.
+    let down: [number, number] | null = null
+    const onDown = (e: PointerEvent) => { down = [e.clientX, e.clientY] }
+    const onUp = (e: PointerEvent) => {
+      if (!isTap(down, [e.clientX, e.clientY])) return
+      const r = renderer.domElement.getBoundingClientRect()
+      const ptr = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
+      const ray = new THREE.Raycaster()
+      ray.setFromCamera(ptr, camera)
+      const hit = ray.intersectObjects(rig.parts.filter((p) => p.mesh.visible && p.id).map((p) => p.mesh), false)[0]
+      const part = hit ? rig.parts.find((p) => p.mesh === hit.object) : undefined
+      propsRef.current.onSelect(part?.id ?? null)
+    }
+    renderer.domElement.addEventListener("pointerdown", onDown)
+    renderer.domElement.addEventListener("pointerup", onUp)
+
+    const loader = new GLTFLoader()
+    loader.setMeshoptDecoder(MeshoptDecoder)
+    const { scene: sc, structures } = propsRef.current
+    loader.load(
+      sc.file.path,
+      (gltf) => {
+        if (rig.disposed) return
+        const root = gltf.scene
+        scene3.add(root)
+        root.traverse((o) => {
+          if ((o as THREE.Bone).isBone && o.name === "distal") rig.distal = o as THREE.Bone
+          if ((o as THREE.Mesh).isMesh) {
+            const mesh = o as THREE.Mesh
+            const id = slugify(structureNameOf(mesh))
+            const s = structures[id] ?? null
+            const kind = s?.kind ?? null
+            const mat = new THREE.MeshStandardMaterial({ color: kindColor(kind, s?.label ?? ""), roughness: kind === "bone" ? 0.72 : 0.55, metalness: 0, transparent: true, opacity: 1 })
+            mesh.material = mat
+            mesh.frustumCulled = false
+            if (!s) mesh.visible = false // insertion areas and anything not in the scene's structure list
+            const part: Part = { mesh, id: s ? id : null, kind, mat }
+            rig.parts.push(part)
+            if (s) { const list = rig.byId.get(id) ?? []; list.push(part); rig.byId.set(id, list) }
+          }
+        })
+        if (rig.distal && sc.movement) {
+          rig.restQ.copy(rig.distal.quaternion)
+          const wq = new THREE.Quaternion()
+          rig.distal.getWorldQuaternion(wq)
+          rig.axisLocal = new THREE.Vector3(...sc.movement.axis).normalize().applyQuaternion(wq.invert())
+        }
+        root.updateMatrixWorld(true)
+        const box = new THREE.Box3().setFromObject(root)
+        const size = box.getSize(new THREE.Vector3())
+        const ctr = box.getCenter(new THREE.Vector3())
+        const span = Math.max(size.x, size.y, size.z)
+        controls.target.copy(ctr)
+        controls.minDistance = span * 0.3
+        controls.maxDistance = span * 4
+        camera.position.copy(ctr).add(new THREE.Vector3(0, size.y * 0.1, span * 1.9))
+        camera.near = span / 100
+        camera.far = span * 20
+        camera.updateProjectionMatrix()
+        applyPose(rig, sc, rig.angle)
+        applySelection(rig, propsRef.current.selectedId)
+        applyHidden(rig, propsRef.current.hiddenIds)
+        window.__wodLearn = { ready: true, select: (id) => propsRef.current.onSelect(id), selected: () => propsRef.current.selectedId, parts: () => rig.parts.length }
+        propsRef.current.onReady()
+        invalidate()
+      },
+      undefined,
+      () => { if (!rig.disposed) propsRef.current.onError("The 3D model couldn't load. The list below still works.") },
+    )
+
+    return () => {
+      rig.disposed = true
+      if (rig.raf) cancelAnimationFrame(rig.raf)
+      ro.disconnect()
+      controls.removeEventListener("change", invalidate)
+      controls.dispose()
+      renderer.domElement.removeEventListener("webglcontextlost", onLost)
+      renderer.domElement.removeEventListener("pointerdown", onDown)
+      renderer.domElement.removeEventListener("pointerup", onUp)
+      scene3.traverse((o) => {
+        const m = o as THREE.Mesh
+        if (m.isMesh) { m.geometry.dispose(); (m.material as THREE.Material).dispose() }
+      })
+      renderer.dispose()
+      renderer.domElement.remove()
+      if (window.__wodLearn) window.__wodLearn.ready = false
+      rigRef.current = null
+    }
+  }, [props.scene.file.path])
+
+  // Prop-driven updates: each one touches the rig and asks for one frame.
+  useEffect(() => { const r = rigRef.current; if (r) { applySelection(r, props.selectedId); r.invalidate?.() } }, [props.selectedId])
+  useEffect(() => { const r = rigRef.current; if (r && !props.playing) { r.angle = props.angle; applyPose(r, props.scene, props.angle); r.invalidate?.() } }, [props.angle, props.playing, props.scene])
+  useEffect(() => { const r = rigRef.current; if (r) { applyHidden(r, props.hiddenIds); r.invalidate?.() } }, [props.hiddenIds])
+  useEffect(() => { const r = rigRef.current; if (r && props.playing) r.invalidate?.() }, [props.playing])
+
+  return <div ref={host} className="h-full w-full" data-testid="anatomy-viewer" />
+}
+
+function applyPose(r: Rig, scene: Scene, angle: number) {
+  if (!r.distal || !r.axisLocal || !scene.movement) return
+  r.distal.quaternion.copy(r.restQ).multiply(new THREE.Quaternion().setFromAxisAngle(r.axisLocal, scene.movement.sign * THREE.MathUtils.degToRad(angle)))
+  const c = morphInfluence(angle, scene.movement.range[1])
+  for (const p of r.parts) if (p.mesh.morphTargetInfluences?.length) p.mesh.morphTargetInfluences[0] = c
+}
+
+/** Selected: accent glow. Everything else that is not bone: 35% so the selection reads through. */
+function applySelection(r: Rig, selectedId: string | null) {
+  for (const p of r.parts) {
+    const isSel = !!selectedId && p.id === selectedId
+    p.mat.emissive.set(0x000000)
+    if (isSel) p.mat.emissive.copy(r.accent).multiplyScalar(0.35)
+    p.mat.opacity = selectedId && !isSel && p.kind !== "bone" ? 0.35 : 1
+    p.mat.needsUpdate = true
+  }
+}
+
+function applyHidden(r: Rig, hidden: Set<string> | null) {
+  for (const p of r.parts) if (p.id) p.mesh.visible = !(hidden && hidden.has(p.id))
+}
