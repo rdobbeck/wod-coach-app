@@ -50,7 +50,7 @@ export default function SceneView({ scene, structures, ctaUrl }: { scene: Scene;
         />
       </div>
       {error && (
-        <p role="alert" className="absolute inset-x-3 top-3 z-20 rounded-xl bg-app-surface/95 px-3 py-2 text-sm">
+        <p role="alert" data-testid="viewer-error" className="absolute inset-x-3 top-3 z-20 rounded-xl bg-app-surface/95 px-3 py-2 text-sm">
           {error}
         </p>
       )}

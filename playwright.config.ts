@@ -28,9 +28,20 @@ export default defineConfig({
     },
     {
       name: "chromium",
+      testIgnore: /learn\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: "./.auth/coach.json",
+      },
+      dependencies: ["setup"],
+    },
+    {
+      // Learn renders WebGL; headless Chromium needs software rendering for it.
+      name: "learn",
+      testMatch: /learn\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] },
       },
       dependencies: ["setup"],
     },
