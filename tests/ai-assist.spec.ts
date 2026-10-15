@@ -799,6 +799,8 @@ test("create: applying makes a standalone session with its exercises; undo remov
   expect(out.skipped).toHaveLength(2)
   const made = await prisma.workout.findFirstOrThrow({ where: { clientId, name: `${PREFIX}Swim Drills` }, include: { exercises: { orderBy: { order: "asc" } } } })
   expect(dayKey(made.scheduledDate)).toBe(date)
+  // Stored at noon UTC like every other session, so no time zone can shift it to the day before.
+  expect(made.scheduledDate.toISOString()).toBe(`${date}T12:00:00.000Z`)
   expect(made.dayOfWeek).toBe(made.scheduledDate.getUTCDay())
   expect(made.programId).toBeNull()
   expect(made.exercises.map((e) => [e.name, e.prescription, e.order])).toEqual([["Goblet Squat", "3x8", 1], ["Catch-Up Drill", "4x50 m", 2]])

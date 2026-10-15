@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { noLongDashes } from "@/lib/text"
-import { dayKey } from "@/lib/training-format"
+import { dayKey, fromDayKey } from "@/lib/training-format"
 
 /**
  * Writing AI-proposed edits, and taking them back.
@@ -84,7 +84,8 @@ export async function applyChanges(coachId: string, clientId: string, request: s
           const libIds = Array.from(new Set(rows.map((r) => r.libraryId).filter((id): id is string => !!id)))
           const libs = libIds.length ? await tx.exerciseLibrary.findMany({ where: { id: { in: libIds } }, select: { id: true } }) : []
           const known = new Set(libs.map((l) => l.id))
-          const day = new Date(`${date}T00:00:00.000Z`)
+          // Noon UTC, the app-wide convention (fromDayKey), so the day never shifts in any time zone.
+          const day = fromDayKey(date)
           const count = await tx.workout.count({ where: { clientId, scheduledDate: day } })
           const made = await tx.workout.create({
             data: {
