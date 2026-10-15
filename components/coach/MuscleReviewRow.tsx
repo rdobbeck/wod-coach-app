@@ -33,7 +33,8 @@ const CHIP: Record<Role | "off", string> = {
 /**
  * One exercise name on the review screen: its uses, demo, and current muscles. In the editor each
  * group chip cycles off, primary, secondary. One button marks it reviewed: "Looks right" confirms
- * the chips as they are, "Save" sends an edit. A saved row stays where it is, marked Reviewed.
+ * the chips as they are, "Save" sends an edit. Close drops an unsaved edit, so the button never
+ * sends chips Ryan can no longer see. A saved row stays where it is, marked Reviewed.
  */
 export default function MuscleReviewRow({ row }: { row: ReviewRow }) {
   const [saved, setSaved] = useState<Roles>(() => rolesOf(row))
@@ -105,7 +106,14 @@ export default function MuscleReviewRow({ row }: { row: ReviewRow }) {
       )}
 
       <div className="mt-3 flex gap-2">
-        <button type="button" onClick={() => setEditing((e) => !e)} className="rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+        <button
+          type="button"
+          onClick={() => {
+            if (editing) setRoles(saved)
+            setEditing(!editing)
+          }}
+          className="rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+        >
           {editing ? "Close" : "Edit"}
         </button>
         <button type="button" onClick={() => void save()} disabled={busy} className="rounded bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50">

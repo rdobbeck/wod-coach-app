@@ -23,12 +23,12 @@ const PAGE_SIZE = 50
  * Ryan's queue for the muscles the name rules drafted: one row per exercise name, most used first,
  * so the exercises clients see most are checked first. Owners and LIBRARY_AI_COACH_EMAILS only.
  */
-export default async function MuscleReviewPage({ searchParams }: { searchParams: { tab?: string; q?: string; page?: string } }) {
+export default async function MuscleReviewPage({ searchParams }: { searchParams: { tab?: string; q?: string; after?: string } }) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== "COACH" || !canUseLibraryAi(session.user.email)) notFound()
   const tab = TABS.find((t) => t.id === searchParams.tab)?.id ?? "todo"
   const q = (searchParams.q ?? "").trim()
-  const page = Math.max(1, Number.parseInt(searchParams.page ?? "", 10) || 1)
+  const after = searchParams.after || null
   const [rows, uses] = await Promise.all([
     prisma.exerciseLibrary.findMany({
       select: { id: true, name: true, videoUrl: true, primaryMuscles: true, secondaryMuscles: true, musclesReviewedAt: true },
@@ -36,13 +36,13 @@ export default async function MuscleReviewPage({ searchParams }: { searchParams:
     }),
     usageCounts(),
   ])
-  const list = reviewList(rows, uses, { tab, q, page, pageSize: PAGE_SIZE })
-  const pages = Math.max(1, Math.ceil(list.total / PAGE_SIZE))
-  const href = (t: ReviewTab, p = 1) => {
+  const list = reviewList(rows, uses, { tab, q, after, pageSize: PAGE_SIZE })
+  // Next carries the last name shown, so names reviewed on this page never push the next ones out of reach.
+  const href = (t: ReviewTab, cursor: string | null = null) => {
     const s = new URLSearchParams()
     if (t !== "todo") s.set("tab", t)
     if (q) s.set("q", q)
-    if (p > 1) s.set("page", String(p))
+    if (cursor) s.set("after", cursor)
     const qs = s.toString()
     return qs ? `/coach/library/muscles?${qs}` : "/coach/library/muscles"
   }
@@ -93,13 +93,10 @@ export default async function MuscleReviewPage({ searchParams }: { searchParams:
           <p className="mt-6 text-gray-600">Nothing here.</p>
         )}
 
-        {pages > 1 && (
+        {(after || list.next) && (
           <div className="mt-6 flex items-center justify-between text-sm">
-            {page > 1 ? <Link href={href(tab, page - 1)} className="font-semibold text-primary-600">‹ Previous</Link> : <span />}
-            <span className="text-gray-500">
-              Page {page} of {pages}
-            </span>
-            {page < pages ? <Link href={href(tab, page + 1)} className="font-semibold text-primary-600">Next ›</Link> : <span />}
+            {after ? <Link href={href(tab)} className="font-semibold text-primary-600">‹ Back to the top</Link> : <span />}
+            {list.next ? <Link href={href(tab, list.next)} className="font-semibold text-primary-600">Next {PAGE_SIZE} ›</Link> : <span />}
           </div>
         )}
       </div>

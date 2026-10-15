@@ -7,14 +7,18 @@ export type ReviewRow = { id: string; name: string; videoUrl: string | null; pri
 
 /**
  * Ryan's review queue: one entry per exercise name, most used first. Rows sharing a name are one
- * entry: their uses add up and the most-used row stands for them (a save applies to all of them).
+ * entry: their uses add up, and a reviewed row stands for them when there is one (so the queue shows
+ * his answer, not a newer duplicate's draft), else the most-used row. A save applies to all of them.
  * A name is reviewed only when all its rows are, so a duplicate added later comes back to the queue.
  * "todo" is every unreviewed name, "untagged" the unreviewed ones the rules left without tags.
+ *
+ * Pages follow a cursor, the id of the last entry shown: reviewing rows shrinks "todo", so a page
+ * number would skip the names that move up.
  */
 export function reviewList(
   rows: readonly ReviewInput[],
   uses: ReadonlyMap<string, number>,
-  opts: { tab: ReviewTab; q?: string; page?: number; pageSize?: number; topN?: number },
+  opts: { tab: ReviewTab; q?: string; after?: string | null; pageSize?: number; topN?: number },
 ) {
   const byName = new Map<string, { rep: ReviewInput; best: number; total: number; allReviewed: boolean }>()
   for (const r of rows) {
@@ -27,7 +31,9 @@ export function reviewList(
     }
     seen.total += n
     seen.allReviewed = seen.allReviewed && !!r.musclesReviewedAt
-    if (n > seen.best) {
+    const reviewedWins = !!r.musclesReviewedAt && !seen.rep.musclesReviewedAt
+    const sameStanding = !!r.musclesReviewedAt === !!seen.rep.musclesReviewedAt
+    if (reviewedWins || (sameStanding && n > seen.best)) {
       seen.rep = r
       seen.best = n
     }
@@ -46,11 +52,16 @@ export function reviewList(
   const topN = Math.min(opts.topN ?? 300, all.length)
   const reviewedOfTop = all.slice(0, topN).filter((r) => r.reviewed).length
   const q = (opts.q ?? "").trim().toLowerCase()
+  const position = new Map(all.map((r, i) => [r.id, i]))
   const inTab = all.filter((r) => {
     const tabOk = opts.tab === "reviewed" ? r.reviewed : !r.reviewed && (opts.tab === "todo" || (!r.primary.length && !r.secondary.length))
     return tabOk && (!q || r.name.toLowerCase().includes(q))
   })
   const size = opts.pageSize ?? 50
-  const page = Math.max(1, opts.page ?? 1)
-  return { rows: inTab.slice((page - 1) * size, page * size), total: inTab.length, reviewedOfTop, topN }
+  // Entries after the cursor's place in the whole list, which does not move when rows get reviewed.
+  const from = opts.after ? position.get(opts.after) : undefined
+  const rest = from === undefined ? inTab : inTab.filter((r) => (position.get(r.id) ?? -1) > from)
+  const page = rest.slice(0, size)
+  const next = rest.length > size ? page[page.length - 1].id : null
+  return { rows: page, total: inTab.length, reviewedOfTop, topN, next }
 }

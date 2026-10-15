@@ -38,6 +38,10 @@ test("at most six, only exercises with a video, unused ones ordered by name", ()
   assert.deepEqual(out.map((r) => r.name), ["Squat 1", "Squat 2", "Squat 3", "Squat 4", "Squat 5", "Squat 6"])
 })
 
+test("names go out without long dashes (Ryan's copy rule: no em or en dashes where clients see them)", () => {
+  assert.deepEqual(rankForGroup([ex("x", "Sled Drag – Backward", ["quads"])], "quads", new Map()).map((r) => r.name), ["Sled Drag, Backward"])
+})
+
 test("each row carries what the player needs", () => {
   assert.deepEqual(rankForGroup([ex("x", "Calf Raise", ["calves"])], "calves", new Map()), [
     { id: "x", name: "Calf Raise", videoUrl: "https://youtu.be/x", role: "primary" },

@@ -92,6 +92,31 @@ const cases: [string, string[], string[]][] = [
   ["Single-Arm Bench Press in Hollow", ["chest", "triceps"], ["front-delts", "serratus"]],
   ["90/90 Bottoms Up Kettlebell Squat", ["glutes", "quads"], ["lower-back", "adductors"]],
   ["Seated 90/90 Band Adduction", ["adductors"], []],
+  // Final review: what sparse groups (Neck, Rotator cuff, Deep hip rotators) would list publicly, and the long tail.
+  ["Dumbbell Thruster", ["quads", "glutes", "front-delts"], ["triceps", "lower-back"]],
+  ["Behind the Neck Thruster", ["quads", "glutes", "front-delts"], ["triceps", "lower-back"]],
+  ["Press Behind the Neck", ["front-delts", "triceps"], ["side-delts", "serratus"]],
+  ["Smith Machine Behind the Neck Press", ["front-delts", "triceps"], ["side-delts", "serratus"]],
+  ["Behind the Neck Snatch Grip Press", ["front-delts", "triceps"], ["side-delts", "serratus"]],
+  ["Behind the Neck Cable Lat Pulldown", ["lats", "biceps"], ["upper-back", "rear-delts", "forearms"]],
+  ["6 Way Manual Resisted Neck Training", ["neck"], []],
+  ["Cable Glute Kickback", ["glutes"], ["hamstrings"]],
+  ["Qudruped Cable Glute Kickback", ["glutes"], ["hamstrings"]],
+  ["Chest Supported Dumbbell Lat Kickback", ["lats"], ["triceps", "rear-delts"]],
+  ["Dumbbell Tricep Kickback", ["triceps"], []],
+  ["Bar Beat Swings", ["lats", "abs"], ["forearms", "hip-flexors"]],
+  ["Barbell Upright Row", ["side-delts", "traps"], ["front-delts", "biceps"]],
+  ["Single Arm Upright Cable Row", ["side-delts", "traps"], ["front-delts", "biceps"]],
+  ["Jefferson Curl", ["lower-back"], ["hamstrings"]],
+  ["Barbell Wrist Curl", ["forearms"], []],
+  ["Reverse Wrist Curl", ["forearms"], []],
+  ["Half Turkish Get-Up", ["front-delts", "obliques"], ["rotator-cuff", "glutes", "abs"]],
+  ["Sandbag Get Up", ["front-delts", "obliques"], ["rotator-cuff", "glutes", "abs"]],
+  ["Get Up Sit Up", ["abs"], ["obliques", "hip-flexors"]],
+  ["Standing Banded Hip External Rotation", ["hip-rotators"], ["side-glutes"]],
+  ["Hip Internal Rotation", ["hip-rotators"], ["side-glutes"]],
+  ["Dumbbell External Rotation", ["rotator-cuff"], []],
+  ["Foam-Roll Push-up", ["chest", "triceps"], ["front-delts", "serratus"]],
 ]
 
 /** Order-insensitive: tags are compared as sets, then the function's own vocabulary order is checked. */
@@ -123,6 +148,15 @@ test("conditioning, mobility, stretches and skill drills stay untagged", () => {
     "Finger Press Tutorial",
     "Ring External Rotaiton Pull-Throughs",
     "Q&A for The 16% - Right Oblique Pelvis Orientation - Narrow ISA - SI Joint Pain - BillHartmanPT.com",
+    // Final review: ankle and tibial rotation drills, tests, foam rolling and warm-up swings.
+    "Tibial Internal Rotation/External Rotation CARs (30-60 degrees flexion)",
+    "Ankle Internal Rotation",
+    "Physio-Board Ankle External Rotation",
+    "Hip Internal Rotation Test",
+    "Adduction Drop Test",
+    "Foam-Roll Adductor",
+    "Kneeling Arm Swings",
+    "Leg Swing Front to Back",
   ])
     assert.deepEqual(inferMuscles(name), { primary: [], secondary: [] }, name)
 })

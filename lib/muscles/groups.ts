@@ -1,5 +1,6 @@
 import crosswalk from "../../data/anatomy/authored/muscle-groups.json"
 import type { Highlight } from "../learn-viewer"
+import { noLongDashes } from "../text"
 
 /**
  * Training groups: how a coach talks about muscles. Each maps to the Learn structures it covers
@@ -73,7 +74,7 @@ export function musclesHref(t: { primary: readonly string[]; secondary: readonly
 export function parseWorked(get: (key: string) => string | null) {
   const primary = parseGroups(get("highlight"))
   const secondary = parseGroups(get("also")).filter((g) => !primary.includes(g))
-  const from = (get("from") ?? "").trim().slice(0, 80) || null
+  const from = noLongDashes((get("from") ?? "").trim().slice(0, 80)) || null
   return { primary, secondary, from }
 }
 

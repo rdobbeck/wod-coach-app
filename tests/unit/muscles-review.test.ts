@@ -43,10 +43,34 @@ test("progress counts the reviewed names among the most used", () => {
   assert.equal(reviewList(rows, uses, { tab: "todo" }).topN, 4) // fewer than 300 names: all of them
 })
 
-test("pages of the list", () => {
-  const out = reviewList(rows, uses, { tab: "todo", page: 2, pageSize: 2 })
-  assert.deepEqual(out.rows.map((r) => r.id), ["pu"])
-  assert.equal(out.total, 3)
+test("pages of the list: Next carries the last name shown", () => {
+  const first = reviewList(rows, uses, { tab: "todo", pageSize: 2 })
+  assert.deepEqual(first.rows.map((r) => r.id), ["sq2", "bike"])
+  assert.equal(first.next, "bike")
+  const second = reviewList(rows, uses, { tab: "todo", pageSize: 2, after: first.next })
+  assert.deepEqual(second.rows.map((r) => r.id), ["pu"])
+  assert.equal(second.next, null)
+  assert.equal(second.total, 3)
+  // A cursor that no longer exists starts from the top instead of showing nothing.
+  assert.deepEqual(reviewList(rows, uses, { tab: "todo", pageSize: 2, after: "gone" }).rows.map((r) => r.id), ["sq2", "bike"])
+})
+
+test("confirming a page and pressing Next shows the next most-used names, not the ones after them", () => {
+  const names = Array.from({ length: 150 }, (_, i) => row(`n${i + 1}`, `Exercise ${String(i + 1).padStart(3, "0")}`, ["quads"]))
+  const used = new Map(names.map((r, i) => [r.id, 1000 - i]))
+  const page1 = reviewList(names, used, { tab: "todo" })
+  assert.deepEqual([page1.rows[0].id, page1.rows[49].id], ["n1", "n50"])
+  assert.equal(page1.next, "n50") // the Next link carries a cursor, not a page number over a shrinking list
+  // Ryan confirms all 50; the rows stay on screen, then he presses Next.
+  const confirmed = names.map((r, i) => (i < 50 ? { ...r, musclesReviewedAt: new Date("2026-10-15T12:00:00Z") } : r))
+  const page2 = reviewList(confirmed, used, { tab: "todo", after: page1.next })
+  assert.deepEqual([page2.rows[0].id, page2.rows[49].id], ["n51", "n100"])
+})
+
+test("a name with a reviewed copy shows that copy, so Looks right keeps Ryan's answer", () => {
+  const mixed = [row("old", "Hip Thrust", ["glutes"], ["hamstrings"], true), row("busy", "hip thrust", ["glutes"], ["side-glutes", "hamstrings"])]
+  const out = reviewList(mixed, new Map([["old", 5], ["busy", 40]]), { tab: "todo" })
+  assert.deepEqual(out.rows.map((r) => [r.id, r.secondary, r.uses, r.reviewed]), [["old", ["hamstrings"], 45, false]])
 })
 
 test("a name is reviewed only when every row with it is: a new duplicate puts it back in the queue", () => {
