@@ -472,6 +472,12 @@ model ExerciseLibrary {
   // What a set measures when the coach's target names no unit: "distance" for
   // carries and sleds; null = reps. A unit in the target always wins (lib/hold.ts).
   tracking     String?
+  // Training groups (lib/muscles/groups.ts), never one group in both lists. Drafted from the name
+  // (lib/muscles/infer.ts); Ryan confirms or corrects them at /coach/library/muscles, which stamps
+  // musclesReviewedAt so scripts/add-exercise-muscles.ts never redrafts them.
+  primaryMuscles    String[]  @default([]) @map("primary_muscles")
+  secondaryMuscles  String[]  @default([]) @map("secondary_muscles")
+  musclesReviewedAt DateTime? @map("muscles_reviewed_at")
   isCustom     Boolean   @default(false)
   createdBy    String?
   coachrxId    String?   @unique @map("coachrx_id")
