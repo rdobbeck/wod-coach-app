@@ -56,6 +56,42 @@ const cases: [string, string[], string[]][] = [
   ["GHD Sit-Up", ["abs"], ["obliques", "hip-flexors"]],
   ["Farmer Carry", ["traps", "forearms"], ["abs", "obliques"]],
   ["Left Adductor Pull-Back", ["adductors"], []],
+  // Calibration against production's 300 most-used exercises, 2026-10-14.
+  ["Wall Facing Handstand Plate Step ups", ["front-delts", "serratus"], ["traps", "triceps", "abs"]],
+  ["Wall Facing Shoulder Taps", ["front-delts", "serratus"], ["traps", "triceps", "abs"]],
+  ["Controlled kick-ups", ["front-delts", "serratus"], ["traps", "triceps", "abs"]],
+  ["Weighted Handstand NEGATIVE Deficit Push-Up", ["front-delts", "triceps"], ["side-delts", "traps", "serratus"]],
+  ["Supine Hollow Hold Handstand Shape Drill", ["abs"], ["obliques", "hip-flexors"]],
+  ["Hollow Hold to Superman", ["abs", "lower-back"], ["obliques", "glutes"]],
+  ["Frog Stand", ["front-delts", "serratus"], ["triceps", "abs", "forearms"]],
+  ["Crow Pose Holds", ["front-delts", "serratus"], ["triceps", "abs", "forearms"]],
+  ["Seated Dumbbell Press", ["front-delts", "triceps"], ["side-delts", "serratus"]],
+  ["Half Kneeling Single Arm Kettlebell Press", ["front-delts", "triceps"], ["side-delts", "serratus"]],
+  ["Arnold Dumbbell Press", ["front-delts", "triceps"], ["side-delts", "serratus"]],
+  ["Dumbbell Crush Press", ["chest", "triceps"], ["front-delts", "serratus"]],
+  ["Incline Dumbbell Press", ["chest", "triceps"], ["front-delts", "serratus"]],
+  ["Lateral Banded Walk", ["side-glutes"], []],
+  ["Single-Leg Wall-Sit ISO (Goblet)", ["glutes", "quads"], ["lower-back", "adductors"]],
+  ["Cable Pull Through", ["glutes", "hamstrings"], ["lower-back"]],
+  ["Dead Hang", ["forearms"], ["lats", "upper-back"]],
+  ["Active Hang", ["forearms"], ["lats", "upper-back"]],
+  ["Bent Over Reverse Dumbbell Fly", ["rear-delts", "upper-back"], ["rotator-cuff"]],
+  ["Sled Drag – Backward", ["quads", "glutes"], ["calves"]],
+  ["Cable Oblique Rotation", ["obliques"], ["abs"]],
+  ["Hanging Knee Tuck", ["abs"], ["obliques", "hip-flexors"]],
+  ["Ring Dip Shrugs", ["upper-back"], ["chest", "lats"]],
+  ["Dumbbell Pullover", ["lats", "chest"], ["serratus", "triceps"]],
+  // Names the calibration rules must leave alone (checked against every library name).
+  ["Dumbbell Hex Press", ["chest", "triceps"], ["front-delts", "serratus"]],
+  ["Seated Sled Pull", ["lats", "upper-back"], ["biceps", "forearms"]],
+  ["Hami Sled drag", ["hamstrings"], ["glutes", "calves"]],
+  ["Plank Pull-Through", ["abs"], ["obliques", "hip-flexors"]],
+  ["Landmine Rotational Clean and jerk", ["glutes", "quads"], ["hamstrings", "traps", "lower-back"]],
+  ["Dead Bug Dumbbell Pullover", ["abs"], ["obliques", "hip-flexors"]],
+  ["Dead Hang to Pause L Sit Hold", ["abs"], ["obliques", "hip-flexors"]],
+  ["Single-Arm Bench Press in Hollow", ["chest", "triceps"], ["front-delts", "serratus"]],
+  ["90/90 Bottoms Up Kettlebell Squat", ["glutes", "quads"], ["lower-back", "adductors"]],
+  ["Seated 90/90 Band Adduction", ["adductors"], []],
 ]
 
 /** Order-insensitive: tags are compared as sets, then the function's own vocabulary order is checked. */
@@ -69,7 +105,25 @@ for (const [name, primary, secondary] of cases)
   })
 
 test("conditioning, mobility, stretches and skill drills stay untagged", () => {
-  for (const name of ["Air Bike", "Sidelying Windmill", "Banded Shoulder Extension Stretch", "90-90 Hip-Lift", "Cartwheel exit drill", "Row Erg", "Banded ER Stretch"])
+  for (const name of [
+    "Air Bike",
+    "Sidelying Windmill",
+    "Banded Shoulder Extension Stretch",
+    "90-90 Hip-Lift",
+    "Cartwheel exit drill",
+    "Row Erg",
+    "Banded ER Stretch",
+    // Calibration, 2026-10-14: the rowing machine, mobility drills, a cool-down stretch and a handstand balance cue.
+    "Row",
+    "Airplane",
+    "Standing pike hold (cooldown)",
+    "90/90 Hip IR Capsule Hold",
+    "Knee-to-Wall Pulses",
+    "Calf Stretch (knee over toe)",
+    "Finger Press Tutorial",
+    "Ring External Rotaiton Pull-Throughs",
+    "Q&A for The 16% - Right Oblique Pelvis Orientation - Narrow ISA - SI Joint Pain - BillHartmanPT.com",
+  ])
     assert.deepEqual(inferMuscles(name), { primary: [], secondary: [] }, name)
 })
 

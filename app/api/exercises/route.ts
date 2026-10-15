@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { invalidateLibraryMatcher } from "@/lib/ai/assist"
+import { inferMuscles } from "@/lib/muscles/infer"
 import { prisma } from "@/lib/prisma"
 
 /**
@@ -15,6 +16,7 @@ export async function POST(req: Request) {
   const { name, videoUrl } = (await req.json()) as { name?: string; videoUrl?: string }
   if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 })
   if (videoUrl && !/^https?:\/\//.test(videoUrl.trim())) return NextResponse.json({ error: "Video link must start with http" }, { status: 400 })
+  const muscles = inferMuscles(name.trim())
   const exercise = await prisma.exerciseLibrary.create({
     data: {
       name: name.trim(),
@@ -26,6 +28,9 @@ export async function POST(req: Request) {
       isCustom: true,
       createdBy: session.user.id,
       locked: true,
+      // A draft for Ryan's review screen; clients see it until he reviews it.
+      primaryMuscles: muscles.primary,
+      secondaryMuscles: muscles.secondary,
     },
     select: { id: true, name: true, videoUrl: true },
   })
