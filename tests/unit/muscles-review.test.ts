@@ -49,6 +49,15 @@ test("pages of the list", () => {
   assert.equal(out.total, 3)
 })
 
+test("a name is reviewed only when every row with it is: a new duplicate puts it back in the queue", () => {
+  const mixed = [row("old", "Hip Thrust", ["glutes"], ["hamstrings"], true), row("new", "hip thrust", ["glutes"], ["side-glutes", "hamstrings"])]
+  const used = new Map([["old", 40]])
+  // The most-used row still stands for the name, so the queue shows the answer Ryan already gave.
+  assert.deepEqual(reviewList(mixed, used, { tab: "todo" }).rows.map((r) => [r.id, r.reviewed, r.secondary]), [["old", false, ["hamstrings"]]])
+  assert.equal(reviewList(mixed, used, { tab: "reviewed" }).total, 0)
+  assert.equal(reviewList(mixed, used, { tab: "todo", topN: 1 }).reviewedOfTop, 0)
+})
+
 test("an entry shows its row's tags in vocabulary order", () => {
   assert.deepEqual(reviewList([row("x", "Odd", ["quads", "glutes"], ["adductors"])], new Map(), { tab: "todo" }).rows, [
     { id: "x", name: "Odd", videoUrl: "https://youtu.be/x", primary: ["glutes", "quads"], secondary: ["adductors"], reviewed: false, uses: 0 },
