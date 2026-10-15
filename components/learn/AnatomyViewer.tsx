@@ -6,7 +6,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js"
 import { slugify } from "@/lib/learn-slug"
-import { accentColor, createTapTracker, kindColor, morphInfluence, selectionStyle, structureNameOf } from "@/lib/learn-viewer"
+import { accentColor, createTapTracker, kindColor, morphInfluence, selectionStyle, structureNameOf, type Highlight } from "@/lib/learn-viewer"
 import type { Kind, Scene, Structure } from "@/lib/learn-types"
 import { pickMesh } from "./pick"
 
@@ -19,11 +19,13 @@ export type ViewerProps = {
   onAngle: (angle: number) => void
   playing: boolean
   hiddenIds: Set<string> | null
+  /** Muscles worked: what to light when nothing is selected (lib/muscles/groups.ts highlightOf). */
+  highlight: Highlight | null
   onReady: () => void
   onError: (message: string) => void
 }
 
-type Part = { mesh: THREE.Mesh; id: string | null; kind: Kind | null; mat: THREE.MeshStandardMaterial }
+type Part = { mesh: THREE.Mesh; id: string | null; kind: Kind | null; mat: THREE.MeshStandardMaterial; glow: number }
 
 type Rig = {
   renderer: THREE.WebGLRenderer
@@ -47,7 +49,7 @@ type Rig = {
 
 declare global {
   interface Window {
-    __wodLearn?: { ready: boolean; select: (id: string | null) => void; selected: () => string | null; parts: () => number }
+    __wodLearn?: { ready: boolean; select: (id: string | null) => void; selected: () => string | null; parts: () => number; glow: (id: string) => number }
   }
 }
 
@@ -164,7 +166,7 @@ export default function AnatomyViewer(props: ViewerProps) {
             mesh.material = mat
             mesh.frustumCulled = false
             if (!s) mesh.visible = false // insertion areas and anything not in the scene's structure list
-            const part: Part = { mesh, id: s ? id : null, kind, mat }
+            const part: Part = { mesh, id: s ? id : null, kind, mat, glow: 0 }
             rig.parts.push(part)
             if (s) { const list = rig.byId.get(id) ?? []; list.push(part); rig.byId.set(id, list) }
           }
@@ -188,9 +190,15 @@ export default function AnatomyViewer(props: ViewerProps) {
         camera.far = span * 20
         camera.updateProjectionMatrix()
         applyPose(rig, sc, rig.angle)
-        applySelection(rig, propsRef.current.selectedId)
+        applySelection(rig, propsRef.current.selectedId, propsRef.current.highlight)
         applyHidden(rig, propsRef.current.hiddenIds)
-        window.__wodLearn = { ready: true, select: (id) => propsRef.current.onSelect(id), selected: () => propsRef.current.selectedId, parts: () => rig.parts.length }
+        window.__wodLearn = {
+          ready: true,
+          select: (id) => propsRef.current.onSelect(id),
+          selected: () => propsRef.current.selectedId,
+          parts: () => rig.parts.length,
+          glow: (id) => Math.max(0, ...(rig.byId.get(id) ?? []).map((p) => p.glow)),
+        }
         propsRef.current.onReady()
         invalidate()
       },
@@ -221,7 +229,7 @@ export default function AnatomyViewer(props: ViewerProps) {
   }, [props.scene.file.path])
 
   // Prop-driven updates: each one touches the rig and asks for one frame.
-  useEffect(() => { const r = rigRef.current; if (r) { applySelection(r, props.selectedId); r.invalidate?.() } }, [props.selectedId])
+  useEffect(() => { const r = rigRef.current; if (r) { applySelection(r, props.selectedId, props.highlight); r.invalidate?.() } }, [props.selectedId, props.highlight])
   useEffect(() => { const r = rigRef.current; if (r && !props.playing) { r.angle = props.angle; applyPose(r, props.scene, props.angle); r.invalidate?.() } }, [props.angle, props.playing, props.scene])
   useEffect(() => { const r = rigRef.current; if (r) { applyHidden(r, props.hiddenIds); r.invalidate?.() } }, [props.hiddenIds])
   useEffect(() => { const r = rigRef.current; if (r && props.playing) r.invalidate?.() }, [props.playing])
@@ -237,14 +245,15 @@ function applyPose(r: Rig, scene: Scene, angle: number) {
 }
 
 /**
- * Selected: accent glow. Everything else that is not bone fades to 35% and stops writing depth, so
- * it never hides the selection. Only faded parts are transparent: opaque parts keep the cheap pass.
+ * Selected: accent glow. With nothing selected, Muscles worked lights its primary groups fully and
+ * secondary ones at half. Everything else that is not bone fades to 35% and stops writing depth.
+ * Only faded parts are transparent: opaque parts keep the cheap pass.
  */
-function applySelection(r: Rig, selectedId: string | null) {
+function applySelection(r: Rig, selectedId: string | null, highlight: Highlight | null) {
   for (const p of r.parts) {
-    const st = selectionStyle(p.id, p.kind, selectedId)
-    p.mat.emissive.set(0x000000)
-    if (st.glow) p.mat.emissive.copy(r.accent).multiplyScalar(0.35)
+    const st = selectionStyle(p.id, p.kind, selectedId, highlight)
+    p.glow = st.glow
+    p.mat.emissive.copy(r.accent).multiplyScalar(0.35 * st.glow)
     p.mat.opacity = st.opacity
     p.mat.transparent = st.transparent
     p.mat.depthWrite = st.depthWrite

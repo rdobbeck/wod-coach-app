@@ -2,7 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import learn from "../../data/anatomy/learn.json"
 import crosswalk from "../../data/anatomy/authored/muscle-groups.json"
-import { groupLabel, groupOfStructure, isGroupId, MUSCLE_GROUPS, musclesHref, orderGroups, parseGroups, structuresOf } from "../../lib/muscles/groups"
+import { groupLabel, groupOfStructure, highlightOf, isGroupId, MUSCLE_GROUPS, musclesHref, orderGroups, parseGroups, parseWorked, structuresOf } from "../../lib/muscles/groups"
 
 const muscleScene = new Set((learn as { scenes: { id: string; structures: string[] }[] }).scenes.find((s) => s.id === "muscles")!.structures)
 
@@ -49,4 +49,26 @@ test("the Muscles worked link carries both lists and the exercise name", () => {
     "/client/learn/muscles?highlight=glutes%2Chamstrings&also=lower-back&from=Romanian+Deadlift",
   )
   assert.equal(musclesHref({ primary: ["calves"], secondary: [] }, "Calf Raise"), "/client/learn/muscles?highlight=calves&from=Calf+Raise")
+})
+
+test("Muscles worked reads valid groups once each, never one group as both, and a short exercise name", () => {
+  const q = new URLSearchParams("highlight=glutes,glutes,foo&also=glutes,hamstrings&from=Hip%20Thrust")
+  assert.deepEqual(parseWorked((k) => q.get(k)), { primary: ["glutes"], secondary: ["hamstrings"], from: "Hip Thrust" })
+  const empty = new URLSearchParams("highlight=&also=")
+  assert.deepEqual(parseWorked((k) => empty.get(k)), { primary: [], secondary: [], from: null })
+  const long = new URLSearchParams({ highlight: "quads", from: "x".repeat(200) })
+  assert.equal(parseWorked((k) => long.get(k)).from?.length, 80)
+})
+
+test("the chip link and Learn agree", () => {
+  const q = new URL(musclesHref({ primary: ["hamstrings", "glutes"], secondary: ["lower-back"] }, "Romanian Deadlift"), "https://wod.coach").searchParams
+  assert.deepEqual(parseWorked((k) => q.get(k)), { primary: ["glutes", "hamstrings"], secondary: ["lower-back"], from: "Romanian Deadlift" })
+})
+
+test("a highlight holds each group's structures; nothing to light is no highlight", () => {
+  const h = highlightOf({ primary: ["glutes"], secondary: ["calves"] })!
+  assert.ok(h.primary.has("gluteus-maximus-muscle"))
+  assert.ok(h.secondary.has("soleus-muscle"))
+  assert.ok(!h.primary.has("soleus-muscle"))
+  assert.equal(highlightOf({ primary: [], secondary: [] }), null)
 })
