@@ -4,7 +4,7 @@ import { withAlert } from "@/lib/alert"
 import { decideAssistFunding } from "@/lib/ai/funding"
 import { spendMeter } from "@/lib/ai/spend"
 import { settleAiCall } from "@/lib/ai-billing"
-import { buildContext, callModel, libraryMatcher, parseProposal, type Turn } from "@/lib/ai/assist"
+import { buildContext, callModel, libraryMatcher, mergeProposals, parseProposal, splitContext, type Proposal, type Turn } from "@/lib/ai/assist"
 
 // A large redesign can take a minute or two.
 export const maxDuration = 120
@@ -37,29 +37,33 @@ async function handlePOST(req: Request) {
     .slice(-6)
 
   const ctx = await buildContext(body.clientId)
-  let out
-  try {
-    out = await callModel(ctx, message, history)
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message || "The AI service is unavailable.", meter: await spendMeter(coachId) }, { status: 502 })
+  // A big program is asked about in parts, all at once, so no single answer runs past the time limit.
+  const parts = splitContext(ctx)
+  const results = await Promise.allSettled(parts.map((p) => callModel(p, message, history)))
+  if (results.every((r) => r.status === "rejected")) {
+    const e = (results[0] as PromiseRejectedResult).reason as Error
+    return NextResponse.json({ error: e?.message || "The AI service is unavailable.", meter: await spendMeter(coachId) }, { status: 502 })
   }
-  // The money is spent whether or not the answer turns out usable.
-  await settleAiCall(coachId, { mode }, { kind: "assist", clientId: body.clientId, model: out.model, tokensIn: out.tokensIn, tokensOut: out.tokensOut, costUsd: out.costUsd })
-
-  // Cut off at the length limit: the JSON is unfinished, so say so instead of showing a half answer.
-  if (out.finish === "length") {
-    return NextResponse.json({
-      reply: "That was too big to do in one go. Try a narrower ask, like one or two weeks, or one part of the session.",
-      changes: [],
-      warnings: [],
-      dropped: [],
-      autoApply: false,
-      meter: await spendMeter(coachId),
-    })
+  // The money is spent whether or not an answer turns out usable.
+  for (const r of results) {
+    if (r.status !== "fulfilled") continue
+    const out = r.value
+    await settleAiCall(coachId, { mode }, { kind: "assist", clientId: body.clientId, model: out.model, tokensIn: out.tokensIn, tokensOut: out.tokensOut, costUsd: out.costUsd })
   }
 
   const match = await libraryMatcher()
-  const proposal = parseProposal(out.content, ctx, match, match.libraryName, match.hasVideo)
+  const proposals: (Proposal | null)[] = results.map((r, i) => {
+    if (r.status !== "fulfilled") return null
+    // Cut off at the length limit: the JSON is unfinished, so say so instead of showing a half answer.
+    if (r.value.finish === "length") {
+      return { reply: "", changes: [], warnings: [], autoApply: false, dropped: [parts.length > 1 ? `Part ${i + 1} of the program was too big to do in one go; ask again for those sessions.` : "That was too big to do in one go. Try a narrower ask, like one or two weeks, or one part of the session."] }
+    }
+    return parseProposal(r.value.content, parts[i], match, match.libraryName, match.hasVideo)
+  })
+  const proposal = parts.length === 1 ? proposals[0]! : mergeProposals(proposals)
+  if (parts.length === 1 && results[0].status === "fulfilled" && results[0].value.finish === "length") {
+    return NextResponse.json({ ...proposal, reply: proposal.dropped[0], dropped: [], meter: await spendMeter(coachId) })
+  }
   return NextResponse.json({ ...proposal, meter: await spendMeter(coachId) })
 }
 

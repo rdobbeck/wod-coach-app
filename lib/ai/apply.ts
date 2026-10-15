@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { MAX_MERGED_CHANGES } from "@/lib/ai/assist"
 import { noLongDashes } from "@/lib/text"
 import { dayKey, fromDayKey } from "@/lib/training-format"
 
@@ -59,7 +60,7 @@ export async function applyChanges(coachId: string, clientId: string, request: s
 
   await prisma.$transaction(
     async (tx) => {
-      for (const c of changes.slice(0, 60)) {
+      for (const c of changes.slice(0, MAX_MERGED_CHANGES)) {
         if (c.action === "create") {
           const name = clean(c.workoutName, 120)
           const date = typeof c.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.date) ? c.date : null

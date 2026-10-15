@@ -20,9 +20,13 @@ export const ASSIST_MODEL = () => process.env.AI_ASSIST_MODEL || "anthropic/clau
 const PRICE: Record<string, [number, number]> = { "anthropic/claude-sonnet-5": [2, 10] }
 const FALLBACK_PRICE: [number, number] = [10, 50] // assume the priciest model rather than undercount
 
-const MAX_OUTPUT_TOKENS = 12000
+// Per call. A big program is asked about in parts (splitContext), so one part never needs more.
+const MAX_OUTPUT_TOKENS = 8000
+// Sessions per call: about 8 exercises each keeps one part's answer to roughly 25 seconds.
+const SESSIONS_PER_PART = 4
 const MAX_SESSIONS = 40
-const MAX_CHANGES = 60
+const MAX_CHANGES = 60 // per part
+export const MAX_MERGED_CHANGES = 150 // a whole program, after merging parts; apply.ts honors the same ceiling
 const MAX_CREATE_EXERCISES = 20
 
 export type CtxExercise = {
@@ -37,7 +41,31 @@ export type CtxExercise = {
   suggestions?: string[]
 }
 export type CtxSession = { ref: string; id: string; date: string; name: string; exercises: CtxExercise[] }
-export type Context = { sessions: CtxSession[]; profile: string; recent: string; today: string }
+export type Context = {
+  sessions: CtxSession[]
+  profile: string
+  recent: string
+  today: string
+  /** Set when a big program is asked about in parts: which part this is, and the sessions the other parts hold. */
+  part?: { index: number; total: number }
+  others?: { date: string; name: string }[]
+}
+
+/**
+ * A program with many upcoming sessions is too much to rewrite in one model
+ * answer (a full audit of 14 sessions ran past both the token ceiling and the
+ * route's time limit). Split it into parts of four sessions, asked in parallel.
+ * Refs stay the same, so each part's answer is parsed exactly as before.
+ */
+export function splitContext(ctx: Context, size = SESSIONS_PER_PART): Context[] {
+  if (ctx.sessions.length <= size) return [ctx]
+  const total = Math.ceil(ctx.sessions.length / size)
+  return Array.from({ length: total }, (_, index) => {
+    const mine = ctx.sessions.slice(index * size, (index + 1) * size)
+    const others = ctx.sessions.filter((s) => !mine.includes(s)).map((s) => ({ date: s.date, name: s.name }))
+    return { ...ctx, sessions: mine, part: { index, total }, others }
+  })
+}
 
 // Rows without a video that get library suggestions, so a long block cannot balloon the prompt.
 const MAX_SUGGESTED_ROWS = 80
@@ -161,8 +189,13 @@ Reply with ONLY a JSON object:
   "warnings": ["anything the coach should double check"]
 }`
 
-const render = (ctx: Context) =>
+export const renderContext = (ctx: Context) =>
   [
+    ctx.part
+      ? `PART ${ctx.part.index + 1} OF ${ctx.part.total}. The program is too big for one answer, so you are handling only the sessions listed under EDITABLE SESSIONS; the other parts are handled separately with the same request. Apply the request fully to your sessions, the same way you would across the whole program.${
+          ctx.part.index > 0 ? ' Do not use "create" in this part. Keep "reply" to one short sentence.' : ""
+        }`
+      : null,
     `TODAY ${ctx.today}`,
     `CLIENT\n${ctx.profile}`,
     `RECENT RESULTS (newest first)\n${ctx.recent || "none logged yet"}`,
@@ -183,7 +216,10 @@ const render = (ctx: Context) =>
             .join("\n\n")
         : "none: the client has no upcoming sessions"
     }`,
-  ].join("\n\n")
+    ctx.others?.length ? `OTHER UPCOMING SESSIONS (handled in other parts, not editable here)\n${ctx.others.map((o) => `  ${o.date}  ${o.name}`).join("\n")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
 
 export type Turn = { role: "user" | "assistant"; content: string }
 
@@ -196,10 +232,13 @@ export async function callModel(ctx: Context, message: string, history: Turn[] =
   const body = {
     model,
     max_tokens: MAX_OUTPUT_TOKENS,
+    // The model thinks at length by default, which used most of the token budget and over a minute
+    // per call on big asks. Edits to a program don't need it; AI_ASSIST_REASONING can raise it.
+    reasoning: { effort: process.env.AI_ASSIST_REASONING || "low" },
     usage: { include: true },
     messages: [
       { role: "system", content: SYSTEM },
-      { role: "user", content: render(ctx) },
+      { role: "user", content: renderContext(ctx) },
       { role: "assistant", content: "Understood. I have the client's sessions and will refer to them by ref." },
       ...history.slice(-6).map((t) => ({ role: t.role, content: t.content.slice(0, 2000) })),
       { role: "user", content: message },
@@ -419,6 +458,41 @@ export function parseProposal(
     warnings,
     dropped,
     // A warning means the model wants a human to look, so it never applies on its own.
+    autoApply: canAutoApply(changes) && warnings.length === 0,
+  }
+}
+
+/**
+ * One proposal from the answers to each part (null = that part's call failed).
+ * The first part's reply speaks for the whole; only the first part may create
+ * sessions, so a parallel part can never add duplicates.
+ */
+export function mergeProposals(parts: (Proposal | null)[]): Proposal {
+  const changes: Change[] = []
+  const warnings: string[] = []
+  const dropped: string[] = []
+  let reply = ""
+  parts.forEach((p, i) => {
+    if (!p) {
+      dropped.push(`Part ${i + 1} of the program could not be reached; ask again for those sessions.`)
+      return
+    }
+    if (!reply && p.reply && (i === 0 || p.changes.length)) reply = p.reply
+    for (const c of p.changes) {
+      if (c.action === "create" && i > 0) {
+        dropped.push(`A new session suggested for part ${i + 1} was left out (only the first part may add sessions).`)
+        continue
+      }
+      changes.push(c)
+    }
+    for (const w of p.warnings) if (!warnings.includes(w)) warnings.push(w)
+    dropped.push(...p.dropped)
+  })
+  return {
+    reply: reply || (changes.length ? "Here are the changes I'd make." : "Nothing to change."),
+    changes: changes.slice(0, MAX_MERGED_CHANGES),
+    warnings,
+    dropped,
     autoApply: canAutoApply(changes) && warnings.length === 0,
   }
 }
