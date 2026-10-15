@@ -8,6 +8,7 @@ export type ReviewRow = { id: string; name: string; videoUrl: string | null; pri
 /**
  * Ryan's review queue: one entry per exercise name, most used first. Rows sharing a name are one
  * entry: their uses add up and the most-used row stands for them (a save applies to all of them).
+ * A name is reviewed only when all its rows are, so a duplicate added later comes back to the queue.
  * "todo" is every unreviewed name, "untagged" the unreviewed ones the rules left without tags.
  */
 export function reviewList(
@@ -15,29 +16,30 @@ export function reviewList(
   uses: ReadonlyMap<string, number>,
   opts: { tab: ReviewTab; q?: string; page?: number; pageSize?: number; topN?: number },
 ) {
-  const byName = new Map<string, { rep: ReviewInput; best: number; total: number }>()
+  const byName = new Map<string, { rep: ReviewInput; best: number; total: number; allReviewed: boolean }>()
   for (const r of rows) {
     const n = uses.get(r.id) ?? 0
     const key = exerciseKey(r.name)
     const seen = byName.get(key)
     if (!seen) {
-      byName.set(key, { rep: r, best: n, total: n })
+      byName.set(key, { rep: r, best: n, total: n, allReviewed: !!r.musclesReviewedAt })
       continue
     }
     seen.total += n
+    seen.allReviewed = seen.allReviewed && !!r.musclesReviewedAt
     if (n > seen.best) {
       seen.rep = r
       seen.best = n
     }
   }
   const all: ReviewRow[] = Array.from(byName.values())
-    .map(({ rep, total }) => ({
+    .map(({ rep, total, allReviewed }) => ({
       id: rep.id,
       name: rep.name,
       videoUrl: rep.videoUrl,
       primary: orderGroups(rep.primaryMuscles),
       secondary: orderGroups(rep.secondaryMuscles),
-      reviewed: !!rep.musclesReviewedAt,
+      reviewed: allReviewed,
       uses: total,
     }))
     .sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name) || (a.id < b.id ? -1 : 1))

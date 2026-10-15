@@ -27,8 +27,14 @@ async function signIn(browser: Browser, who: { email: string; password: string }
   return { ctx, page }
 }
 
+// Some rows are spelled in lower case on purpose (same-name duplicates). Cleaned before too, so a
+// run that crashed halfway never leaves rows that change the next run's review queue.
+const cleanUp = () => prisma.exerciseLibrary.deleteMany({ where: { name: { startsWith: PREFIX, mode: "insensitive" } } })
+test.beforeAll(async () => {
+  await cleanUp()
+})
 test.afterAll(async () => {
-  await prisma.exerciseLibrary.deleteMany({ where: { name: { startsWith: PREFIX } } })
+  await cleanUp()
   await prisma.$disconnect()
 })
 
