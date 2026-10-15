@@ -5,10 +5,12 @@ import { useSearchParams } from "next/navigation"
 import { useMemo, useRef, useState } from "react"
 import type { Scene, Structure } from "@/lib/learn-types"
 import { hiddenByLayers, KIND_LABEL } from "@/lib/learn-viewer"
+import { groupOfStructure } from "@/lib/muscles/groups"
 import LayerChips from "./LayerChips"
 import MovementSlider from "./MovementSlider"
 import StructureCard from "./StructureCard"
 import StructureList from "./StructureList"
+import TrainIt from "./TrainIt"
 
 const AnatomyViewer = dynamic(() => import("./AnatomyViewer"), {
   ssr: false,
@@ -36,6 +38,7 @@ export default function SceneView({ scene, structures, ctaUrl, layout = "respons
   const hiddenIds = useMemo(() => hiddenByLayers(scene, layersOn), [scene, layersOn])
   const selected = selectedId ? structures[selectedId] ?? null : null
   const role = selectedId && scene.movement ? scene.movement.roles[selectedId] ?? null : null
+  const group = selectedId ? groupOfStructure(selectedId) : null
   const row = layout === "responsive"
 
   const toggleLayer = (id: string) => setLayersOn((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
@@ -103,8 +106,9 @@ export default function SceneView({ scene, structures, ctaUrl, layout = "respons
         )}
       </div>
       <aside className={row ? "space-y-3 md:w-80 md:shrink-0" : "space-y-3"} aria-label="Structure details">
-        <div ref={cardRef} className="scroll-mt-4">
+        <div ref={cardRef} className="scroll-mt-4 space-y-3">
           <StructureCard structure={selected} role={role} movementLabel={scene.movement?.label} />
+          {group && <TrainIt key={group} group={group} />}
         </div>
         {ctaUrl && (
           <a href={ctaUrl} className="flex h-11 items-center justify-center rounded-xl bg-app-accent text-sm font-bold text-app-accent-text">

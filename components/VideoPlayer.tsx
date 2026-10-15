@@ -93,10 +93,20 @@ export default function VideoPlayer({ items, startIndex, onClose }: { items: Pla
         </button>
       </div>
 
-      {/* Tapping the black area around the video closes the player. */}
+      {/* Tapping the black area around the video closes the player. A wide video is capped by the
+          height the top and bottom bars leave (they take 9rem, 13rem with a caption), so on a laptop it
+          never covers Close or Done. */}
       <div className="flex min-h-0 flex-1 items-center justify-center px-2" onClick={(e) => e.target === e.currentTarget && close()}>
         {video?.kind === "youtube" ? (
-          <div className={`${video.vertical ? "aspect-[9/16] h-full max-h-full" : "aspect-video w-full max-w-5xl"} max-w-full overflow-hidden rounded-xl bg-black`}>
+          <div
+            className={`${
+              video.vertical
+                ? "aspect-[9/16] h-full max-h-full max-w-full"
+                : item.subtitle
+                  ? "aspect-video w-full max-w-[min(100%,64rem,calc((100dvh_-_13rem)*16/9))]"
+                  : "aspect-video w-full max-w-[min(100%,64rem,calc((100dvh_-_9rem)*16/9))]"
+            } overflow-hidden rounded-xl bg-black`}
+          >
             <iframe
               key={`${video.id}-${muted}`}
               src={youtubeEmbed(video.id, { muted })}

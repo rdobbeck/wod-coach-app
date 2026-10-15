@@ -1,4 +1,4 @@
-import { test, expect, type Browser } from "@playwright/test"
+import { test, expect, type Browser, type Page } from "@playwright/test"
 import { PrismaClient } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { dbUrl } from "../lib/db-url"
@@ -137,4 +137,54 @@ test("review screen and its API: a coach who is not an owner gets a 404 and a 40
   expect((await client.page.goto("/coach/library/muscles"))?.status()).toBe(404)
   expect((await client.page.request.patch("/api/exercises/any/muscles", { data: { primary: [], secondary: [] } })).status()).toBe(401)
   await client.ctx.close()
+})
+
+const ready = (page: Page) => page.waitForFunction(() => window.__wodLearn?.ready === true, null, { timeout: 90_000 })
+
+test("muscles scene: gluteus maximus shows Train it: Glutes, a video opens the player, and a face muscle shows none", async ({ page }) => {
+  await page.goto("/learn/muscles")
+  await ready(page)
+  await page.evaluate(() => window.__wodLearn?.select("gluteus-maximus-muscle"))
+  const train = page.getByTestId("train-it")
+  await expect(train).toContainText("Train it: Glutes")
+  const first = train.getByRole("button", { name: /^Play .+ video$/ }).first()
+  const title = (await first.getAttribute("aria-label"))!.replace(/^Play (.+) video$/, "$1")
+  await first.click()
+  await expect(page.getByRole("dialog", { name: `${title} video` })).toBeVisible()
+  await page.getByRole("button", { name: "Close video" }).click()
+
+  await page.evaluate(() => window.__wodLearn?.select("frontalis-muscle")) // in no training group
+  await expect(page.getByTestId("structure-card")).toContainText("Frontalis")
+  await expect(page.getByTestId("train-it")).toHaveCount(0)
+})
+
+test("client Learn pages show Train it too: rectus femoris on the knee is Quads", async ({ browser }) => {
+  const { ctx, page } = await signIn(browser, CLIENT)
+  await page.goto("/client/learn/knee")
+  await ready(page)
+  await page.evaluate(() => window.__wodLearn?.select("rectus-femoris-muscle"))
+  await expect(page.getByTestId("train-it")).toContainText("Train it: Quads")
+  await ctx.close()
+})
+
+test("Train it failing to load says so in one line and the card keeps working", async ({ page }) => {
+  await page.route("**/api/learn/train**", (route) => route.abort())
+  await page.goto("/learn/muscles")
+  await ready(page)
+  await page.evaluate(() => window.__wodLearn?.select("gluteus-maximus-muscle"))
+  await expect(page.getByTestId("train-it-error")).toHaveText("Couldn't load exercises right now.")
+  await expect(page.getByTestId("train-it-loading")).toHaveCount(0)
+  await expect(page.getByTestId("structure-card")).toContainText("Gluteus maximus")
+})
+
+test("a group with no exercises shows no Train it section at all", async ({ page }) => {
+  await page.route("**/api/learn/train**", (route) => route.fulfill({ json: { group: "glutes", label: "Glutes", exercises: [] } }))
+  await page.goto("/learn/muscles")
+  await ready(page)
+  const answered = page.waitForResponse("**/api/learn/train**")
+  await page.evaluate(() => window.__wodLearn?.select("gluteus-maximus-muscle"))
+  await answered
+  await expect(page.getByTestId("structure-card")).toContainText("Gluteus maximus")
+  await expect(page.getByTestId("train-it-loading")).toHaveCount(0)
+  await expect(page.getByTestId("train-it")).toHaveCount(0)
 })
