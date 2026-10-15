@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs"
 import { dbUrl } from "../lib/db-url"
 import { dayKey } from "../lib/training-format"
 import { assertUnderCap, spendMeter, AiCapError, monthStart } from "../lib/ai/spend"
-import { parseProposal, isLoadBump, type Change, type Context } from "../lib/ai/assist"
+import { parseProposal, isLoadBump, splitContext, renderContext, mergeProposals, type Change, type Context, type Proposal } from "../lib/ai/assist"
 import { createThreadWriter } from "../lib/ai/thread-writer"
 import { suggestNames } from "../lib/exercise-match"
 
@@ -865,4 +865,57 @@ test("in the panel: a new session shows as its own group with a CREATE row listi
   await expect(dialog.getByText(/Applied 1 change/)).toBeVisible()
   const made = await prisma.workout.findFirstOrThrow({ where: { clientId, name: `${PREFIX}Panel Swim` }, include: { exercises: true } })
   expect(made.exercises).toHaveLength(2)
+})
+
+// ---------- big programs are asked about in parts ----------
+
+const bigCtx = (n: number): Context => ({
+  today: "2026-09-30",
+  profile: "Units: lb",
+  recent: "",
+  sessions: Array.from({ length: n }, (_, i) => ({
+    ref: `s${i + 1}`, id: `w${i + 1}`, date: `2026-10-${String(i + 1).padStart(2, "0")}`, name: `Day ${i + 1}`,
+    exercises: [{ ref: `s${i + 1}e1`, id: `e${i + 1}`, name: "Broad Jump", rx: "3x5", locked: false, hasVideo: true }],
+  })),
+})
+
+test("split: up to four sessions is one part; more are split in fours, refs unchanged, each part sees the rest by name only", () => {
+  expect(splitContext(bigCtx(4))).toHaveLength(1)
+  const parts = splitContext(bigCtx(10))
+  expect(parts.map((p) => p.sessions.map((s) => s.ref))).toEqual([["s1", "s2", "s3", "s4"], ["s5", "s6", "s7", "s8"], ["s9", "s10"]])
+  expect(parts.map((p) => p.part)).toEqual([{ index: 0, total: 3 }, { index: 1, total: 3 }, { index: 2, total: 3 }])
+  const second = renderContext(parts[1])
+  expect(second).toContain("s5  2026-10-05  Day 5")
+  expect(second).toContain("s5e1  Broad Jump: 3x5")
+  // The other parts' sessions are listed for context, without exercises or refs to edit.
+  expect(second).toContain("2026-10-01  Day 1")
+  expect(second).not.toContain("s1e1")
+  expect(second).toMatch(/PART 2 OF 3/)
+  expect(second).toMatch(/do not use "create"/i)
+  expect(renderContext(parts[0])).not.toMatch(/do not use "create"/i)
+  expect(renderContext(splitContext(bigCtx(3))[0])).not.toMatch(/PART/)
+})
+
+const prop = (over: Partial<Proposal>): Proposal => ({ reply: "", changes: [], warnings: [], dropped: [], autoApply: false, ...over })
+const ch = (over: Partial<Change>): Change => ({ action: "modify", workoutId: "w", workoutName: "Day", date: "2026-10-01", exerciseId: "e", exercise: "Back Squat", currentPrescription: "3x8 @ RPE 6", newPrescription: "3x8 @ RPE 7", reason: "", ...over })
+
+test("merge: one reply, all changes, warnings once, creates only from the first part, auto-apply judged on the whole", () => {
+  const merged = mergeProposals([
+    prop({ reply: "Made it easier across the program.", changes: [ch({ exerciseId: "e1" })], warnings: ["Check his knee"] }),
+    prop({ reply: "Part two done.", changes: [ch({ exerciseId: "e5" }), ch({ action: "create", workoutId: "", exercises: [], exerciseId: undefined })], warnings: ["Check his knee", "Short on time"] }),
+    null,
+    prop({ reply: "", changes: [], dropped: ["That was too big to do in one go."] }),
+  ])
+  expect(merged.reply).toBe("Made it easier across the program.")
+  expect(merged.changes.map((c) => c.exerciseId)).toEqual(["e1", "e5"])
+  expect(merged.warnings).toEqual(["Check his knee", "Short on time"])
+  expect(merged.dropped).toEqual([
+    "A new session suggested for part 2 was left out (only the first part may add sessions).",
+    "Part 3 of the program could not be reached; ask again for those sessions.",
+    "That was too big to do in one go.",
+  ])
+  expect(merged.autoApply).toBe(false) // warnings present
+  const bumps = mergeProposals([prop({ changes: [ch({ exerciseId: "e1" })] }), prop({ changes: [ch({ exerciseId: "e5" })] })])
+  expect(bumps.autoApply).toBe(true)
+  expect(bumps.reply).toBe("Here are the changes I'd make.")
 })
