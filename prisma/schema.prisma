@@ -443,6 +443,13 @@ model Workout {
   originalDate  DateTime?
   movedAt       DateTime?
   movedById     String?
+  // When the client plans to train (their own calendar): local time of day "HH:MM",
+  // minutes, and their IANA timezone. Stored as a time of day rather than an instant,
+  // so a session moved to another day keeps its time. plannedAt = when they set it.
+  plannedTime    String?
+  plannedMinutes Int?
+  plannedTz      String?
+  plannedAt      DateTime?
   coachrxId     String?   @unique
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

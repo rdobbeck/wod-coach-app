@@ -203,3 +203,7 @@ body {
     animation: none;
   }
 }
+
+/* Schedule my session: native time pickers follow the theme (the clock icon is black otherwise). */
+.schedule-time { color-scheme: dark; }
+[data-app-theme='light'] .schedule-time { color-scheme: light; }

@@ -14,6 +14,8 @@ export type CalItem = {
   note: boolean
   /** Completed sessions stay where they were done. */
   movable: boolean
+  /** When the client says they'll train, e.g. "7:30 AM". */
+  plannedAt?: string | null
 }
 export type CalDay = { key: string; date: number; inMonth: boolean; items: CalItem[] }
 
@@ -96,6 +98,7 @@ export default function CoachCalendar({ clientId, todayKey, days: initial }: { c
                       w.movable ? "cursor-grab active:cursor-grabbing" : ""
                     } ${drag?.id === w.id ? "opacity-40" : ""}`}
                   >
+                    {w.plannedAt && <span className="mr-1 font-bold">{w.plannedAt}</span>}
                     {w.name}
                     {w.note && " 💬"}
                   </Link>

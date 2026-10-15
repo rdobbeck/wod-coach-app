@@ -18,6 +18,7 @@ import { spendMeter } from "@/lib/ai/spend"
 import { getCoachPlan } from "@/lib/plans"
 import { dayKey, getClientSnapshot, getHistoryOverview } from "@/lib/training"
 import { clockLabel, fastHours, fastingStreak, type FastEntry } from "@/lib/fasting"
+import { timeLabel } from "@/lib/calendar-invite"
 
 const DAY = 86_400_000
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-US", { ...o, timeZone: "UTC" })
@@ -140,6 +141,7 @@ export default async function ClientDetailPage({
         status: w.program?.isDraft ? "draft" : rest ? "rest" : w.isCompleted ? "done" : d.key < todayKey ? "missed" : "planned",
         note: !!(w.logs[0]?.notes || w._count.comments > 0),
         movable: !w.isCompleted,
+        plannedAt: w.plannedTime && !w.isCompleted ? timeLabel(w.plannedTime).replace(":00", "").replace(" ", "").toLowerCase() : null,
       }
     }),
   }))

@@ -9,13 +9,14 @@ import NotificationsPrompt from "@/components/client/NotificationsPrompt"
 import { requireClient } from "@/lib/require-client"
 import AskAiHint from "@/components/client/AskAiHint"
 import { spendMeter } from "@/lib/ai/spend"
+import { DEFAULT_MINUTES, planIsStale } from "@/lib/calendar-invite"
 
 const DAY = 86_400_000
 
 export default async function ClientToday() {
   const session = await requireClient()
   const now = Date.now()
-  const [workouts, profile, coachLink, note, fasts, compliance] = await Promise.all([
+  const [workouts, profile, coachLink, note, fasts, compliance, lastPlan] = await Promise.all([
     prisma.workout.findMany({
       where: {
         clientId: session.user.id,
@@ -49,6 +50,12 @@ export default async function ClientToday() {
         ...clientVisible,
       },
       select: { isCompleted: true, _count: { select: { exercises: true } } },
+    }),
+    // The time they picked last, so the next "Schedule my session" starts there.
+    prisma.workout.findFirst({
+      where: { clientId: session.user.id, plannedAt: { not: null } },
+      orderBy: { plannedAt: "desc" },
+      select: { plannedTime: true, plannedMinutes: true },
     }),
   ])
 
@@ -95,6 +102,8 @@ export default async function ClientToday() {
     isRest: w.exercises.length === 0 && /rest/i.test(w.name),
     exerciseNames: w.exercises.map((e) => e.name ?? e.exercise?.name ?? "Exercise"),
     movedFrom: w.originalDate ? dayKey(w.originalDate) : null,
+    plan: w.plannedTime ? { time: w.plannedTime, minutes: w.plannedMinutes ?? DEFAULT_MINUTES } : null,
+    planStale: !!w.plannedTime && planIsStale(w.plannedAt, w.movedAt),
   }))
 
   const canMove = profile?.canMoveWorkouts ?? true
@@ -124,6 +133,12 @@ export default async function ClientToday() {
         sessions={sessions}
         canPay={canPay}
         workouts={days}
+        schedule={{
+          time: lastPlan?.plannedTime ?? "07:00",
+          minutes: lastPlan?.plannedMinutes ?? DEFAULT_MINUTES,
+          bookHref: canBookSession ? "/client/book/session" : null,
+          coachName: coachLink?.coach.name ?? null,
+        }}
         fasting={
           profile?.fastingEnabled
             ? {
