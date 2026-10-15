@@ -58,6 +58,8 @@ test("Muscles worked reads valid groups once each, never one group as both, and 
   assert.deepEqual(parseWorked((k) => empty.get(k)), { primary: [], secondary: [], from: null })
   const long = new URLSearchParams({ highlight: "quads", from: "x".repeat(200) })
   assert.equal(parseWorked((k) => long.get(k)).from?.length, 80)
+  const dashed = new URLSearchParams({ highlight: "quads", from: "Sled Drag – Backward" })
+  assert.equal(parseWorked((k) => dashed.get(k)).from, "Sled Drag, Backward")
 })
 
 test("the chip link and Learn agree", () => {

@@ -100,6 +100,12 @@ test("review screen: one row per name; a chip edit saves on every row with that 
   await expect(rows).toHaveCount(2) // three library rows, two names
   const lift = rows.filter({ hasText: /review lift/i })
   await expect(lift.getByRole("button", { name: "Looks right" })).toBeVisible()
+  // Close drops an unsaved edit: the button goes back to Looks right and the editor reopens unchanged.
+  await lift.getByRole("button", { name: "Edit" }).click()
+  await lift.getByRole("button", { name: "Hamstrings: off" }).click()
+  await expect(lift.getByRole("button", { name: "Save" })).toBeVisible()
+  await lift.getByRole("button", { name: "Close" }).click()
+  await expect(lift.getByRole("button", { name: "Looks right" })).toBeVisible()
   await lift.getByRole("button", { name: "Edit" }).click()
   await lift.getByRole("button", { name: "Hamstrings: off" }).click()
   await lift.getByRole("button", { name: "Hamstrings: primary" }).click()
