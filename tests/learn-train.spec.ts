@@ -143,13 +143,16 @@ test("review screen and its API: a coach who is not an owner gets a 404 and a 40
 })
 
 const ready = (page: Page) => page.waitForFunction(() => window.__wodLearn?.ready === true, null, { timeout: 90_000 })
+// The first selection or highlight on a scene compiles the viewer's fade shaders. In software WebGL
+// on a busy machine that holds the page's main thread for seconds, so Train it renders its answer late.
+const AFTER_FIRST_SELECT = { timeout: 20_000 }
 
 test("muscles scene: gluteus maximus shows Train it: Glutes, a video opens the player, and a face muscle shows none", async ({ page }) => {
   await page.goto("/learn/muscles")
   await ready(page)
   await page.evaluate(() => window.__wodLearn?.select("gluteus-maximus-muscle"))
   const train = page.getByTestId("train-it")
-  await expect(train).toContainText("Train it: Glutes")
+  await expect(train).toContainText("Train it: Glutes", AFTER_FIRST_SELECT)
   const first = train.getByRole("button", { name: /^Play .+ video$/ }).first()
   const title = (await first.getAttribute("aria-label"))!.replace(/^Play (.+) video$/, "$1")
   await first.click()
@@ -166,7 +169,7 @@ test("client Learn pages show Train it too: rectus femoris on the knee is Quads"
   await page.goto("/client/learn/knee")
   await ready(page)
   await page.evaluate(() => window.__wodLearn?.select("rectus-femoris-muscle"))
-  await expect(page.getByTestId("train-it")).toContainText("Train it: Quads")
+  await expect(page.getByTestId("train-it")).toContainText("Train it: Quads", AFTER_FIRST_SELECT)
   await ctx.close()
 })
 
@@ -175,7 +178,7 @@ test("Train it failing to load says so in one line and the card keeps working", 
   await page.goto("/learn/muscles")
   await ready(page)
   await page.evaluate(() => window.__wodLearn?.select("gluteus-maximus-muscle"))
-  await expect(page.getByTestId("train-it-error")).toHaveText("Couldn't load exercises right now.")
+  await expect(page.getByTestId("train-it-error")).toHaveText("Couldn't load exercises right now.", AFTER_FIRST_SELECT)
   await expect(page.getByTestId("train-it-loading")).toHaveCount(0)
   await expect(page.getByTestId("structure-card")).toContainText("Gluteus maximus")
 })
@@ -188,7 +191,7 @@ test("a group with no exercises shows no Train it section at all", async ({ page
   await page.evaluate(() => window.__wodLearn?.select("gluteus-maximus-muscle"))
   await answered
   await expect(page.getByTestId("structure-card")).toContainText("Gluteus maximus")
-  await expect(page.getByTestId("train-it-loading")).toHaveCount(0)
+  await expect(page.getByTestId("train-it-loading")).toHaveCount(0, AFTER_FIRST_SELECT)
   await expect(page.getByTestId("train-it")).toHaveCount(0)
 })
 
@@ -206,7 +209,7 @@ test("Muscles worked: the link's groups are lit and listed, each opens its Train
   await expect.poll(() => glow("vastus-lateralis-muscle")).toBe(0)
 
   await worked.getByRole("button", { name: "Glutes Main" }).click()
-  await expect(worked.getByTestId("train-it")).toContainText("Train it: Glutes")
+  await expect(worked.getByTestId("train-it")).toContainText("Train it: Glutes", AFTER_FIRST_SELECT)
 
   await page.evaluate(() => window.__wodLearn?.select("vastus-lateralis-muscle"))
   await expect(page.getByTestId("structure-card")).toContainText("Vastus lateralis")
