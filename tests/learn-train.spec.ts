@@ -214,6 +214,60 @@ test("Muscles worked: the link's groups are lit and listed, each opens its Train
   await expect.poll(() => glow("gluteus-maximus-muscle")).toBe(0)
 
   await worked.getByRole("button", { name: "Show all muscles" }).click()
-  await expect(page).toHaveURL(/\/learn\/muscles$/)
+  // The app router updates the URL once the page data arrives; a busy dev server takes a few seconds.
+  await expect(page).toHaveURL(/\/learn\/muscles$/, { timeout: 15_000 })
   await expect(page.getByTestId("muscles-worked")).toHaveCount(0)
+})
+
+test.describe("Muscles worked chips in a client's session", () => {
+  const WORKOUT = `${PREFIX}Session`
+  let clientId = ""
+  let workoutId = ""
+
+  test.beforeAll(async () => {
+    clientId = (await prisma.user.findUniqueOrThrow({ where: { email: CLIENT.email } })).id
+    await prisma.clientProfile.update({ where: { userId: clientId }, data: { tourSeenAt: new Date() } })
+    await prisma.workout.deleteMany({ where: { clientId, name: WORKOUT } })
+    const lift = { category: "Custom", difficulty: "Any" }
+    const rdl = await prisma.exerciseLibrary.create({
+      data: { ...lift, name: `${PREFIX}Romanian Deadlift`, videoUrl: "https://youtu.be/ddddddddddd", primaryMuscles: ["glutes", "hamstrings"], secondaryMuscles: ["lower-back"] },
+    })
+    await prisma.exerciseLibrary.create({
+      data: { ...lift, name: `${PREFIX}Hip Thrust Chips`, videoUrl: "https://youtu.be/eeeeeeeeeee", primaryMuscles: ["glutes"], secondaryMuscles: ["side-glutes", "hamstrings"] },
+    })
+    const today = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z")
+    const w = await prisma.workout.create({
+      data: {
+        clientId, name: WORKOUT, scheduledDate: today, dayOfWeek: today.getUTCDay(), order: 1,
+        exercises: {
+          create: [
+            { name: `${PREFIX}Romanian Deadlift`, exerciseId: rdl.id, prescription: "3x8", order: 1 },
+            { name: "pw train hip thrust chips", prescription: "3x10", order: 2 }, // unlinked; the library spells it in title case
+            { name: `${PREFIX}Mystery Drill`, prescription: "2x5", order: 3 }, // unlinked, no library match
+          ],
+        },
+      },
+    })
+    workoutId = w.id
+  })
+
+  test.afterAll(async () => {
+    await prisma.workout.deleteMany({ where: { clientId, name: WORKOUT } })
+  })
+
+  test("each tagged exercise shows its main muscles, and a chip opens Learn with them lit", async ({ browser }) => {
+    const { ctx, page } = await signIn(browser, CLIENT)
+    await page.goto(`/client/workouts/${workoutId}`)
+    const row = (name: string) => page.locator("li", { has: page.getByText(name, { exact: true }) })
+    await expect(row(`${PREFIX}Romanian Deadlift`).getByTestId("muscle-chips")).toContainText("Glutes · Hamstrings")
+    const borrowed = row("pw train hip thrust chips").getByTestId("muscle-chips")
+    await expect(borrowed).toContainText("Glutes")
+    await expect(borrowed).toHaveAttribute("href", "/client/learn/muscles?highlight=glutes&also=side-glutes%2Chamstrings&from=pw+train+hip+thrust+chips")
+    await expect(row(`${PREFIX}Mystery Drill`).getByTestId("muscle-chips")).toHaveCount(0)
+
+    await row(`${PREFIX}Romanian Deadlift`).getByTestId("muscle-chips").click()
+    await page.waitForURL(/\/client\/learn\/muscles\?highlight=glutes%2Chamstrings&also=lower-back&from=/)
+    await expect(page.getByTestId("muscles-worked")).toContainText(`Muscles worked by ${PREFIX}Romanian Deadlift`)
+    await ctx.close()
+  })
 })
