@@ -50,3 +50,15 @@ test("new library exercises get drafted muscles from their name, unreviewed, on 
   expect(thrust.secondaryMuscles).toEqual(["side-glutes", "hamstrings"])
   await ctx.close()
 })
+
+test("Train it API: up to six exercises with videos for a group, cached at the edge; unknown groups are a 404", async ({ request }) => {
+  const res = await request.get("/api/learn/train?group=glutes")
+  expect(res.status()).toBe(200)
+  expect(res.headers()["cache-control"]).toBe("public, s-maxage=600, stale-while-revalidate=86400")
+  const body = await res.json()
+  expect(body).toMatchObject({ group: "glutes", label: "Glutes" })
+  expect(body.exercises.length).toBeGreaterThan(0)
+  expect(body.exercises.length).toBeLessThanOrEqual(6)
+  expect(body.exercises[0]).toMatchObject({ role: "primary", videoUrl: expect.stringMatching(/^https?:\/\//) })
+  for (const query of ["?group=quadriceps", "?group=", ""]) expect((await request.get(`/api/learn/train${query}`)).status()).toBe(404)
+})
