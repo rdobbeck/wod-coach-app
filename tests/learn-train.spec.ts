@@ -9,6 +9,9 @@ import { dbUrl } from "../lib/db-url"
  * `scripts/add-exercise-muscles.ts preview --apply`. Every row it makes starts with PREFIX.
  */
 test.use({ storageState: { cookies: [], origins: [] } })
+// The muscles scene is the largest Learn model and renders in software WebGL here; the review tests
+// load several pages each. 90 s per test keeps a busy machine from failing them on time alone.
+test.describe.configure({ timeout: 90_000 })
 
 const prisma = new PrismaClient({ datasources: { db: { url: dbUrl() } } })
 const PREFIX = "PW Train "
@@ -89,7 +92,7 @@ test("review screen: one row per name; a chip edit saves on every row with that 
 
   await page.goto("/coach/library")
   await page.getByRole("link", { name: "Review muscles" }).click()
-  await expect(page).toHaveURL(/\/coach\/library\/muscles$/)
+  await page.waitForURL(/\/coach\/library\/muscles$/)
   await expect(page.getByTestId("review-progress")).toHaveText(/^Reviewed \d+ of the \d+ most-used\.$/)
 
   await page.goto(`/coach/library/muscles?q=${encodeURIComponent(`${PREFIX}Review`)}`)
@@ -187,4 +190,30 @@ test("a group with no exercises shows no Train it section at all", async ({ page
   await expect(page.getByTestId("structure-card")).toContainText("Gluteus maximus")
   await expect(page.getByTestId("train-it-loading")).toHaveCount(0)
   await expect(page.getByTestId("train-it")).toHaveCount(0)
+})
+
+test("Muscles worked: the link's groups are lit and listed, each opens its Train it, a tap still selects, and Show all muscles clears it", async ({ page }) => {
+  await page.goto("/learn/muscles?highlight=glutes&also=hamstrings&from=Hip%20Thrust")
+  await ready(page)
+  const worked = page.getByTestId("muscles-worked")
+  await expect(worked).toContainText("Muscles worked by Hip Thrust")
+  await expect(worked.getByRole("button", { name: "Glutes Main" })).toBeVisible()
+  await expect(worked.getByRole("button", { name: "Hamstrings Also" })).toBeVisible()
+  await expect(page.getByTestId("structure-card")).toHaveCount(0) // Muscles worked takes the card's place
+  const glow = (id: string) => page.evaluate((i) => window.__wodLearn?.glow(i), id)
+  await expect.poll(() => glow("gluteus-maximus-muscle")).toBe(1)
+  await expect.poll(() => glow("semitendinosus-muscle")).toBe(0.5)
+  await expect.poll(() => glow("vastus-lateralis-muscle")).toBe(0)
+
+  await worked.getByRole("button", { name: "Glutes Main" }).click()
+  await expect(worked.getByTestId("train-it")).toContainText("Train it: Glutes")
+
+  await page.evaluate(() => window.__wodLearn?.select("vastus-lateralis-muscle"))
+  await expect(page.getByTestId("structure-card")).toContainText("Vastus lateralis")
+  await expect.poll(() => glow("vastus-lateralis-muscle")).toBe(1)
+  await expect.poll(() => glow("gluteus-maximus-muscle")).toBe(0)
+
+  await worked.getByRole("button", { name: "Show all muscles" }).click()
+  await expect(page).toHaveURL(/\/learn\/muscles$/)
+  await expect(page.getByTestId("muscles-worked")).toHaveCount(0)
 })

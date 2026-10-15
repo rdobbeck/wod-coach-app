@@ -1,4 +1,5 @@
 import crosswalk from "../../data/anatomy/authored/muscle-groups.json"
+import type { Highlight } from "../learn-viewer"
 
 /**
  * Training groups: how a coach talks about muscles. Each maps to the Learn structures it covers
@@ -66,4 +67,19 @@ export function musclesHref(t: { primary: readonly string[]; secondary: readonly
   if (also.length) q.set("also", also.join(","))
   q.set("from", from)
   return `/client/learn/muscles?${q.toString()}`
+}
+
+/** Learn's Muscles worked parameters: main groups, other groups (never also main), and the exercise's name. */
+export function parseWorked(get: (key: string) => string | null) {
+  const primary = parseGroups(get("highlight"))
+  const secondary = parseGroups(get("also")).filter((g) => !primary.includes(g))
+  const from = (get("from") ?? "").trim().slice(0, 80) || null
+  return { primary, secondary, from }
+}
+
+/** The structures Muscles worked lights, or null when it lights none. */
+export function highlightOf(w: { primary: readonly GroupId[]; secondary: readonly GroupId[] }): Highlight | null {
+  if (!w.primary.length && !w.secondary.length) return null
+  const ids = (groups: readonly GroupId[]) => new Set(groups.reduce<string[]>((all, g) => all.concat(structuresOf(g)), []))
+  return { primary: ids(w.primary), secondary: ids(w.secondary) }
 }
