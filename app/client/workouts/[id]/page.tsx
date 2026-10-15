@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { resolveMuscles, unlinkedNames } from "@/lib/muscles/resolve"
 import { prisma } from "@/lib/prisma"
 import { dayKey, getLastTimes } from "@/lib/training"
 import { signDownloads } from "@/lib/uploads"
@@ -16,7 +17,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
       program: { select: { name: true, isDraft: true } },
       exercises: {
         orderBy: { order: "asc" },
-        include: { exercise: { select: { id: true, name: true, videoUrl: true, tracking: true } } },
+        include: { exercise: { select: { id: true, name: true, videoUrl: true, tracking: true, primaryMuscles: true, secondaryMuscles: true } } },
       },
       logs: {
         where: { userId: session.user.id },
@@ -27,12 +28,21 @@ export default async function ClientWorkout({ params }: { params: { id: string }
   })
   if (!workout || workout.clientId !== session.user.id || workout.program?.isDraft) notFound()
 
-  const [profile, coachLink] = await Promise.all([
+  // Rows imported without a library match still get chips from a library exercise of the same name
+  // (ignoring case), found in one query for the whole session.
+  const names = unlinkedNames(workout.exercises)
+  const [profile, coachLink, sameName] = await Promise.all([
     prisma.clientProfile.findUnique({ where: { userId: session.user.id } }),
     prisma.clientCoach.findFirst({
       where: { clientId: session.user.id, status: "ACTIVE" },
       select: { coach: { select: { coachProfile: { select: { defaultRestSeconds: true } } } } },
     }),
+    names.length
+      ? prisma.exerciseLibrary.findMany({
+          where: { OR: names.map((n) => ({ name: { equals: n, mode: "insensitive" as const } })) },
+          select: { name: true, primaryMuscles: true, secondaryMuscles: true },
+        })
+      : Promise.resolve([]),
   ])
   const exercises = workout.exercises.map((e) => ({
     id: e.id,
@@ -61,6 +71,7 @@ export default async function ClientWorkout({ params }: { params: { id: string }
       }}
       exercises={workout.exercises.map((e) => {
         const x = byExercise.get(e.id)
+        const muscles = resolveMuscles(e, sameName)
         return {
           id: e.id,
           exerciseId: e.exerciseId,
@@ -77,6 +88,8 @@ export default async function ClientWorkout({ params }: { params: { id: string }
           resultText: x?.resultText ?? "",
           rpe: x?.rpe ?? null,
           sets: x?.setLogs.map((s) => ({ reps: s.reps, weight: s.weight, rpe: s.rpe, done: s.isCompleted })) ?? [],
+          primaryMuscles: muscles.primary,
+          secondaryMuscles: muscles.secondary,
         }
       })}
       units={profile?.units ?? "lb"}
