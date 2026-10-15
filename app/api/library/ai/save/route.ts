@@ -5,6 +5,7 @@ import { invalidateLibraryMatcher } from "@/lib/ai/assist"
 import { withAlert } from "@/lib/alert"
 import { canUseLibraryAi } from "@/lib/library/access"
 import { validateSaveEntry } from "@/lib/library/propose"
+import { inferMuscles } from "@/lib/muscles/infer"
 import { ownerEmails } from "@/lib/plans"
 import { prisma } from "@/lib/prisma"
 
@@ -58,6 +59,7 @@ async function handlePOST(req: Request) {
         })
         saved.push(withKey(row))
       } else {
+        const muscles = inferMuscles(e.name)
         const row = await prisma.exerciseLibrary.create({
           data: {
             name: e.name,
@@ -72,6 +74,8 @@ async function handlePOST(req: Request) {
             isCustom: true,
             createdBy: session.user.id,
             locked: true,
+            primaryMuscles: muscles.primary,
+            secondaryMuscles: muscles.secondary,
           },
           select: { id: true, name: true },
         })

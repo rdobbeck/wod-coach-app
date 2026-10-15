@@ -37,14 +37,28 @@ test("plural vein names are veins too", () => {
 })
 
 test("nothing selected: every part is opaque and writes depth", () => {
-  assert.deepEqual(selectionStyle("femur", "bone", null), { opacity: 1, transparent: false, depthWrite: true, glow: false })
-  assert.deepEqual(selectionStyle("rectus-femoris-muscle", "muscle", null), { opacity: 1, transparent: false, depthWrite: true, glow: false })
+  assert.deepEqual(selectionStyle("femur", "bone", null), { opacity: 1, transparent: false, depthWrite: true, glow: 0 })
+  assert.deepEqual(selectionStyle("rectus-femoris-muscle", "muscle", null), { opacity: 1, transparent: false, depthWrite: true, glow: 0 })
 })
 
 test("with a selection, other non-bone parts fade and stop writing depth; bone and the selection stay solid", () => {
-  assert.deepEqual(selectionStyle("vastus-lateralis-muscle", "muscle", "rectus-femoris-muscle"), { opacity: 0.35, transparent: true, depthWrite: false, glow: false })
-  assert.deepEqual(selectionStyle("femur", "bone", "rectus-femoris-muscle"), { opacity: 1, transparent: false, depthWrite: true, glow: false })
-  assert.deepEqual(selectionStyle("rectus-femoris-muscle", "muscle", "rectus-femoris-muscle"), { opacity: 1, transparent: false, depthWrite: true, glow: true })
+  assert.deepEqual(selectionStyle("vastus-lateralis-muscle", "muscle", "rectus-femoris-muscle"), { opacity: 0.35, transparent: true, depthWrite: false, glow: 0 })
+  assert.deepEqual(selectionStyle("femur", "bone", "rectus-femoris-muscle"), { opacity: 1, transparent: false, depthWrite: true, glow: 0 })
+  assert.deepEqual(selectionStyle("rectus-femoris-muscle", "muscle", "rectus-femoris-muscle"), { opacity: 1, transparent: false, depthWrite: true, glow: 1 })
+})
+
+test("a Muscles worked highlight lights primary muscles fully and secondary at half, and fades the rest except bone", () => {
+  const h = { primary: new Set(["gluteus-maximus-muscle"]), secondary: new Set(["semitendinosus-muscle"]) }
+  assert.deepEqual(selectionStyle("gluteus-maximus-muscle", "muscle", null, h), { opacity: 1, transparent: false, depthWrite: true, glow: 1 })
+  assert.deepEqual(selectionStyle("semitendinosus-muscle", "muscle", null, h), { opacity: 1, transparent: false, depthWrite: true, glow: 0.5 })
+  assert.deepEqual(selectionStyle("vastus-lateralis-muscle", "muscle", null, h), { opacity: 0.35, transparent: true, depthWrite: false, glow: 0 })
+  assert.deepEqual(selectionStyle("femur", "bone", null, h), { opacity: 1, transparent: false, depthWrite: true, glow: 0 })
+})
+
+test("a selection made on top of a highlight wins, as a selection always has", () => {
+  const h = { primary: new Set(["gluteus-maximus-muscle"]), secondary: new Set<string>() }
+  assert.deepEqual(selectionStyle("vastus-lateralis-muscle", "muscle", "vastus-lateralis-muscle", h), { opacity: 1, transparent: false, depthWrite: true, glow: 1 })
+  assert.deepEqual(selectionStyle("gluteus-maximus-muscle", "muscle", "vastus-lateralis-muscle", h), { opacity: 0.35, transparent: true, depthWrite: false, glow: 0 })
 })
 
 test("a single short press is a tap", () => {

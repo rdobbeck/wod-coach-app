@@ -58,11 +58,22 @@ export function createTapTracker(max = 6) {
   }
 }
 
-/** How a part looks given the current selection. Faded parts blend and stop writing depth so they never hide the selection. */
-export function selectionStyle(partId: string | null, kind: Kind | null, selectedId: string | null) {
-  const isSel = !!selectedId && partId === selectedId
-  const faded = !!selectedId && !isSel && kind !== "bone"
-  return { opacity: faded ? 0.35 : 1, transparent: faded, depthWrite: !faded, glow: isSel }
+/** Structure ids Muscles worked lights: its primary groups fully, its secondary groups at half. */
+export type Highlight = { primary: ReadonlySet<string>; secondary: ReadonlySet<string> }
+
+/**
+ * How a part looks given the selection or, with nothing selected, a Muscles worked highlight.
+ * Everything else that is not bone fades, blends and stops writing depth so it never hides what
+ * is lit. A selection always wins over the highlight.
+ */
+export function selectionStyle(partId: string | null, kind: Kind | null, selectedId: string | null, highlight: Highlight | null = null) {
+  const glow: 0 | 0.5 | 1 = selectedId
+    ? partId === selectedId ? 1 : 0
+    : highlight && partId
+      ? highlight.primary.has(partId) ? 1 : highlight.secondary.has(partId) ? 0.5 : 0
+      : 0
+  const faded = (!!selectedId || !!highlight) && glow === 0 && kind !== "bone"
+  return { opacity: faded ? 0.35 : 1, transparent: faded, depthWrite: !faded, glow }
 }
 
 /** A fixed anatomical palette that reads on every app theme. Only the selection highlight follows the theme. */

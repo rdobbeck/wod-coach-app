@@ -150,6 +150,11 @@ export default async function LibraryPage({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {aiAllowed && (
+              <Link href="/coach/library/muscles" className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Review muscles
+              </Link>
+            )}
             {aiAllowed && meter && <LibraryAiPanel meter={meter} />}
             <AddExerciseButton />
           </div>

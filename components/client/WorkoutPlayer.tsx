@@ -11,6 +11,7 @@ import VideoThumb from "@/components/VideoThumb"
 import { summarizeEntry, type HistoryEntry } from "@/lib/training-format"
 import { formatClock, restSecondsFor } from "@/lib/rest"
 import { parseTracking, type Hold } from "@/lib/hold"
+import { groupLabel, musclesHref, orderGroups } from "@/lib/muscles/groups"
 import Hint from "./Hint"
 import MoveWorkoutButton from "./MoveWorkoutButton"
 import RestTimer from "./RestTimer"
@@ -31,6 +32,9 @@ export type PlayerExercise = {
   notes: string | null
   plannedSets: number | null
   videoUrl: string | null
+  /** Training groups for the Muscles worked chips (lib/muscles/groups.ts). The client page sets them; the coach's in-person page does not. */
+  primaryMuscles?: string[]
+  secondaryMuscles?: string[]
   isCircuit: boolean
   lastTime: HistoryEntry | null
   resultText: string
@@ -63,6 +67,26 @@ function TextBlock({ title, text, open = false }: { title: string; text: string 
       <summary className="cursor-pointer font-display text-sm font-semibold uppercase tracking-[0.14em] text-app-muted">{title}</summary>
       <p className="mt-2 whitespace-pre-line text-sm">{text}</p>
     </details>
+  )
+}
+
+/** Up to three main muscles ("Glutes · Hamstrings"), opening Learn's muscles scene with them lit. */
+function MuscleChips({ e }: { e: PlayerExercise }) {
+  const primary = orderGroups(e.primaryMuscles ?? [])
+  if (!primary.length) return null
+  const labels = primary.slice(0, 3).map(groupLabel)
+  return (
+    <div className="-mt-2 pb-3 pl-14 pr-4">
+      <Link
+        data-testid="muscle-chips"
+        href={musclesHref({ primary, secondary: e.secondaryMuscles ?? [] }, e.name)}
+        aria-label={`Muscles worked: ${labels.join(", ")}`}
+        className="inline-flex max-w-full items-center gap-1 rounded-xl bg-app-surface2 px-2.5 py-1 text-xs font-semibold text-app-muted"
+      >
+        {labels.join(" · ")}
+        <span aria-hidden="true" className="text-app-accent">›</span>
+      </Link>
+    </div>
   )
 }
 
@@ -443,6 +467,7 @@ export default function WorkoutPlayer({
                 </button>
                 {e.videoUrl && <VideoThumb compact url={e.videoUrl} title={e.name} onPlay={() => playVideo(e.id)} className="w-20 shrink-0" />}
               </div>
+              {!coaching && <MuscleChips e={e} />}
 
               {open && (
                 <div className="space-y-3 border-t border-app-border px-4 pb-4 pt-3">
