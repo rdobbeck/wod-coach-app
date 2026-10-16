@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test"
+import { test, expect, request as pwRequest, type Page, type Locator } from "@playwright/test"
 import { PrismaClient } from "@prisma/client"
 import { dbUrl } from "../lib/db-url"
 import { dayKey, fromDayKey } from "../lib/training"
@@ -50,6 +50,15 @@ async function seed() {
   return { a: await make("Sched Lower", dayA), b: await make("Sched Upper", dayB) }
 }
 
+/** Fetch a calendar link the way iOS does: a separate browser with no login cookie. */
+async function fetchSignedIcs(link: Locator, baseURL: string) {
+  await expect(link).toHaveAttribute("href", /sig=/)
+  const href = (await link.getAttribute("href"))!
+  const anon = await pwRequest.newContext({ baseURL, storageState: { cookies: [], origins: [] } })
+  const res = await anon.get(href)
+  return { res, href, anon }
+}
+
 async function signInAsClient(page: Page) {
   await page.context().clearCookies()
   await page.goto("/auth/signin")
@@ -59,7 +68,7 @@ async function signInAsClient(page: Page) {
   await page.waitForURL(/\/client$/, { timeout: 15_000 })
 }
 
-test("schedule one session: saved, and the invite has the right time", async ({ page }) => {
+test("schedule one session: saved, and the invite has the right time", async ({ page, baseURL }) => {
   const { a } = await seed()
   await signInAsClient(page)
   await page.goto(`/client/workouts/${a.id}`)
@@ -79,9 +88,12 @@ test("schedule one session: saved, and the invite has the right time", async ({ 
   const end = new Date(start.getTime() + 45 * 60_000)
 
   // Apple / Outlook: the .ics the button points at.
-  const href = await sheet.getByRole("link", { name: "Apple / Outlook calendar" }).getAttribute("href")
-  const res = await page.request.get(href!)
+  // Apple / Outlook: the .ics the button points at, fetched with no login (as iOS does).
+  const { res, href, anon } = await fetchSignedIcs(sheet.getByRole("link", { name: "Apple / Outlook calendar" }), baseURL!)
   expect(res.status()).toBe(200)
+  // A tampered link is refused.
+  expect((await anon.get(href.replace(/sig=[^&]+/, "sig=forged"))).status()).toBe(403)
+  expect((await anon.get(href.replace(/u=[^&]+/, "u=someone-else"))).status()).toBe(403)
   expect(res.headers()["content-type"]).toContain("text/calendar")
   const ics = await res.text()
   expect(ics).toContain(`DTSTART:${stamp(start)}`)
@@ -104,7 +116,7 @@ test("schedule one session: saved, and the invite has the right time", async ({ 
   await expect(page.getByRole("dialog").getByLabel("Time", { exact: true })).toHaveValue("06:15")
 })
 
-test("schedule my week: one time for every session, one file with all of them", async ({ page }) => {
+test("schedule my week: one time for every session, one file with all of them", async ({ page, baseURL }) => {
   const { a, b } = await seed()
   // Sessions in the week on screen (Monday to Sunday, Chicago); B may fall in next week.
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }))
@@ -125,8 +137,7 @@ test("schedule my week: one time for every session, one file with all of them", 
   const rows = await prisma.workout.findMany({ where: { id: { in: [a.id, b.id] }, plannedTime: "18:00" } })
   expect(rows.map((r) => r.id).sort()).toEqual(expected.map((w) => w.id).sort())
 
-  const href = await sheet.getByRole("link", { name: /Add all to Apple|Apple \/ Outlook calendar/ }).getAttribute("href")
-  const ics = await (await page.request.get(href!)).text()
+  const ics = await (await fetchSignedIcs(sheet.getByRole("link", { name: /Add all to Apple|Apple \/ Outlook calendar/ }), baseURL!)).res.text()
   expect(ics.match(/BEGIN:VEVENT/g)?.length).toBe(expected.length)
   for (const w of expected) expect(ics).toContain(`DTSTART:${stamp(zonedToUtc(dayKey(w.scheduledDate), "18:00", TZ))}`)
   await sheet.getByRole("button", { name: "Done" }).click()
@@ -136,7 +147,7 @@ test("schedule my week: one time for every session, one file with all of them", 
   await expect(sheet.getByLabel("Time", { exact: true })).toHaveValue("18:00")
 })
 
-test("moving a scheduled session keeps its time and asks to update the calendar", async ({ page }) => {
+test("moving a scheduled session keeps its time and asks to update the calendar", async ({ page, baseURL }) => {
   const { a } = await seed()
   await prisma.workout.update({ where: { id: a.id }, data: { plannedTime: "07:00", plannedMinutes: 60, plannedTz: TZ, plannedAt: new Date() } })
   await signInAsClient(page)
@@ -150,7 +161,7 @@ test("moving a scheduled session keeps its time and asks to update the calendar"
   const sheet = page.getByRole("dialog", { name: "Schedule my session" })
   await expect(sheet.getByText("This session moved since you added it")).toBeVisible()
   // The invite is for the new day, same time.
-  const ics = await (await page.request.get((await sheet.getByRole("link", { name: "Apple / Outlook calendar" }).getAttribute("href"))!)).text()
+  const ics = await (await fetchSignedIcs(sheet.getByRole("link", { name: "Apple / Outlook calendar" }), baseURL!)).res.text()
   expect(ics).toContain(`DTSTART:${stamp(zonedToUtc(dayB, "07:00", TZ))}`)
 })
 

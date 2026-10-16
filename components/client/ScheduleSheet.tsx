@@ -1,7 +1,7 @@
 'use client'
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { DEFAULT_MINUTES, eventCopy, googleCalendarUrl, timeLabel } from "@/lib/calendar-invite"
@@ -62,12 +62,34 @@ export default function ScheduleSheet({
   const [same, setSame] = useState(true)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState<string[]>([])
+  // What this sheet just saved, so reopening it before the page refreshes shows the new time.
+  const justSaved = useRef<{ times: Record<string, string | null>; minutes: number } | null>(null)
+  // Signed .ics link: iOS downloads it without the app's login, so the link carries it.
+  const [icsHref, setIcsHref] = useState<string | null>(null)
+  const savedKey = saved.join(",")
+  useEffect(() => {
+    if (!open || step !== "add" || !savedKey) return
+    let live = true
+    setIcsHref(null)
+    fetch("/api/plan/link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: savedKey.split(",") }) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && setIcsHref(d?.url ?? null))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [open, step, savedKey])
 
   const start = () => {
     const t: Record<string, string> = {}
-    for (const s of sessions) t[s.id] = s.plan?.time ?? defaultTime
+    const recent = justSaved.current
+    const lastPicked = recent ? Object.values(recent.times).find((v): v is string => !!v) : undefined
+    for (const s of sessions) {
+      const r = recent?.times[s.id]
+      t[s.id] = r !== undefined ? (r ?? lastPicked ?? defaultTime) : (s.plan?.time ?? lastPicked ?? defaultTime)
+    }
     setTimes(t)
-    setMinutes(sessions.find((s) => s.plan)?.plan?.minutes ?? defaultMinutes)
+    setMinutes(recent?.minutes ?? sessions.find((s) => s.plan)?.plan?.minutes ?? defaultMinutes)
     // A week where everything shares one time starts in "same time" mode.
     setSame(new Set(Object.values(t)).size <= 1)
     // Moved since it went in their calendar: the time is still right, the calendar copy is not.
@@ -93,6 +115,7 @@ export default function ScheduleSheet({
       return
     }
     router.refresh()
+    justSaved.current = { times: Object.fromEntries(sessions.map((s) => [s.id, clear ? null : times[s.id]])), minutes }
     if (clear) {
       toast.success("Time cleared")
       setOpen(false)
@@ -102,7 +125,6 @@ export default function ScheduleSheet({
     setStep("add")
   }
 
-  const icsHref = `/api/plan/ics?ids=${saved.join(",")}`
   const google = (s: Schedulable) =>
     googleCalendarUrl({
       id: s.id,
@@ -248,8 +270,9 @@ export default function ScheduleSheet({
                 )}
 
                 <a
-                  href={icsHref}
-                  className="mt-5 flex h-14 items-center justify-center rounded-xl bg-app-accent font-display text-lg font-bold uppercase tracking-[0.06em] text-app-accent-text"
+                  href={icsHref ?? undefined}
+                  aria-disabled={!icsHref}
+                  className={`mt-5 flex h-14 items-center justify-center rounded-xl bg-app-accent font-display text-lg font-bold uppercase tracking-[0.06em] text-app-accent-text ${icsHref ? "" : "pointer-events-none opacity-60"}`}
                 >
                   {one ? "Apple / Outlook calendar" : "Add all to Apple / Outlook"}
                 </a>
