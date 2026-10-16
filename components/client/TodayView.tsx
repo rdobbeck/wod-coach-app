@@ -8,6 +8,8 @@ import { DragGhost, useDragToDay } from "@/components/useDragToDay"
 import MoveWorkoutButton, { localDayKey } from "./MoveWorkoutButton"
 import FastingCard from "./FastingCard"
 import PlanWeekButton from "./PlanWeekButton"
+import ScheduleSheet, { type Schedulable } from "./ScheduleSheet"
+import { timeLabel } from "@/lib/calendar-invite"
 import SessionsCard, { type SessionsInfo } from "./SessionsCard"
 import type { FastEntry } from "@/lib/fasting"
 
@@ -21,7 +23,13 @@ export type DayWorkout = {
   isRest: boolean
   exerciseNames: string[]
   movedFrom: string | null
+  /** When they plan to train, if they've said. */
+  plan: { time: string; minutes: number } | null
+  /** Moved since it went into their calendar. */
+  planStale: boolean
 }
+/** Shared by every "Schedule" button on the page. */
+export type ScheduleDefaults = { time: string; minutes: number; bookHref: string | null; coachName: string | null }
 type Note = { author: string; body: string; workoutId: string; day: string }
 type Fasting = {
   protocol: string
@@ -32,6 +40,15 @@ type Fasting = {
   recent: FastEntry[]
 }
 
+const asSchedulable = (w: DayWorkout): Schedulable => ({
+  id: w.id,
+  day: w.day,
+  name: w.name,
+  exerciseNames: w.exerciseNames,
+  plan: w.plan,
+  planStale: w.planStale,
+})
+
 const shortDate = (key: string) =>
   new Date(`${key}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
 
@@ -41,10 +58,12 @@ function SessionCard({
   primary,
   dragProps,
   dragging,
+  schedule,
 }: {
   w: DayWorkout
   canMove: boolean
   primary?: boolean
+  schedule: ScheduleDefaults
   /** Present when this card can be long-pressed and dropped on a day. */
   dragProps?: Record<string, unknown>
   dragging?: boolean
@@ -94,6 +113,26 @@ function SessionCard({
             />
           )}
         </div>
+        {!w.isCompleted && (
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+            {w.plan ? (
+              <span className={w.planStale ? "text-app-warn" : "text-app-muted"}>
+                {w.planStale ? "Moved since you added it to your calendar" : `You're training at ${timeLabel(w.plan.time)}`}
+              </span>
+            ) : (
+              <span className="text-app-muted">Lock in a time</span>
+            )}
+            <ScheduleSheet
+              sessions={[asSchedulable(w)]}
+              label={w.plan ? (w.planStale ? "Update calendar" : "Change") : "Schedule my session"}
+              className="font-semibold text-app-accent"
+              defaultTime={schedule.time}
+              defaultMinutes={schedule.minutes}
+              bookHref={schedule.bookHref}
+              coachName={schedule.coachName}
+            />
+          </div>
+        )}
       </div>
     </div>
   )
@@ -272,6 +311,7 @@ export default function TodayView({
   callsLeft,
   sessions,
   canPay,
+  schedule,
 }: {
   firstName: string
   coachName: string | null
@@ -291,6 +331,7 @@ export default function TodayView({
   sessions: SessionsInfo | null
   /** The coach has something to buy, so the card can offer to pay. */
   canPay: boolean
+  schedule: ScheduleDefaults
 }) {
   const router = useRouter()
   // "Today" is the client's local day, so it's computed in the browser.
@@ -349,6 +390,8 @@ export default function TodayView({
     const status = !ws.length ? "none" : ws.every((w) => w.isCompleted) ? "done" : key < today ? "missed" : "planned"
     return { key, letter: d.toLocaleDateString("en-US", { weekday: "narrow" }), date: d.getDate(), status }
   })
+  // Sessions still ahead in the week on screen, for Schedule my week.
+  const weekToSchedule = items.filter((w) => w.day >= today && w.day >= week[0].key && w.day <= week[6].key && !w.isCompleted && !w.isRest)
   // Dot under each day: something programmed (accent), done (green), missed (amber), nothing (no dot).
   const dot = { done: "bg-app-good", missed: "bg-app-warn", planned: "bg-app-accent", none: "bg-transparent" }
 
@@ -363,6 +406,7 @@ export default function TodayView({
       primary={primary}
       dragProps={canDrag(w) ? draggable(w.id, w.day, w.name) : undefined}
       dragging={drag?.id === w.id}
+      schedule={schedule}
     />
   )
 
@@ -455,10 +499,22 @@ export default function TodayView({
           })}
         </div>
 
-        {canMove && offset >= 0 && (
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-app-muted">Hold a session and drag it onto a day to move it.</p>
-            <PlanWeekButton week={week.map((d) => d.key)} className="shrink-0 text-sm font-semibold text-app-accent" />
+        {offset >= 0 && (canMove || weekToSchedule.length > 0) && (
+          <div className="space-y-1.5">
+            {canMove && <p className="text-xs text-app-muted">Hold a session and drag it onto a day to move it.</p>}
+            <div className="flex items-center justify-between gap-3">
+              {canMove ? <PlanWeekButton week={week.map((d) => d.key)} className="text-sm font-semibold text-app-accent" /> : <span />}
+              <ScheduleSheet
+                week
+                sessions={weekToSchedule.map(asSchedulable)}
+                label="Schedule my week"
+                className="text-sm font-semibold text-app-accent"
+                defaultTime={schedule.time}
+                defaultMinutes={schedule.minutes}
+                bookHref={schedule.bookHref}
+                coachName={schedule.coachName}
+              />
+            </div>
           </div>
         )}
       </div>

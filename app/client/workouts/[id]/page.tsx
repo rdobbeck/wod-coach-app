@@ -5,6 +5,7 @@ import { dayKey, getLastTimes } from "@/lib/training"
 import { signDownloads } from "@/lib/uploads"
 import WorkoutPlayer from "@/components/client/WorkoutPlayer"
 import { requireClient } from "@/lib/require-client"
+import { DEFAULT_MINUTES, planIsStale } from "@/lib/calendar-invite"
 
 // Comments change outside this render, so never serve a cached copy.
 export const dynamic = "force-dynamic"
@@ -31,11 +32,11 @@ export default async function ClientWorkout({ params }: { params: { id: string }
   // Rows imported without a library match still get chips from a library exercise of the same name
   // (ignoring case), found in one query for the whole session.
   const names = unlinkedNames(workout.exercises)
-  const [profile, coachLink, sameName] = await Promise.all([
+  const [profile, coachLink, sameName, lastPlan] = await Promise.all([
     prisma.clientProfile.findUnique({ where: { userId: session.user.id } }),
     prisma.clientCoach.findFirst({
       where: { clientId: session.user.id, status: "ACTIVE" },
-      select: { coach: { select: { coachProfile: { select: { defaultRestSeconds: true } } } } },
+      select: { coachId: true, coach: { select: { name: true, coachProfile: { select: { defaultRestSeconds: true, textNumber: true } } } } },
     }),
     names.length
       ? prisma.exerciseLibrary.findMany({
@@ -43,7 +44,15 @@ export default async function ClientWorkout({ params }: { params: { id: string }
           select: { name: true, primaryMuscles: true, secondaryMuscles: true },
         })
       : Promise.resolve([]),
+    prisma.workout.findFirst({
+      where: { clientId: session.user.id, plannedAt: { not: null } },
+      orderBy: { plannedAt: "desc" },
+      select: { plannedTime: true, plannedMinutes: true },
+    }),
   ])
+  // Same rule as Today's "Book a session" card: a number to text, or a place to train.
+  const canBookSession =
+    !!coachLink && (!!coachLink.coach.coachProfile?.textNumber || (await prisma.sessionLocation.count({ where: { coachId: coachLink.coachId } })) > 0)
   const exercises = workout.exercises.map((e) => ({
     id: e.id,
     exerciseId: e.exerciseId,
@@ -95,6 +104,22 @@ export default async function ClientWorkout({ params }: { params: { id: string }
       units={profile?.units ?? "lb"}
       defaultRestSeconds={coachLink?.coach.coachProfile?.defaultRestSeconds ?? 90}
       canMove={profile?.canMoveWorkouts ?? true}
+      scheduling={{
+        session: {
+          id: workout.id,
+          day: dayKey(workout.scheduledDate),
+          name: workout.name,
+          exerciseNames: exercises.map((e) => e.name),
+          plan: workout.plannedTime ? { time: workout.plannedTime, minutes: workout.plannedMinutes ?? DEFAULT_MINUTES } : null,
+          planStale: !!workout.plannedTime && planIsStale(workout.plannedAt, workout.movedAt),
+        },
+        defaults: {
+          time: lastPlan?.plannedTime ?? "07:00",
+          minutes: lastPlan?.plannedMinutes ?? DEFAULT_MINUTES,
+          bookHref: canBookSession ? "/client/book/session" : null,
+          coachName: coachLink?.coach.name ?? null,
+        },
+      }}
     />
   )
 }

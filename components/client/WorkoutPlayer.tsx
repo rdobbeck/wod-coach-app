@@ -14,6 +14,9 @@ import { parseTracking, type Hold } from "@/lib/hold"
 import { groupLabel, musclesHref, orderGroups } from "@/lib/muscles/groups"
 import Hint from "./Hint"
 import MoveWorkoutButton from "./MoveWorkoutButton"
+import ScheduleSheet, { type Schedulable } from "./ScheduleSheet"
+import type { ScheduleDefaults } from "./TodayView"
+import { timeLabel } from "@/lib/calendar-invite"
 import RestTimer from "./RestTimer"
 import SaveButton from "./SaveButton"
 
@@ -133,6 +136,7 @@ export default function WorkoutPlayer({
   canMove,
   defaultRestSeconds = 90,
   coaching,
+  scheduling,
 }: {
   workout: PlayerWorkout
   exercises: PlayerExercise[]
@@ -142,6 +146,8 @@ export default function WorkoutPlayer({
   defaultRestSeconds?: number
   /** Set when the coach runs this session for the client in person: same screen, coach's navigation. */
   coaching?: { clientId: string; clientName: string; exitHref: string }
+  /** Client only: "Schedule my session" for this workout. */
+  scheduling?: { session: Schedulable; defaults: ScheduleDefaults }
 }) {
   const exitHref = coaching?.exitHref ?? "/client"
   const router = useRouter()
@@ -416,6 +422,24 @@ export default function WorkoutPlayer({
             <MoveWorkoutButton workoutId={workout.id} currentDay={workout.day} className="text-sm font-semibold text-app-accent" />
           )}
         </div>
+        {scheduling && !workout.isCompleted && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            {scheduling.session.plan && (
+              <span className={scheduling.session.planStale ? "text-app-warn" : "text-app-muted"}>
+                {scheduling.session.planStale ? "Moved since you added it to your calendar" : `Training at ${timeLabel(scheduling.session.plan.time)}`}
+              </span>
+            )}
+            <ScheduleSheet
+              sessions={[scheduling.session]}
+              label={scheduling.session.plan ? (scheduling.session.planStale ? "Update calendar" : "Change time") : "Schedule my session"}
+              className="font-semibold text-app-accent"
+              defaultTime={scheduling.defaults.time}
+              defaultMinutes={scheduling.defaults.minutes}
+              bookHref={scheduling.defaults.bookHref}
+              coachName={scheduling.defaults.coachName}
+            />
+          </div>
+        )}
         {exercises.length > 0 && (
           <div className="flex items-center gap-2 pt-1">
             <div className="flex flex-1 gap-1">
