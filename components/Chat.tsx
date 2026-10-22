@@ -49,14 +49,14 @@ export default function Chat({
       ? {
           mine: "ml-auto bg-app-accent text-app-accent-text",
           theirs: "bg-app-surface2 text-app-text",
-          meta: "text-[11px] text-app-muted",
+          meta: "text-[0.6875rem] text-app-muted",
           input: "min-h-[46px] w-full rounded-xl border border-app-border bg-app-surface2 px-3 py-3 text-sm text-app-text placeholder:text-app-muted",
           send: "h-12 shrink-0 rounded-xl bg-app-accent px-5 font-display text-sm font-bold uppercase tracking-[0.06em] text-app-accent-text disabled:opacity-50",
         }
       : {
           mine: "ml-auto bg-gray-900 text-white",
           theirs: "bg-gray-100 text-gray-900",
-          meta: "text-[11px] text-gray-400",
+          meta: "text-[0.6875rem] text-gray-400",
           input: "min-h-[46px] w-full rounded-lg border border-gray-300 px-3 py-3 text-sm",
           send: "h-12 shrink-0 rounded-lg bg-gray-900 px-5 text-sm font-semibold text-white disabled:opacity-50",
         }

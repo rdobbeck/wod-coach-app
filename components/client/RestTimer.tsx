@@ -282,8 +282,8 @@ export default function RestTimer({ left, total, paused, onPause, onResume, onSk
             aria-label={done ? "Rest done" : `${formatClock(left)} left. Change rest`}
             className="relative flex min-w-0 flex-1 flex-col items-center justify-center rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-app-accent"
           >
-            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted">{caption}</span>
-            <span className={cn("font-display text-[40px] font-bold leading-none tabular-nums", done && "text-app-good")}>{clock}</span>
+            <span className="text-[0.625rem] font-bold uppercase tracking-[0.16em] text-app-muted">{caption}</span>
+            <span className={cn("font-display text-[clamp(30px,10vw,40px)] font-bold leading-none tabular-nums", done && "text-app-good")}>{clock}</span>
           </button>
 
           <motion.button

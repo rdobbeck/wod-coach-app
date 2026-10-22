@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { MAX_MERGED_CHANGES } from "@/lib/ai/assist"
+import { MAX_MERGED_CHANGES, aiToday } from "@/lib/ai/assist"
 import { noLongDashes } from "@/lib/text"
 import { dayKey, fromDayKey } from "@/lib/training-format"
 
@@ -10,10 +10,12 @@ import { dayKey, fromDayKey } from "@/lib/training-format"
  * against the database. A change is skipped (and reported) if the session is
  * not this client's, is already done or in the past, or the exercise has any
  * logged sets. Deleting an exercise with logs would cascade away real history,
- * so those are never touched.
+ * so those are never touched, and neither is a whole session with any logs or
+ * comments. A client applying edits to their own training may move sessions
+ * only when their coach lets them, and may never delete one.
  */
 export type ChangeInput = {
-  action: "replace" | "modify" | "remove" | "add" | "link" | "create"
+  action: "replace" | "modify" | "remove" | "add" | "link" | "create" | "move" | "delete"
   workoutId: string
   exerciseId?: string
   newExercise?: string
@@ -23,6 +25,8 @@ export type ChangeInput = {
   date?: string
   workoutName?: string
   exercises?: { name?: string; prescription?: string; libraryId?: string | null }[]
+  newDate?: string // "move" only
+  position?: "start" // "add" only: first instead of last
 }
 const MAX_CREATE_EXERCISES = 20
 
@@ -50,13 +54,25 @@ type Applied =
   | { action: "remove"; workoutId: string; exerciseId: string; before: Row }
   | { action: "add"; workoutId: string; exerciseId: string }
   | { action: "create"; workoutId: string }
+  | { action: "move"; workoutId: string; before: MoveState }
+  | { action: "delete"; workoutId: string; snapshot: WorkoutSnapshot }
+
+type MoveState = { scheduledDate: Date; dayOfWeek: number; order: number; originalDate: Date | null; movedAt: Date | null; movedById: string | null }
+// A deleted session in full, so undo can put it back with the same ids.
+type WorkoutSnapshot = Record<string, unknown> & { exercises: (Row & { id: string })[] }
 
 const clean = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? noLongDashes(v.trim()).slice(0, max) : undefined)
 
 export async function applyChanges(coachId: string, clientId: string, request: string, changes: ChangeInput[], appliedById: string) {
-  const todayStart = new Date(`${dayKey(new Date())}T00:00:00.000Z`)
+  const today = aiToday()
+  const todayStart = new Date(`${today}T00:00:00.000Z`)
   const skipped: string[] = []
   const applied: Applied[] = []
+  const byClient = appliedById === clientId
+  const canMove = byClient
+    ? (await prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { canMoveWorkouts: true } }))?.canMoveWorkouts ?? true
+    : true
+  const firsts = new Map<string, { base: number; n: number }>()
 
   await prisma.$transaction(
     async (tx) => {
@@ -68,7 +84,7 @@ export async function applyChanges(coachId: string, clientId: string, request: s
             skipped.push("A new session was missing its name or date.")
             continue
           }
-          if (date < dayKey(new Date())) {
+          if (date < today) {
             skipped.push(`A new session on ${date} is in the past, so it was left out.`)
             continue
           }
@@ -104,10 +120,55 @@ export async function applyChanges(coachId: string, clientId: string, request: s
         }
         const w = await tx.workout.findFirst({
           where: { id: c.workoutId, clientId, isCompleted: false, scheduledDate: { gte: todayStart } },
-          select: { id: true, name: true },
+          select: { id: true, name: true, scheduledDate: true, dayOfWeek: true, order: true, originalDate: true, movedAt: true, movedById: true },
         })
         if (!w) {
           skipped.push("A session was not found, is already done, or is in the past.")
+          continue
+        }
+
+        if (c.action === "move") {
+          const date = typeof c.newDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.newDate) ? c.newDate : null
+          if (!date || date < today) {
+            skipped.push(`${w.name} needs a new date from today on.`)
+            continue
+          }
+          if (!canMove) {
+            skipped.push("Your coach has turned off moving workouts.")
+            continue
+          }
+          if (date === dayKey(w.scheduledDate)) continue
+          const target = fromDayKey(date)
+          const sameDay = await tx.workout.count({ where: { clientId, scheduledDate: target } })
+          const { id: _id, name: _name, ...before } = w
+          void _id, _name
+          // Same bookkeeping as moving it by hand, so "moved from" shows on the calendar.
+          await tx.workout.update({
+            where: { id: w.id },
+            data: { scheduledDate: target, dayOfWeek: target.getUTCDay(), order: sameDay + 1, originalDate: w.originalDate ?? w.scheduledDate, movedAt: new Date(), movedById: appliedById },
+          })
+          applied.push({ action: "move", workoutId: w.id, before })
+          continue
+        }
+
+        if (c.action === "delete") {
+          if (byClient) {
+            skipped.push("Only your coach can cancel a session.")
+            continue
+          }
+          const full = await tx.workout.findUnique({
+            where: { id: w.id },
+            include: { exercises: { select: { id: true, ...ROW, _count: { select: { setLogs: true, exerciseLogs: true } } } }, _count: { select: { logs: true, comments: true } } },
+          })
+          if (!full) continue
+          if (full._count.logs > 0 || full._count.comments > 0 || full.exercises.some((e) => e._count.setLogs > 0 || e._count.exerciseLogs > 0)) {
+            skipped.push(`${w.name} has logs or comments, so it was not deleted.`)
+            continue
+          }
+          const { _count, exercises, ...rest } = full
+          void _count
+          await tx.workout.delete({ where: { id: w.id } })
+          applied.push({ action: "delete", workoutId: w.id, snapshot: { ...rest, exercises: exercises.map(({ _count: _c, ...e }) => (void _c, e)) } })
           continue
         }
         const newExercise = clean(c.newExercise, 120)
@@ -118,10 +179,20 @@ export async function applyChanges(coachId: string, clientId: string, request: s
             skipped.push(`An addition to ${w.name} was incomplete.`)
             continue
           }
-          const last = await tx.workoutExercise.aggregate({ where: { workoutId: w.id }, _max: { order: true } })
           const lib = c.libraryId ? await tx.exerciseLibrary.findUnique({ where: { id: c.libraryId }, select: { id: true } }) : null
+          let order: number
+          if (c.position === "start") {
+            // First means ahead of the session's own rows. Several "start" adds in one batch keep the
+            // order they came in: each one slots in after the earlier ones, and the rest shift down.
+            const slot = firsts.get(w.id) ?? { base: (await tx.workoutExercise.aggregate({ where: { workoutId: w.id }, _min: { order: true } }))._min.order ?? 1, n: 0 }
+            order = slot.base + slot.n
+            await tx.workoutExercise.updateMany({ where: { workoutId: w.id, order: { gte: order } }, data: { order: { increment: 1 } } })
+            firsts.set(w.id, { ...slot, n: slot.n + 1 })
+          } else {
+            order = ((await tx.workoutExercise.aggregate({ where: { workoutId: w.id }, _max: { order: true } }))._max.order ?? 0) + 1
+          }
           const row = await tx.workoutExercise.create({
-            data: { workoutId: w.id, name: newExercise, exerciseId: lib?.id ?? null, prescription: newPrescription, order: (last._max.order ?? 0) + 1 },
+            data: { workoutId: w.id, name: newExercise, exerciseId: lib?.id ?? null, prescription: newPrescription, order },
             select: { id: true },
           })
           applied.push({ action: "add", workoutId: w.id, exerciseId: row.id })
@@ -222,6 +293,26 @@ export async function undoChangeSet(userId: string, changeSetId: string) {
         const logged = async (id: string) => {
           const n = await tx.workoutExercise.findUnique({ where: { id }, select: { _count: { select: { setLogs: true, exerciseLogs: true } } } })
           return !!n && (n._count.setLogs > 0 || n._count.exerciseLogs > 0)
+        }
+        if (a.action === "move") {
+          const w = await tx.workout.findUnique({ where: { id: a.workoutId }, select: { isCompleted: true } })
+          if (!w) skipped.push("A moved session no longer exists.")
+          else if (w.isCompleted) skipped.push("A moved session has since been done, so it stays where it is.")
+          else {
+            await tx.workout.update({ where: { id: a.workoutId }, data: a.before })
+            restored++
+          }
+          continue
+        }
+        if (a.action === "delete") {
+          const { exercises, ...w } = a.snapshot
+          if (await tx.workout.findUnique({ where: { id: a.workoutId }, select: { id: true } })) {
+            skipped.push("A deleted session is already back.")
+            continue
+          }
+          await tx.workout.create({ data: { ...(w as object), exercises: { create: exercises } } as never })
+          restored++
+          continue
         }
         if (a.action === "create") {
           const w = await tx.workout.findUnique({

@@ -39,7 +39,14 @@ async function handlePOST(req: Request) {
   const ctx = await buildContext(body.clientId)
   // A big program is asked about in parts, all at once, so no single answer runs past the time limit.
   const parts = splitContext(ctx)
-  const results = await Promise.allSettled(parts.map((p) => callModel(p, message, history)))
+  // An empty answer (it happens now and then) gets one more try, so the coach isn't told to rephrase a fine request.
+  const ask = async (p: (typeof parts)[number]) => {
+    const first = await callModel(p, message, history)
+    if (first.content.trim() || first.finish === "length") return first
+    const again = await callModel(p, message, history)
+    return { ...again, costUsd: first.costUsd + again.costUsd, tokensIn: first.tokensIn + again.tokensIn, tokensOut: first.tokensOut + again.tokensOut }
+  }
+  const results = await Promise.allSettled(parts.map(ask))
   if (results.every((r) => r.status === "rejected")) {
     const e = (results[0] as PromiseRejectedResult).reason as Error
     return NextResponse.json({ error: e?.message || "The AI service is unavailable.", meter: await spendMeter(coachId) }, { status: 502 })

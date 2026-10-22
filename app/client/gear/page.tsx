@@ -76,7 +76,7 @@ function PickRow({ item }: { item: GearItem }) {
         <p className="font-semibold leading-snug">
           {item.name}
           {item.featured && (
-            <span className="ml-2 rounded-full bg-app-surface2 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wider text-app-accent">
+            <span className="ml-2 rounded-full bg-app-surface2 px-2 py-0.5 align-middle text-[0.625rem] font-bold uppercase tracking-wider text-app-accent">
               Pick
             </span>
           )}

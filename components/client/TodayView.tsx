@@ -423,7 +423,7 @@ export default function TodayView({
         {compliance !== null && (
           <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full border-2 border-app-accent">
             <span className="font-display text-xl font-bold leading-none">{compliance}%</span>
-            <span className="text-[9px] uppercase tracking-[0.08em] text-app-muted">90 days</span>
+            <span className="text-[0.5625rem] uppercase tracking-[0.08em] text-app-muted">90 days</span>
           </div>
         )}
       </header>
@@ -486,7 +486,7 @@ export default function TodayView({
                         : "bg-app-surface"
                 }`}
               >
-                <span className={`text-[11px] font-semibold ${isPicked && !target ? "text-app-accent-text/80" : "text-app-muted"}`}>{d.letter}</span>
+                <span className={`text-[0.6875rem] font-semibold ${isPicked && !target ? "text-app-accent-text/80" : "text-app-muted"}`}>{d.letter}</span>
                 <span className="font-display text-lg font-semibold leading-none">{d.date}</span>
                 <span
                   aria-hidden

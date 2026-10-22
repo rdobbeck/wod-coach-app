@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs"
 import { dbUrl } from "../lib/db-url"
 import { dayKey } from "../lib/training-format"
 import { assertUnderCap, spendMeter, AiCapError, monthStart } from "../lib/ai/spend"
-import { parseProposal, isLoadBump, splitContext, renderContext, mergeProposals, type Change, type Context, type Proposal } from "../lib/ai/assist"
+import { parseProposal, isLoadBump, splitContext, renderContext, mergeProposals, extractJson, aiToday, type Change, type Context, type Proposal } from "../lib/ai/assist"
 import { createThreadWriter } from "../lib/ai/thread-writer"
 import { suggestNames } from "../lib/exercise-match"
 
@@ -328,6 +328,51 @@ test("answers that are not clean JSON still come through", () => {
   const prose = parseProposal("Sure. Which weeks do you mean?", ctx, match, libName)
   expect(prose.reply).toBe("Sure. Which weeks do you mean?")
   expect(prose.changes).toEqual([])
+  // A sentence before the JSON used to lose every change and show the raw JSON as the reply.
+  const chatty = parseProposal(
+    'Across the sessions, two rows need work. { "reply": "Swapped the squat.", "changes": [{ "action": "replace", "ref": "s1e1", "newExercise": "Goblet Squat", "newPrescription": "3x8 {light}", "reason": "knee" }], "warnings": [] } Hope that helps.',
+    ctx, match, libName
+  )
+  expect(chatty.reply).toBe("Swapped the squat.")
+  expect(chatty.changes.map((c) => c.newPrescription)).toEqual(["3x8 {light}"])
+  expect(extractJson("no json here { not json }")).toBeNull()
+})
+
+test("today is the coach's day, not UTC's: 9pm in Chicago is still that day", () => {
+  expect(aiToday(new Date("2026-10-22T02:00:00Z"))).toBe("2026-10-21")
+  expect(aiToday(new Date("2026-10-22T15:00:00Z"))).toBe("2026-10-22")
+})
+
+test("move and delete a whole session; add can go first", () => {
+  const two: Context = {
+    ...ctx,
+    sessions: [
+      ctx.sessions[0],
+      { ref: "s2", id: "w2", date: "2026-10-02", name: "Day B", exercises: [{ ref: "s2e1", id: "e9", name: "Deadlift", rx: "3x5", locked: false, hasVideo: true }] },
+    ],
+  }
+  const p = parseProposal(
+    JSON.stringify({
+      reply: "Moved Day A and cancelled Day B.",
+      changes: [
+        { action: "delete", ref: "s1", reason: "has logs" },
+        { action: "move", ref: "s1", date: "2026-10-03", reason: "travel" },
+        { action: "move", ref: "s1", date: "2026-10-04", reason: "twice" },
+        { action: "move", ref: "s2", date: "2026-09-01", reason: "past" },
+        { action: "delete", ref: "s2", reason: "cancel" },
+        { action: "add", ref: "s2", newExercise: "Goblet Squat", newPrescription: "2x5 breaths", position: "start", reason: "warm-up" },
+      ],
+      warnings: [],
+    }),
+    two, match, libName
+  )
+  expect(p.changes.map((c) => `${c.action}:${c.workoutId}:${c.newDate ?? c.position ?? ""}`)).toEqual(["move:w1:2026-10-03", "delete:w2:", "add:w2:start"])
+  expect(p.dropped.join(" ")).toContain("moved or deleted twice")
+  expect(p.dropped.join(" ")).toContain("no new date from today on")
+  expect(p.dropped.join(" ")).toContain("not deleted")
+  expect(p.autoApply).toBe(false)
+  // The model is told about the new actions and that sessions with logs can't be deleted.
+  expect(renderContext(two)).toContain("s1  Thu 2026-10-01  Day A  HAS LOGS")
 })
 
 test("only a load bump may apply itself: same movement, same sets and reps", () => {
@@ -780,6 +825,57 @@ test("create: a new session needs a date from today on, a name, and at least one
   expect(p.autoApply).toBe(false)
 })
 
+test("move, delete and add-first apply for real, and undo puts all of it back", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Move Me`)
+  const gone = await seedSession(`${PREFIX}Cancel Me`)
+  const from = dayKey(w.scheduledDate)
+  const to = new Date(w.scheduledDate.getTime() + 2 * 86_400_000)
+  const res = await page.request.post("/api/ai/assist/apply", {
+    data: {
+      clientId,
+      request: "move it, cancel the other, breathing first",
+      changes: [
+        { action: "move", workoutId: w.id, newDate: dayKey(to) },
+        { action: "add", workoutId: w.id, newExercise: "Breathing A", newPrescription: "2x5 breaths", position: "start" },
+        { action: "add", workoutId: w.id, newExercise: "Breathing B", newPrescription: "2x5 breaths", position: "start" },
+        { action: "delete", workoutId: gone.id },
+      ],
+    },
+  })
+  expect(res.ok()).toBe(true)
+  const out = await res.json()
+  expect(out.applied).toBe(4)
+
+  const moved = await prisma.workout.findUniqueOrThrow({ where: { id: w.id }, include: { exercises: { orderBy: { order: "asc" } } } })
+  expect(dayKey(moved.scheduledDate)).toBe(dayKey(to))
+  expect(dayKey(moved.originalDate!)).toBe(from)
+  // Both first, in the order they were asked for, then the session as it was.
+  expect(moved.exercises.map((e) => e.name)).toEqual(["Breathing A", "Breathing B", "Back Squat", "Strict Press", "Inverted row"])
+  expect(await prisma.workout.findUnique({ where: { id: gone.id } })).toBeNull()
+
+  const undo = await page.request.post("/api/ai/assist/undo", { data: { changeSetId: out.changeSetId } })
+  expect(undo.ok()).toBe(true)
+  const back = await prisma.workout.findUniqueOrThrow({ where: { id: w.id }, include: { exercises: { orderBy: { order: "asc" } } } })
+  expect(dayKey(back.scheduledDate)).toBe(from)
+  expect(back.originalDate).toBeNull()
+  expect(back.exercises.map((e) => e.name)).toEqual(["Back Squat", "Strict Press", "Inverted row"])
+  // The cancelled session is back with the same ids and its coaching notes.
+  const restored = await prisma.workout.findUniqueOrThrow({ where: { id: gone.id }, include: { exercises: { orderBy: { order: "asc" } } } })
+  expect(restored.exercises.map((e) => e.id)).toEqual(gone.exercises.map((e) => e.id))
+  expect(restored.exercises[0].notes).toBe("Brace hard")
+})
+
+test("a session with logs is never deleted, and a client can't cancel sessions at all", async ({ page, browser }) => {
+  const w = await seedSession(`${PREFIX}Logged`)
+  await prisma.workoutComment.create({ data: { workoutId: w.id, authorId: coachId, authorName: "Coach", body: "Nice" } })
+  const res = await page.request.post("/api/ai/assist/apply", { data: { clientId, request: "cancel", changes: [{ action: "delete", workoutId: w.id }] } })
+  const out = await res.json()
+  expect(out.applied).toBe(0)
+  expect(out.skipped.join(" ")).toContain("not deleted")
+  expect(await prisma.workout.findUnique({ where: { id: w.id } })).not.toBeNull()
+  void browser
+})
+
 test("create: applying makes a standalone session with its exercises; undo removes it unless something was logged", async ({ page, browser }) => {
   const date = dayKey(tomorrow())
   const res = await page.request.post("/api/ai/assist/apply", {
@@ -885,7 +981,8 @@ test("split: up to four sessions is one part; more are split in fours, refs unch
   expect(parts.map((p) => p.sessions.map((s) => s.ref))).toEqual([["s1", "s2", "s3", "s4"], ["s5", "s6", "s7", "s8"], ["s9", "s10"]])
   expect(parts.map((p) => p.part)).toEqual([{ index: 0, total: 3 }, { index: 1, total: 3 }, { index: 2, total: 3 }])
   const second = renderContext(parts[1])
-  expect(second).toContain("s5  2026-10-05  Day 5")
+  // Weekdays are spelled out, so "Thursday's session" lands on the right day.
+  expect(second).toContain("s5  Mon 2026-10-05  Day 5")
   expect(second).toContain("s5e1  Broad Jump: 3x5")
   // The other parts' sessions are listed for context, without exercises or refs to edit.
   expect(second).toContain("2026-10-01  Day 1")
@@ -906,7 +1003,8 @@ test("merge: one reply, all changes, warnings once, creates only from the first 
     null,
     prop({ reply: "", changes: [], dropped: ["That was too big to do in one go."] }),
   ])
-  expect(merged.reply).toBe("Made it easier across the program.")
+  // Every part that changed something speaks; the empty part does not.
+  expect(merged.reply).toBe("Made it easier across the program. Part two done.")
   expect(merged.changes.map((c) => c.exerciseId)).toEqual(["e1", "e5"])
   expect(merged.warnings).toEqual(["Check his knee", "Short on time"])
   expect(merged.dropped).toEqual([

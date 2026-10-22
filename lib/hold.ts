@@ -31,6 +31,14 @@ const TIME = new RegExp(
   String.raw`(\d+):(\d{2})\b|(?<![\d:]):(\d{2})\b|${NUM}\s*(s|secs?|seconds?|mins?|minutes?)\b|${NUM}\s*['’′](?!['’′])`,
   "i"
 )
+// A time that says how to do each rep, not how long the set lasts: "4x1 with 5 s lower",
+// "3 s pause at top", "pause 2 s", "3 second negatives". Pull-ups written like that had
+// turned into a 5-second hold timer, and the 5 landed in the reps column.
+const TEMPO_AFTER = /^\s*(?:-\s*)?(?:(?:a|of|second|sec|s)\s+)?(?:lower(?:ing)?|down|descent|eccentrics?|negatives?|pauses?|paused|tempo|on the way down|squeeze)\b/i
+const TEMPO_BEFORE = /\b(?:lower(?:ing)?|descend(?:ing)?|eccentrics?|negatives?|pause(?:d)?|tempo|squeeze)(?:\s+(?:for|of|a|at|the|top|bottom))*\s*$/i
+const isTempoCue = (text: string, m: RegExpMatchArray) =>
+  TEMPO_AFTER.test(text.slice(m.index! + m[0].length)) || TEMPO_BEFORE.test(text.slice(0, m.index!))
+
 // "3 x 8-10 reps" is reps, whatever cue follows ("5 second negatives", "max reps").
 const REPS = /\breps?\b/i
 const DISTANCE = new RegExp(String.raw`${NUM}\s*(m|km|ft|yds?|mi|meters?|metres?|yards?|feet|miles?)\b`, "i")
@@ -61,7 +69,7 @@ function timeSeconds(m: RegExpMatchArray): number {
  * a distance comes first, so "2 x MAX (3:00 goal)" counts up as it always has.
  */
 function unitIn(text: string): Tracking | null {
-  const t = text.match(TIME)
+  const t = Array.from(text.matchAll(new RegExp(TIME.source, "gi"))).find((m) => !isTempoCue(text, m)) ?? null
   const d = text.match(DISTANCE)
   const r = text.search(REPS)
   if (r >= 0 && (!t || r < t.index!) && (!d || r < d.index!)) return { kind: "reps" }
