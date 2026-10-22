@@ -50,3 +50,19 @@ test("each history entry carries its own unit", () => {
   expect(measureFor({ prescription: "3 x 20s", reps: null })).toBe("seconds")
   expect(measureFor({ prescription: "3 x 2", reps: "2", libraryTracking: "distance" })).toEqual({ distance: null })
 })
+
+test("a time that says how to do each rep is a tempo cue, not a hold", () => {
+  const reps = { kind: "reps" }
+  // Sasha's pull-ups: one rep, five seconds down. This had become a 5 s hold timer.
+  expect(parseTracking({ prescription: "4x1 with 5 s lower, rest 90 s", reps: "1" })).toEqual(reps)
+  expect(parseTracking({ prescription: "4x1 with 3 s pause at top, rest 90 s", reps: "1" })).toEqual(reps)
+  expect(parseTracking({ prescription: "6x1-2 @5-6s down; rest 3-4 min", reps: null })).toEqual(reps)
+  expect(parseTracking({ prescription: "3 x 6 (5s down) Weight Vested", reps: null })).toEqual(reps)
+  expect(parseTracking({ prescription: "3 x 8 / leg; eccentric 3 seconds; rest 75 seconds", reps: null })).toEqual(reps)
+  expect(parseTracking({ prescription: "3x5, pause 2 s at bottom", reps: null })).toEqual(reps)
+  expect(parseTracking({ prescription: "3x6 with a 3 second negative", reps: null })).toEqual(reps)
+  // Real holds and intervals still time.
+  expect(parseTracking({ prescription: "3 x 30 s hold", reps: null })).toEqual({ kind: "timed", hold: { mode: "down", seconds: 30 } })
+  expect(parseTracking({ prescription: "3x1, 30 s hold at top", reps: null })).toEqual({ kind: "timed", hold: { mode: "down", seconds: 30 } })
+  expect(parseTracking({ prescription: "1:00 Up Hill Recovery jog Down", reps: null })).toEqual({ kind: "timed", hold: { mode: "down", seconds: 60 } })
+})

@@ -41,6 +41,16 @@ export type CtxExercise = {
   suggestions?: string[]
 }
 export type CtxSession = { ref: string; id: string; date: string; name: string; exercises: CtxExercise[] }
+
+/**
+ * The coach's "today". Sessions sit at noon UTC on their day, but a UTC clock
+ * turns over at 7pm in Chicago, so after dinner "today's workout" had already
+ * dropped off the list and could not be changed. APP_TZ overrides the zone.
+ */
+export const aiToday = (now = new Date()) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: process.env.APP_TZ || "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(now)
+
+const weekday = (key: string) => new Date(`${key}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
 export type Context = {
   sessions: CtxSession[]
   profile: string
@@ -72,7 +82,8 @@ const MAX_SUGGESTED_ROWS = 80
 
 /** Sessions the assistant may edit: not done, from today on. Exercises with logged sets are locked. */
 export async function buildContext(clientId: string): Promise<Context> {
-  const todayStart = new Date(`${dayKey(new Date())}T00:00:00.000Z`)
+  const today = aiToday()
+  const todayStart = new Date(`${today}T00:00:00.000Z`)
   const [workouts, profile, logs, match] = await Promise.all([
     prisma.workout.findMany({
       where: { clientId, isCompleted: false, scheduledDate: { gte: todayStart } },
@@ -159,16 +170,19 @@ export async function buildContext(clientId: string): Promise<Context> {
     .filter(Boolean)
     .join("\n")
 
-  return { sessions, profile: profileText, recent, today: dayKey(new Date()) }
+  return { sessions, profile: profileText, recent, today }
 }
 
 const SYSTEM = `You are the programming assistant built into a strength coach's client page. The coach can ask you a question or ask you to change the client's upcoming training. You propose; the coach reviews every change before anything is saved.
 
 Rules:
 - If the message is only a question, answer it and return no changes.
-- If it asks for a change, change only what the request requires and leave everything else alone.
+- If it asks for a change, make it. Change only what the request requires and leave everything else alone.
+- The coach's message always wins over the stored client notes. If the coach asks for barbell work and the equipment list has no barbell, the list is out of date: make the change and mention it in "warnings". Never refuse a change only because it disagrees with the stored notes.
+- "Today", "tomorrow" and weekday names ("Thursday's session") mean the dates in the session list, counted from TODAY. Each session line shows its weekday.
 - Only touch sessions and exercises listed below, and refer to them only by their ref codes (s3 for a session, s3e2 for an exercise). Exercises marked LOCKED already have logged sets and cannot be changed.
-- Actions: "replace" (ref is an exercise), "modify" (ref is an exercise, prescription only), "remove" (ref is an exercise), "add" (ref is a session; the exercise is added at the end), "link" (ref is an exercise; attach a demo video, see below), "create" (a whole new session on a date, see below).
+- Actions: "replace" (ref is an exercise), "modify" (ref is an exercise, prescription only), "remove" (ref is an exercise), "add" (ref is a session; the exercise goes at the end, or first with "position": "start", which is the way to add warm-ups, drills or breathing work that come before the main lifts), "link" (ref is an exercise; attach a demo video, see below), "create" (a whole new session on a date, see below), "move" (ref is a session; reschedule it to "date", today or later), "delete" (ref is a session; cancel the whole session).
+- Use "move" when the coach wants a session on another day, and "delete" when they want it cancelled or gone. Sessions marked HAS LOGS cannot be deleted; offer to move them or remove exercises instead.
 - Demo videos come from the coach's exercise library. An exercise gets its video by being linked to a library entry whose name matches, so names matter. Exercises marked NO VIDEO are not linked to one; some list the closest library names in quotes.
 - When asked to add, attach or fix videos, use "link": keep the exercise as it is and put the library name to try in "newExercise", with up to four more names to try in order in "candidates". Prefer names listed in quotes beside the exercise; otherwise try plain standard names and common variations. Rows with no library names listed may well have no video in the library; try anyway and say so in "warnings".
 - "create" makes a new standalone session: give "date" (YYYY-MM-DD, today or later), "name" (short, like "Swim: Efficiency Drills"), and "exercises" as a list of { "name", "prescription" }. Use it when the request needs a session that does not exist yet (a new weekly session, a block of sessions, a day the client has nothing on). One create per session; for "weekly" make one per week for the span asked, or four weeks if no span was given. Prefer days with no session unless the request names a day. Never create on a date that already has a session unless the request says to.
@@ -184,7 +198,10 @@ Reply with ONLY a JSON object:
   "reply": "what you did or the answer, in two or three plain sentences",
   "changes": [
     { "action": "replace" | "modify" | "remove" | "add" | "link", "ref": "s3e2", "newExercise": "name or null", "newPrescription": "text or null", "candidates": ["more library names to try, link only"], "reason": "short reason" },
-    { "action": "create", "date": "2026-10-14", "name": "session name", "exercises": [{ "name": "exercise", "prescription": "3x8 @ RPE 7, rest 2 min" }], "reason": "short reason" }
+    { "action": "add", "ref": "s3", "newExercise": "name", "newPrescription": "text", "position": "start or end", "reason": "short reason" },
+    { "action": "create", "date": "2026-10-14", "name": "session name", "exercises": [{ "name": "exercise", "prescription": "3x8 @ RPE 7, rest 2 min" }], "reason": "short reason" },
+    { "action": "move", "ref": "s3", "date": "2026-10-15", "reason": "short reason" },
+    { "action": "delete", "ref": "s3", "reason": "short reason" }
   ],
   "warnings": ["anything the coach should double check"]
 }`
@@ -192,7 +209,7 @@ Reply with ONLY a JSON object:
 export const renderContext = (ctx: Context) =>
   [
     ctx.part
-      ? `PART ${ctx.part.index + 1} OF ${ctx.part.total}. The program is too big for one answer, so you are handling only the sessions listed under EDITABLE SESSIONS; the other parts are handled separately with the same request. Apply the request fully to your sessions, the same way you would across the whole program.${
+      ? `PART ${ctx.part.index + 1} OF ${ctx.part.total}. The program is too big for one answer, so you are handling only the sessions listed under EDITABLE SESSIONS; the other parts are handled separately with the same request. Apply the request fully to your sessions, the same way you would across the whole program. The coach sees one combined answer and never hears about parts, so never mention parts, "my sessions" or ref codes in "reply". If the request is about sessions you do not hold, return an empty "reply", no changes and no warnings.${
           ctx.part.index > 0 ? ' Do not use "create" in this part. Keep "reply" to one short sentence.' : ""
         }`
       : null,
@@ -204,7 +221,7 @@ export const renderContext = (ctx: Context) =>
         ? ctx.sessions
             .map(
               (s) =>
-                `${s.ref}  ${s.date}  ${s.name}\n${s.exercises
+                `${s.ref}  ${weekday(s.date)} ${s.date}  ${s.name}${s.exercises.some((e) => e.locked) ? "  HAS LOGS" : ""}\n${s.exercises
                   .map(
                     (e) =>
                       `  ${e.ref}${e.locked ? " LOCKED" : ""}${e.hasVideo ? "" : " NO VIDEO"}  ${e.name}: ${e.rx || "no prescription"}${
@@ -216,7 +233,7 @@ export const renderContext = (ctx: Context) =>
             .join("\n\n")
         : "none: the client has no upcoming sessions"
     }`,
-    ctx.others?.length ? `OTHER UPCOMING SESSIONS (handled in other parts, not editable here)\n${ctx.others.map((o) => `  ${o.date}  ${o.name}`).join("\n")}` : null,
+    ctx.others?.length ? `OTHER UPCOMING SESSIONS (handled in other parts, not editable here)\n${ctx.others.map((o) => `  ${weekday(o.date)} ${o.date}  ${o.name}`).join("\n")}` : null,
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -264,7 +281,7 @@ export async function callModel(ctx: Context, message: string, history: Turn[] =
 
 export type CreateExercise = { name: string; prescription: string; libraryId: string | null; inLibrary: boolean }
 export type Change = {
-  action: "replace" | "modify" | "remove" | "add" | "link" | "create"
+  action: "replace" | "modify" | "remove" | "add" | "link" | "create" | "move" | "delete"
   workoutId: string // "" for a session that does not exist yet ("create")
   workoutName: string
   date: string
@@ -276,6 +293,8 @@ export type Change = {
   libraryId?: string | null
   inLibrary?: boolean // false: no demo video exists for it
   exercises?: CreateExercise[] // "create" only: the new session's exercises in order
+  newDate?: string // "move" only: the day the session goes to
+  position?: "start" // "add" only: put the exercise first instead of last
   reason: string
 }
 export type Proposal = {
@@ -322,6 +341,39 @@ export async function libraryMatcher() {
 }
 
 const stripFences = (s: string) => s.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim()
+
+/**
+ * The model's JSON object, even when it wrote a sentence first or wrapped it
+ * in a code fence partway down. Scans from each "{" for the object it opens,
+ * minding strings, and returns the first one that parses with a reply or
+ * changes. Null when there is no such object.
+ */
+export function extractJson(raw: string): any {
+  const direct = stripFences(raw)
+  try {
+    return JSON.parse(direct)
+  } catch {}
+  for (let start = raw.indexOf("{"); start !== -1; start = raw.indexOf("{", start + 1)) {
+    let depth = 0
+    let inStr = false
+    for (let i = start; i < raw.length; i++) {
+      const ch = raw[i]
+      if (inStr) {
+        if (ch === "\\") i++
+        else if (ch === '"') inStr = false
+      } else if (ch === '"') inStr = true
+      else if (ch === "{") depth++
+      else if (ch === "}" && --depth === 0) {
+        try {
+          const j = JSON.parse(raw.slice(start, i + 1))
+          if (j && typeof j === "object" && ("reply" in j || "changes" in j)) return j
+        } catch {}
+        break
+      }
+    }
+  }
+  return null
+}
 const str = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? noLongDashes(v.trim()).slice(0, max) : undefined)
 
 /**
@@ -337,10 +389,8 @@ export function parseProposal(
   libraryName: (id: string) => string | null,
   hasVideo: (id: string) => boolean = () => true
 ): Proposal {
-  let j: any
-  try {
-    j = JSON.parse(stripFences(raw))
-  } catch {
+  const j = extractJson(raw)
+  if (!j) {
     return { reply: noLongDashes(raw.trim()).slice(0, 2000) || "I could not put together an answer. Try rephrasing.", changes: [], warnings: [], dropped: [], autoApply: false }
   }
   const sessions = new Map(ctx.sessions.map((s) => [s.ref, s]))
@@ -400,7 +450,38 @@ export function parseProposal(
         continue
       }
       const id = match(newExercise)
-      changes.push({ action, workoutId: s.id, workoutName: s.name, date: s.date, newExercise: (id && libraryName(id)) || newExercise, newPrescription, libraryId: id, inLibrary: !!id, reason })
+      changes.push({
+        action, workoutId: s.id, workoutName: s.name, date: s.date, newExercise: (id && libraryName(id)) || newExercise, newPrescription, libraryId: id, inLibrary: !!id, reason,
+        ...(c?.position === "start" ? { position: "start" as const } : {}),
+      })
+      continue
+    }
+    if (action === "move" || action === "delete") {
+      const s = sessions.get(ref)
+      if (!s) {
+        dropped.push(`A ${action} pointed at ${ref || "nothing"}, which is not one of this client's upcoming sessions.`)
+        continue
+      }
+      if (touched.has(s.id)) {
+        dropped.push(`${s.name} on ${s.date} was moved or deleted twice; only the first was kept.`)
+        continue
+      }
+      if (action === "delete") {
+        if (s.exercises.some((e) => e.locked)) {
+          dropped.push(`${s.name} on ${s.date} already has logged sets, so it was not deleted.`)
+          continue
+        }
+        touched.add(s.id)
+        changes.push({ action, workoutId: s.id, workoutName: s.name, date: s.date, reason })
+        continue
+      }
+      const date = typeof c?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.date.trim()) ? c.date.trim() : null
+      if (!date || date < ctx.today || date === s.date) {
+        dropped.push(`A move of ${s.name} on ${s.date} had no new date from today on.`)
+        continue
+      }
+      touched.add(s.id)
+      changes.push({ action, workoutId: s.id, workoutName: s.name, date: s.date, newDate: date, reason })
       continue
     }
     if (action !== "replace" && action !== "modify" && action !== "remove" && action !== "link") {
@@ -471,13 +552,18 @@ export function mergeProposals(parts: (Proposal | null)[]): Proposal {
   const changes: Change[] = []
   const warnings: string[] = []
   const dropped: string[] = []
-  let reply = ""
+  // The reply comes from the parts that actually changed something: a part
+  // without the session asked about used to answer "nothing for me here" while
+  // another part made the change, so the coach was told nothing happened.
+  const ok = parts.filter((p): p is Proposal => !!p)
+  const acting = ok.filter((p) => p.changes.length && p.reply)
+  const replies = Array.from(new Set((acting.length ? acting : ok.slice(0, 1)).map((p) => p.reply).filter(Boolean)))
+  const reply = replies.slice(0, acting.length ? 2 : 1).join(" ") || ok.find((p) => p.reply)?.reply || ""
   parts.forEach((p, i) => {
     if (!p) {
       dropped.push(`Part ${i + 1} of the program could not be reached; ask again for those sessions.`)
       return
     }
-    if (!reply && p.reply && (i === 0 || p.changes.length)) reply = p.reply
     for (const c of p.changes) {
       if (c.action === "create" && i > 0) {
         dropped.push(`A new session suggested for part ${i + 1} was left out (only the first part may add sessions).`)

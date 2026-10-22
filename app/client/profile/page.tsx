@@ -4,6 +4,7 @@ import { bookingFor } from "@/lib/booking"
 import AccountSettings from "@/components/AccountSettings"
 import PushToggle from "@/components/PushToggle"
 import AppearanceSetting from "@/components/client/AppearanceSetting"
+import TextSizeSetting from "@/components/client/TextSize"
 import FastingSettings from "@/components/client/FastingSettings"
 import SignOutButton from "@/components/client/SignOutButton"
 import { ReplayTourButton } from "@/components/client/Tour"
@@ -47,6 +48,8 @@ export default async function ClientProfilePage() {
       <AccountSettings name={user?.name ?? ""} email={user?.email ?? ""} username={user?.username ?? ""} hasPassword={!!user?.hashedPassword} tone="client" />
 
       <AppearanceSetting current={p?.theme ?? "dark"} units={p?.units ?? "lb"} />
+
+      <TextSizeSetting />
 
       {(p?.fastingOffered || p?.fastingEnabled) && (
         <FastingSettings

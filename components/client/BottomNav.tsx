@@ -64,14 +64,14 @@ export default function BottomNav({ unread = 0 }: { unread?: number }) {
               key={t.href}
               href={t.href}
               aria-current={active ? "page" : undefined}
-              className={`flex flex-col items-center gap-1 py-3 text-[11px] font-semibold ${active ? "text-app-accent" : "text-app-muted"}`}
+              className={`flex flex-col items-center gap-1 py-3 text-[0.6875rem] font-semibold ${active ? "text-app-accent" : "text-app-muted"}`}
             >
               <span className="relative">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   {t.icon}
                 </svg>
                 {t.href === "/client/messages" && unread > 0 && (
-                  <span className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-app-accent px-1 text-[10px] font-bold text-app-accent-text">
+                  <span className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-app-accent px-1 text-[0.625rem] font-bold text-app-accent-text">
                     {unread > 9 ? "9+" : unread}
                   </span>
                 )}

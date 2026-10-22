@@ -109,14 +109,17 @@ function restAlert(mode: "on" | "off", alert?: { workoutId: string; exercise: st
 }
 
 /** Number field with -/+ steppers, sized for thumbs. */
-function Stepper({ value, step, onChange, ariaLabel }: { value: number | null; step: number; onChange: (v: number | null) => void; ariaLabel: string }) {
+function Stepper({ value, step, onChange, ariaLabel, caption, className = "" }: { value: number | null; step: number; onChange: (v: number | null) => void; ariaLabel: string; caption: string; className?: string }) {
   const bump = (d: number) => {
     const next = Math.round(((value ?? 0) + d) * 100) / 100
     onChange(next > 0 ? next : null)
   }
   return (
+    <div className={`min-w-0 ${className}`}>
+      {/* The column headings sit above the rows; when a set wraps onto two lines each box names itself. */}
+      <span className="set-caption mb-0.5 hidden text-[0.625rem] font-bold uppercase tracking-[0.1em] text-app-muted" data-caption={caption} aria-hidden="true" />
     <div className="flex h-12 items-center justify-between rounded-xl border border-app-border bg-app-bg px-1">
-      <button type="button" onClick={() => bump(-step)} aria-label={`${ariaLabel} down`} className="h-full w-9 text-lg text-app-muted">−</button>
+      <button type="button" onClick={() => bump(-step)} aria-label={`${ariaLabel} down`} className="h-full w-8 shrink-0 text-lg text-app-muted">−</button>
       <input
         inputMode="decimal"
         aria-label={ariaLabel}
@@ -124,7 +127,8 @@ function Stepper({ value, step, onChange, ariaLabel }: { value: number | null; s
         onChange={(e) => onChange(numOrNull(e.target.value))}
         className="w-full min-w-0 bg-transparent text-center text-base font-bold text-app-text outline-none"
       />
-      <button type="button" onClick={() => bump(step)} aria-label={`${ariaLabel} up`} className="h-full w-9 text-lg text-app-muted">+</button>
+      <button type="button" onClick={() => bump(step)} aria-label={`${ariaLabel} up`} className="h-full w-8 shrink-0 text-lg text-app-muted">+</button>
+    </div>
     </div>
   )
 }
@@ -272,7 +276,7 @@ export default function WorkoutPlayer({
   const latest = useRef({ exercises, notes })
   latest.current = { exercises, notes }
 
-  const flush = useCallback(async (complete = false) => {
+  const flush = useCallback(async (complete = false, keepalive = false) => {
     clearTimeout(timer.current)
     const ids = Array.from(dirty.current)
     if (!ids.length && !notesDirty.current && !complete) return true
@@ -282,6 +286,8 @@ export default function WorkoutPlayer({
     setStatus("saving")
     const res = await fetch(`/api/workouts/${workout.id}/log`, {
       method: "PUT",
+      // Leaving the page: let the request finish after this screen is gone.
+      keepalive,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         exercises: latest.current.exercises
@@ -305,7 +311,24 @@ export default function WorkoutPlayer({
     clearTimeout(timer.current)
     timer.current = setTimeout(() => void flush(), 1000)
   }
-  useEffect(() => () => clearTimeout(timer.current), [])
+  // Leaving the workout (the back button, a tab, the phone's back swipe, closing the app) saves
+  // whatever is still waiting on the one-second debounce. This used to cancel it instead, so
+  // the last set ticked before tapping back was lost.
+  const flushRef = useRef(flush)
+  flushRef.current = flush
+  useEffect(() => {
+    const pending = dirty.current // the same Set for the life of the screen
+    const onPageHide = () => void flushRef.current(false, true)
+    window.addEventListener("pagehide", onPageHide)
+    return () => {
+      window.removeEventListener("pagehide", onPageHide)
+      clearTimeout(timer.current)
+      if (pending.size || notesDirty.current) {
+        // Refresh once it lands, so Today shows what was just logged.
+        void flushRef.current(false, true).then((ok) => ok && router.refresh())
+      }
+    }
+  }, [router])
   // Save when the app is backgrounded (phone locked, tab switched), and hand
   // the rest countdown to the server so a "Rest's up" push can reach the locked
   // phone; take it back when the app is on screen again.
@@ -401,11 +424,20 @@ export default function WorkoutPlayer({
   }
 
   return (
-    // Extra room at the bottom while the rest timer is up, so the last set's inputs stay clear of it.
-    <div className={`space-y-4 ${rest ? "pb-80" : "pb-60"}`}>
+    // Extra room at the bottom while a timer is up, so what's under it can still be scrolled clear.
+    <div className={`space-y-4 ${rest || hold ? "pb-64" : "pb-4"}`}>
       <div className="flex items-center justify-between">
-        <Link href={exitHref} className="text-sm font-semibold text-app-muted">{coaching ? "‹ Exit" : "‹ Today"}</Link>
-        <span className="text-xs text-app-muted">
+        <Link
+          href={exitHref}
+          data-testid="workout-back"
+          className="-ml-1 inline-flex h-12 items-center gap-1 rounded-full bg-app-surface2 pl-2.5 pr-5 font-display text-lg font-semibold text-app-text"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          {coaching ? "Exit" : "Today"}
+        </Link>
+        <span className="text-xs text-app-muted" aria-live="polite">
           {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status === "error" ? "Not saved, will retry" : ""}
         </span>
       </div>
@@ -524,8 +556,9 @@ export default function WorkoutPlayer({
                   )}
 
                   {rowsFor(e).length > 0 ? (
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-[1.5rem_1fr_1fr_3rem] gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-app-muted">
+                    // A container, so a narrow phone or a big text size wraps each set onto two lines (globals.css .set-row).
+                    <div className="set-list space-y-2">
+                      <div className="set-head grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] gap-1.5 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-app-muted">
                         <span>Set</span>
                         <span>{units}</span>
                         <span>{repsLabel}</span>
@@ -535,10 +568,12 @@ export default function WorkoutPlayer({
                         const running = hold?.exerciseId === e.id && hold.setIndex === i
                         const isNext = i === rows.findIndex((x) => !x.done)
                         return (
-                          <div key={i} className="grid grid-cols-[1.5rem_1fr_1fr_3rem] items-center gap-2">
-                            <span className="font-display text-lg font-semibold text-app-muted">{i + 1}</span>
-                            <Stepper value={s.weight} step={units === "kg" ? 2.5 : 5} onChange={(v) => updateSet(e, i, { weight: v })} ariaLabel={`Set ${i + 1} weight`} />
+                          <div key={i} className="set-row">
+                            <span className="set-n font-display text-lg font-semibold text-app-muted">{i + 1}</span>
+                            <Stepper className="set-w" caption={units} value={s.weight} step={units === "kg" ? 2.5 : 5} onChange={(v) => updateSet(e, i, { weight: v })} ariaLabel={`Set ${i + 1} weight`} />
                             <Stepper
+                              className="set-r"
+                              caption={repsLabel}
                               value={s.reps}
                               step={timed || (distance && (!distance.unit || ["m", "ft", "yd"].includes(distance.unit))) ? 5 : 1}
                               onChange={(v) => updateSet(e, i, { reps: v })}
@@ -548,7 +583,7 @@ export default function WorkoutPlayer({
                               <button
                                 onClick={() => (running ? finishHold(hold!.elapsed) : startHold(e, i, timed))}
                                 aria-label={running ? `Stop set ${i + 1}` : `Start set ${i + 1}`}
-                                className={`flex h-12 items-center justify-center rounded-xl border text-base ${
+                                className={`set-d flex h-12 items-center justify-center rounded-xl border text-base ${
                                   running ? "border-app-accent bg-app-accent text-app-accent-text" : "border-app-border text-app-text"
                                 } ${isNext && !hold ? "pulse-cta" : ""}`}
                               >
@@ -559,7 +594,7 @@ export default function WorkoutPlayer({
                                 onClick={() => tickSet(e, i)}
                                 aria-label={`Set ${i + 1} done`}
                                 aria-pressed={!!s.done}
-                                className={`flex h-12 items-center justify-center rounded-xl border text-base ${
+                                className={`set-d flex h-12 items-center justify-center rounded-xl border text-base ${
                                   s.done ? "border-app-good bg-app-good text-white" : "border-app-border text-app-muted"
                                 } ${isNext ? "pulse-cta" : ""}`}
                               >
@@ -627,6 +662,16 @@ export default function WorkoutPlayer({
                       Next: {exercises[idx + 1].name}
                     </button>
                   )}
+                  {idx === exercises.length - 1 && (
+                    <button
+                      onClick={() => {
+                        document.querySelector('[data-testid="finish-bar"]')?.scrollIntoView({ behavior: "smooth", block: "center" })
+                      }}
+                      className="w-full rounded-xl bg-app-surface2 px-3 py-3 font-display text-sm font-semibold uppercase tracking-[0.14em] text-app-text"
+                    >
+                      Last one. Finish below ↓
+                    </button>
+                  )}
                 </div>
               )}
             </li>
@@ -656,8 +701,23 @@ export default function WorkoutPlayer({
         />
       )}
 
-      {/* Sticky stack above the tab bar (or the screen edge in coach mode): the rest countdown while it runs, finish always. */}
+      {/* At the end of the session, not pinned over it: it shows up once you've scrolled through.
+          Leaving without it is fine, everything logged is already saved. */}
       {exercises.length > 0 && (
+        <div className="flex items-center gap-2 pt-2" data-testid="finish-bar">
+          <SaveButton
+            label={workout.isCompleted ? "Save changes" : "Finish workout"}
+            savingLabel="Saving"
+            doneLabel={workout.isCompleted ? "Saved" : "Session saved"}
+            onSave={finish}
+            onDone={finished}
+            className={doneCount === exercises.length && !workout.isCompleted ? "pulse-cta" : ""}
+          />
+        </div>
+      )}
+
+      {/* Sticky stack above the tab bar (or the screen edge in coach mode): the hold or rest countdown while one runs. */}
+      {(hold || rest) && (
         <div className={`fixed inset-x-0 z-20 px-4 ${coaching ? "bottom-[calc(1rem+env(safe-area-inset-bottom))]" : "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]"}`}>
           {hold && (() => {
             const ex = exercises.find((x) => x.id === hold.exerciseId)
@@ -671,7 +731,7 @@ export default function WorkoutPlayer({
               >
                 <div className="flex items-center gap-3 px-4 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-app-muted">
+                    <p className="truncate text-[0.625rem] font-bold uppercase tracking-[0.16em] text-app-muted">
                       {ex?.name ?? "Hold"} · set {hold.setIndex + 1}{hold.mode === "up" ? " · max hold" : ""}
                     </p>
                     <p className="font-display text-5xl font-bold leading-none tabular-nums">{formatClock(shown)}</p>
@@ -710,16 +770,6 @@ export default function WorkoutPlayer({
               />
             </div>
           )}
-          <div className="mx-auto flex max-w-md items-center gap-2">
-            <SaveButton
-              label={workout.isCompleted ? "Save changes" : "Finish workout"}
-              savingLabel="Saving"
-              doneLabel={workout.isCompleted ? "Saved" : "Session saved"}
-              onSave={finish}
-              onDone={finished}
-              className={doneCount === exercises.length && !workout.isCompleted ? "pulse-cta" : ""}
-            />
-          </div>
         </div>
       )}
 

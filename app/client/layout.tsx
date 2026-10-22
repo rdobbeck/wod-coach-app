@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { resolveTheme } from "@/lib/themes"
 import BottomNav from "@/components/client/BottomNav"
 import PushFollow from "@/components/PushFollow"
+import { TextSizeRoot } from "@/components/client/TextSize"
+import { TEXT_SIZE_SCRIPT } from "@/lib/text-size"
 
 /** Mobile shell for everything under /client: narrow column, bottom tabs, client's theme. */
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -17,6 +19,9 @@ export default async function ClientLayout({ children }: { children: React.React
       {/* Warm up connections so demo videos and thumbnails open fast. */}
       <link rel="preconnect" href="https://www.youtube-nocookie.com" />
       <link rel="preconnect" href="https://i.ytimg.com" />
+      {/* The client's text size (Settings), set before first paint so nothing jumps. */}
+      <script dangerouslySetInnerHTML={{ __html: TEXT_SIZE_SCRIPT }} />
+      <TextSizeRoot />
       <PushFollow />
       <main className="mx-auto max-w-md px-4 pt-4 pb-28">{children}</main>
       <BottomNav unread={unread} />

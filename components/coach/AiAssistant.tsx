@@ -44,6 +44,8 @@ const CHIP: Record<Change["action"], string> = {
   add: "bg-[#e2f3ea] text-[#1f6b45]",
   link: "bg-[#ece6f7] text-[#5b3f9e]",
   create: "bg-[#e2f3ea] text-[#1f6b45]",
+  move: "bg-[#e6eef9] text-[#2a5fa8]",
+  delete: "bg-[#fbe7e7] text-[#a3262b]",
 }
 
 function ChangeRow({ c, on, disabled, toggle }: { c: Change; on: boolean; disabled: boolean; toggle: () => void }) {
@@ -57,7 +59,18 @@ function ChangeRow({ c, on, disabled, toggle }: { c: Change; on: boolean; disabl
             <span className="text-[#857c70] line-through">{c.exercise}</span> <span aria-hidden>&rarr;</span> <span className="font-semibold">{c.newExercise}</span>
           </>
         )}
-        {c.action === "add" && <span className="font-semibold">{c.newExercise}</span>}
+        {c.action === "add" && (
+          <>
+            <span className="font-semibold">{c.newExercise}</span>
+            {c.position === "start" && <span className="ml-1.5 text-[11px] text-[#6b6257]">(first)</span>}
+          </>
+        )}
+        {c.action === "move" && (
+          <span className="font-semibold">
+            {c.workoutName} <span aria-hidden>&rarr;</span> {c.newDate ? day(c.newDate) : ""}
+          </span>
+        )}
+        {c.action === "delete" && <span className="text-[#857c70] line-through">{c.workoutName} (whole session)</span>}
         {c.action === "remove" && <span className="text-[#857c70] line-through">{c.exercise}</span>}
         {c.action === "modify" && <span className="font-semibold">{c.exercise}</span>}
         {c.action === "create" && (

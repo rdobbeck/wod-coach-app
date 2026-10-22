@@ -207,3 +207,33 @@ body {
 /* Schedule my session: native time pickers follow the theme (the clock icon is black otherwise). */
 .schedule-time { color-scheme: dark; }
 [data-app-theme='light'] .schedule-time { color-scheme: light; }
+
+/* Workout set rows (components/client/WorkoutPlayer.tsx). One line, "set, weight, reps, done",
+   while there is room for both number boxes; on a narrow phone or a big text size each set
+   wraps to two lines (weight over reps, the tick beside both) instead of squeezing the
+   numbers out of sight or pushing the page sideways. */
+.set-list { container-type: inline-size; }
+.set-row {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) minmax(0, 1fr) 3rem;
+  grid-template-areas: "n w r d";
+  gap: 0.375rem;
+  align-items: center;
+}
+.set-row > .set-n { grid-area: n; }
+.set-row > .set-w { grid-area: w; }
+.set-row > .set-r { grid-area: r; }
+.set-row > .set-d { grid-area: d; }
+@container (max-width: 18.5rem) {
+  .set-head { display: none; }
+  .set-row {
+    grid-template-columns: 1.5rem minmax(0, 1fr) 3rem;
+    grid-template-areas: "n w d" "n r d";
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--app-border);
+  }
+  .set-row > .set-d { align-self: stretch; height: auto; }
+  /* Drawn from data-caption so the words aren't in the page twice. */
+  .set-row .set-caption { display: block; }
+  .set-row .set-caption::before { content: attr(data-caption); }
+}
