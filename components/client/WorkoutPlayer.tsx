@@ -19,6 +19,7 @@ import type { ScheduleDefaults } from "./TodayView"
 import { timeLabel } from "@/lib/calendar-invite"
 import RestTimer from "./RestTimer"
 import SaveButton from "./SaveButton"
+import SwapSheet, { type Swapped } from "./SwapSheet"
 
 type SetRow = { reps: number | null; weight: number | null; rpe: number | null; done?: boolean }
 export type PlayerExercise = {
@@ -160,6 +161,8 @@ export default function WorkoutPlayer({
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
   const [historyFor, setHistoryFor] = useState<PlayerExercise | null>(null)
   const [videoIndex, setVideoIndex] = useState<number | null>(null)
+  // The exercise being swapped for another, without leaving the session (coach or client).
+  const [swapFor, setSwapFor] = useState<PlayerExercise | null>(null)
   // One exercise open at a time: the first not yet logged.
   const [openId, setOpenId] = useState<string | null>(initial.find((e) => !isLogged(e))?.id ?? initial[0]?.id ?? null)
   // Both timers run off wall-clock timestamps, not a once-a-second tick, so a
@@ -415,6 +418,20 @@ export default function WorkoutPlayer({
     if (next) startRest(e)
   }
 
+  /** The swap is saved by the server; the row takes the new movement and starts fresh. */
+  const swapped = (s: Swapped) => {
+    if (hold?.exerciseId === s.id) setHold(null)
+    dirty.current.delete(s.id)
+    setExercises((xs) =>
+      xs.map((x) =>
+        x.id === s.id
+          ? { ...x, exerciseId: s.exerciseId, name: s.name, videoUrl: s.videoUrl, libraryTracking: s.libraryTracking, lastTime: s.lastTime, notes: null, sets: [], resultText: "", rpe: null, primaryMuscles: [], secondaryMuscles: [] }
+          : x
+      )
+    )
+    setSwapFor(null)
+  }
+
   /** The finish button's save: true once the server has the session. Logged sets stay put either way. */
   const finish = () => flush(true)
   const finished = () => {
@@ -528,7 +545,19 @@ export default function WorkoutPlayer({
               {open && (
                 <div className="space-y-3 border-t border-app-border px-4 pb-4 pt-3">
                   {e.isCircuit && <p className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-app-accent">Circuit</p>}
-                  {e.prescription && <p className="whitespace-pre-line text-sm">{e.prescription}</p>}
+                  {(!workout.isCompleted || coaching) ? (
+                    <div className="flex items-start gap-3">
+                      <p className="min-w-0 flex-1 whitespace-pre-line text-sm">{e.prescription}</p>
+                      <button
+                        onClick={() => setSwapFor(e)}
+                        className="shrink-0 rounded-full border border-app-border px-4 py-2 text-sm font-semibold text-app-text"
+                      >
+                        ⇄ Swap
+                      </button>
+                    </div>
+                  ) : (
+                    e.prescription && <p className="whitespace-pre-line text-sm">{e.prescription}</p>
+                  )}
                   {/* What the timers will do, so a wrong rest or hold is visible before the first set. */}
                   <p className="text-xs font-semibold text-app-muted">
                     {timed && (timed.mode === "down" ? `Hold ${formatClock(timed.seconds)} · ` : "Hold as long as you can · ")}
@@ -773,6 +802,18 @@ export default function WorkoutPlayer({
         </div>
       )}
 
+      {swapFor && (
+        <SwapSheet
+          workoutId={workout.id}
+          exercise={{ id: swapFor.id, name: swapFor.name }}
+          loggedSets={swapFor.sets.filter((x) => x.done).length}
+          allowText={!!coaching}
+          note={coaching ? null : "Your coach gets a note saying what you swapped."}
+          beforeSwap={() => flush()}
+          onSwapped={swapped}
+          onClose={() => setSwapFor(null)}
+        />
+      )}
       {videoIndex !== null && <VideoPlayer items={videos} startIndex={videoIndex} onClose={() => setVideoIndex(null)} />}
       {historyFor && (
         <ExerciseHistorySheet
