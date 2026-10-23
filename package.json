@@ -16,6 +16,8 @@
     "backup:db": "tsx scripts/backup-db.ts",
     "strip:dashes": "tsx scripts/strip-dashes.ts",
     "test:e2e": "playwright test",
+    "test:local": "scripts/testdb.sh up && PW_LOCAL_DB=1 playwright test",
+    "testdb:refresh": "scripts/testdb.sh refresh",
     "test:e2e:ui": "playwright test --ui",
     "anatomy:fetch": "bash tools/anatomy/fetch.sh",
     "anatomy:build": "bash tools/anatomy/build.sh",

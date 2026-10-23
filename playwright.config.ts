@@ -5,7 +5,19 @@ import { config as loadEnv } from "dotenv"
 loadEnv({ path: ".env.local", override: true })
 loadEnv({ path: ".env" })
 
-const PORT = Number(process.env.PW_PORT) || 3011
+// PW_LOCAL_DB=1 (npm run test:local): run against the local copy of the preview schema
+// (scripts/testdb.sh) instead of Supabase. Set after .env.local loads, so it wins; the dev
+// server and every worker inherit it. Its own port and no server reuse, so a dev server
+// already running against Supabase can never be picked up by mistake.
+const LOCAL_DB = process.env.PW_LOCAL_DB === "1"
+if (LOCAL_DB) {
+  const url = "postgresql://postgres:wodtest@localhost:54329/wodtest"
+  process.env.POSTGRES_PRISMA_URL = url
+  process.env.POSTGRES_URL_NON_POOLING = url
+  process.env.DB_SCHEMA = "preview"
+}
+
+const PORT = Number(process.env.PW_PORT) || (LOCAL_DB ? 3021 : 3011)
 const BASE_URL = `http://localhost:${PORT}`
 
 export default defineConfig({
@@ -50,7 +62,7 @@ export default defineConfig({
   webServer: {
     command: `npx next dev -p ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !process.env.CI && !LOCAL_DB,
     timeout: 60_000,
     stdout: "ignore",
     stderr: "pipe",
