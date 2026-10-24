@@ -1112,8 +1112,8 @@ test("merge: one reply, all changes, warnings once, creates only from the first 
     null,
     prop({ reply: "", changes: [], dropped: ["That was too big to do in one go."] }),
   ])
-  // Every part that changed something speaks; the empty part does not.
-  expect(merged.reply).toBe("Made it easier across the program. Part two done.")
+  // One reply, from the first part that changed something: two glued together read as a stutter.
+  expect(merged.reply).toBe("Made it easier across the program.")
   expect(merged.changes.map((c) => c.exerciseId)).toEqual(["e1", "e5"])
   expect(merged.warnings).toEqual(["Check his knee", "Short on time"])
   expect(merged.dropped).toEqual([
@@ -1151,6 +1151,16 @@ test("day names cross month, year and DST boundaries on the right dates", () => 
   // On a Monday, "Monday" is today and "next Monday" is a week out.
   expect(dayNames("2026-10-26").split("\n")[0]).toBe("Monday 2026-10-26 (today)")
   expect(renderContext({ ...bigCtx(2), today: "2026-10-26" })).toMatch(/"next" plus today's weekday means a week from today/)
+})
+
+test("a narrowed context splits without losing the sessions it set aside", () => {
+  const base = bigCtx(10)
+  const narrowed = { ...base, sessions: base.sessions.slice(0, 6), others: base.sessions.slice(6).map((s) => ({ date: s.date, name: s.name })) }
+  const parts = splitContext(narrowed)
+  expect(parts).toHaveLength(2)
+  // Part 2 sees the four set aside sessions plus part 1's, in date order.
+  expect(parts[1].others?.map((o) => o.date)).toEqual(["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10"])
+  expect(renderContext(narrowed)).toContain("OTHER UPCOMING SESSIONS (not editable here)")
 })
 
 test("part 1 owns asks about days no part holds; later parts do not", () => {

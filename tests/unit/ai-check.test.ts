@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { askJev } from "../../lib/ai/decide"
-import { preDecision, postDecision, postIntent, effectivePostDecision, shouldPostCheck, shouldPreCheck, PRE_QUESTIONS, POST_QUESTIONS, preState, postState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
+import { preDecision, postDecision, postIntent, effectivePostDecision, shouldPostCheck, shouldPreCheck, answersQuestion, PRE_QUESTIONS, POST_QUESTIONS, preState, postState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
 import type { Context } from "../../lib/ai/assist"
 
 const stub = (body: unknown, status = 200) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch
@@ -138,4 +138,14 @@ test("shouldPreCheck runs only when checks are on and the ask is not a confirmed
   assert.equal(shouldPreCheck({ confirmed: true, on: true }), false)
   assert.equal(shouldPreCheck({ confirmed: false, on: false }), false)
   assert.equal(shouldPreCheck({ confirmed: false, on: true }), true)
+})
+
+test("a reply to Ask AI's own question goes straight through: no confirm card for 'tomorrow' after 'Which day?'", () => {
+  assert.equal(answersQuestion([{ role: "user", content: "Add a swim" }, { role: "assistant", content: "Which day should the swim go on?" }]), true)
+  assert.equal(answersQuestion([{ role: "assistant", content: "Which day?  " }]), true)
+  // A proposal that ends in a question is still a proposal, not a question to answer.
+  assert.equal(answersQuestion([{ role: "assistant", content: "[Proposal discarded, nothing applied] Added it. Want more?" }]), false)
+  assert.equal(answersQuestion([{ role: "assistant", content: "Squats are 3x5." }]), false)
+  assert.equal(answersQuestion([]), false)
+  assert.equal(answersQuestion([{ role: "assistant", content: "Which day?" }, { role: "user", content: "hm" }]), false)
 })

@@ -3,6 +3,9 @@ import { buildExerciseMatcher } from "@/lib/exercise-match"
 import { noLongDashes } from "@/lib/text"
 import { dayKey, summarizeEntry } from "@/lib/training-format"
 import { measureOfLogged } from "@/lib/training"
+import { dayNames } from "@/lib/ai/days"
+
+export { dayNames }
 
 /**
  * The always-open AI box on a client's page. The coach types a question or a
@@ -72,7 +75,8 @@ export function splitContext(ctx: Context, size = SESSIONS_PER_PART): Context[] 
   const total = Math.ceil(ctx.sessions.length / size)
   return Array.from({ length: total }, (_, index) => {
     const mine = ctx.sessions.slice(index * size, (index + 1) * size)
-    const others = ctx.sessions.filter((s) => !mine.includes(s)).map((s) => ({ date: s.date, name: s.name }))
+    // Sessions set aside before the split (see scope.ts) stay listed alongside the other parts' sessions.
+    const others = [...(ctx.others ?? []), ...ctx.sessions.filter((s) => !mine.includes(s)).map((s) => ({ date: s.date, name: s.name }))].sort((a, b) => a.date.localeCompare(b.date))
     return { ...ctx, sessions: mine, part: { index, total }, others }
   })
 }
@@ -206,20 +210,6 @@ Reply with ONLY a JSON object:
   "warnings": ["anything the coach should double check"]
 }`
 
-/**
- * The next date of each weekday from today. A big program is asked about in
- * parts, and each part used to read "Monday" as the first Monday it held, so
- * one swap landed on three Mondays. Every part now gets the same table.
- */
-export function dayNames(today: string) {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(`${today}T12:00:00Z`)
-    d.setUTCDate(d.getUTCDate() + i)
-    const key = d.toISOString().slice(0, 10)
-    return `${d.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })} ${key}${i === 0 ? " (today)" : ""}`
-  }).join("\n")
-}
-
 export const renderContext = (ctx: Context) =>
   [
     ctx.part
@@ -250,7 +240,7 @@ export const renderContext = (ctx: Context) =>
             .join("\n\n")
         : "none: the client has no upcoming sessions"
     }`,
-    ctx.others?.length ? `OTHER UPCOMING SESSIONS (handled in other parts, not editable here)\n${ctx.others.map((o) => `  ${weekday(o.date)} ${o.date}  ${o.name}`).join("\n")}` : null,
+    ctx.others?.length ? `OTHER UPCOMING SESSIONS (not editable here)\n${ctx.others.map((o) => `  ${weekday(o.date)} ${o.date}  ${o.name}`).join("\n")}` : null,
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -582,8 +572,8 @@ export function mergeProposals(parts: (Proposal | null)[]): Proposal {
   // another part made the change, so the coach was told nothing happened.
   const ok = parts.filter((p): p is Proposal => !!p)
   const acting = ok.filter((p) => p.changes.length && p.reply)
-  const replies = Array.from(new Set((acting.length ? acting : ok.slice(0, 1)).map((p) => p.reply).filter(Boolean)))
-  const reply = replies.slice(0, acting.length ? 2 : 1).join(" ") || ok.find((p) => p.reply)?.reply || ""
+  // One reply only: two parts that both acted wrote near identical sentences, and glued together they read as a stutter.
+  const reply = (acting[0] ?? ok[0])?.reply || ok.find((p) => p.reply)?.reply || ""
   parts.forEach((p, i) => {
     if (!p) {
       dropped.push(`Part ${i + 1} of the program could not be reached; ask again for those sessions.`)

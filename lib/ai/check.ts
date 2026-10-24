@@ -46,7 +46,7 @@ export const POST_QUESTIONS: { matches: Question } = {
 }
 
 /** The last 2 turns, each cut to 300 characters, so a short follow-up ("yes", "tomorrow") is read in context. */
-const recentTurns = (history: Turn[]) => history.slice(-2).map((t) => `${t.role}: ${t.content.slice(0, 300)}`).join("\n")
+export const recentTurns = (history: Turn[]) => history.slice(-2).map((t) => `${t.role}: ${t.content.slice(0, 300)}`).join("\n")
 
 const weekday = (key: string) => new Date(`${key}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
 
@@ -118,4 +118,17 @@ export function postDecision(intent: Intent, matches: number | null, changeCount
 /** A retry needs a pre-check that succeeded with a change intent; with none (failed, off, or a confirmed send) it is just ok. */
 export function effectivePostDecision(decision: "ok" | "retry" | "warn", preIntent: Intent | null): "ok" | "retry" | "warn" {
   return decision === "retry" && (!preIntent || preIntent === "question") ? "ok" : decision
+}
+
+/**
+ * The person is answering Ask AI's own question ("Which day?" then "tomorrow").
+ * A short answer like that reads as vague on its own, but it isn't, so it
+ * goes straight through instead of getting a confirm card. A proposal that
+ * happens to end in a question (it is tagged, see history.ts) doesn't count.
+ */
+export function answersQuestion(history: Turn[]): boolean {
+  const last = history.at(-1)
+  if (!last || last.role !== "assistant") return false
+  const text = last.content.trim()
+  return !text.startsWith("[Proposal ") && text.endsWith("?")
 }

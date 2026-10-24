@@ -6,8 +6,9 @@ import { spendMeter } from "@/lib/ai/spend"
 import { settleAiCall } from "@/lib/ai-billing"
 import { buildContext, callModel, explainEmpty, libraryMatcher, mergeProposals, parseProposal, splitContext, type Proposal, type Turn } from "@/lib/ai/assist"
 import { askJev, type JevAnswer } from "@/lib/ai/decide"
-import { checksOn, effectivePostDecision, MISMATCH_WARNING, POST_QUESTIONS, postDecision, postIntent, postState, PRE_QUESTIONS, preDecision, preState, shouldPostCheck, shouldPreCheck, type Intent, type PreCheck } from "@/lib/ai/check"
+import { answersQuestion, checksOn, effectivePostDecision, MISMATCH_WARNING, POST_QUESTIONS, postDecision, postIntent, postState, PRE_QUESTIONS, preDecision, preState, shouldPostCheck, shouldPreCheck, type Intent, type PreCheck } from "@/lib/ai/check"
 import { restate, RESTATE_MODEL } from "@/lib/ai/restate"
+import { narrowContext, scope } from "@/lib/ai/scope"
 
 // A large redesign can take a minute or two.
 export const maxDuration = 120
@@ -58,19 +59,34 @@ async function handlePOST(req: Request) {
   const settle = (model: string, costUsd: number, tokensIn = 0, tokensOut = 0) =>
     settleAiCall(coachId, { mode }, { kind: "assist", clientId: body.clientId!, model, costUsd, tokensIn, tokensOut })
 
-  // Pre-check: is the ask clear enough to act on? Its cost rides on the first paid call, never its own row.
-  let check: PreCheck | null = null
+  // Pre-check (is the ask clear enough to act on?) and scope (which sessions is it about?) run side by side.
+  // Their cost rides on the first paid call, never its own row. Either failing leaves things as before.
+  // Set inside the callbacks below; the casts keep TypeScript from narrowing them to their starting values.
+  let check = null as PreCheck | null
   let preCost = 0
-  if (shouldPreCheck({ confirmed, on: checksOn() })) {
-    try {
-      const pre = await askJev(preState(ctx, message, history), PRE_QUESTIONS)
-      check = toPreCheck(pre.answers)
-      preCost = pre.costUsd
-    } catch (e) {
-      console.warn("[ai-check]", "pre-check failed", e)
-    }
-  }
-  if (check && preDecision(check) === "confirm") {
+  let picked = "all" as Awaited<ReturnType<typeof scope>>["refs"]
+  await Promise.all([
+    shouldPreCheck({ confirmed, on: checksOn() })
+      ? askJev(preState(ctx, message, history), PRE_QUESTIONS).then(
+          (pre) => {
+            check = toPreCheck(pre.answers)
+            preCost += pre.costUsd
+          },
+          (e) => console.warn("[ai-check]", "pre-check failed", e),
+        )
+      : null,
+    checksOn() && ctx.sessions.length > 1
+      ? scope(ctx, message, history).then(
+          (r) => {
+            picked = r.refs
+            preCost += r.costUsd
+          },
+          (e) => console.warn("[ai-check]", "scope failed", e),
+        )
+      : null,
+  ])
+  // An answer to Ask AI's own question ("Which day?" then "tomorrow") is never sent back for confirmation.
+  if (check && preDecision(check) === "confirm" && !answersQuestion(history)) {
     let r: Awaited<ReturnType<typeof restate>> | null = null
     try {
       r = await restate(preState(ctx, message, history), access.viewer)
@@ -84,8 +100,9 @@ async function handlePOST(req: Request) {
     }
   }
 
-  // A big program is asked about in parts, all at once, so no single answer runs past the time limit.
-  const parts = splitContext(ctx)
+  // Only the sessions the ask is about are sent to be edited; a big program is then asked about in parts,
+  // all at once, so no single answer runs past the time limit.
+  const parts = splitContext(narrowContext(ctx, picked))
   // An empty answer (it happens now and then) gets one more try, so the coach isn't told to rephrase a fine request.
   const ask = async (p: (typeof parts)[number]) => {
     const first = await callModel(p, message, history)
