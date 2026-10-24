@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { withAlert } from "@/lib/alert"
 import { canAccessClient, clientVisible, dayKey, fromDayKey } from "@/lib/training"
-import { planReflow, weekDays, type Movable } from "@/lib/reflow"
+import { planSlots, weekDays, type Movable } from "@/lib/reflow"
 import { notifyUser } from "@/lib/notify"
 
 /**
@@ -54,6 +54,9 @@ async function handlePOST(req: Request) {
   // between the chosen days: a session missed on Monday gets swept forward, and
   // one sitting on Friday gets pulled back when Friday is no longer possible.
   const week = weekDays(fromDayKey(picked[0]))
+  if (picked.some((d) => !week.includes(d))) {
+    return NextResponse.json({ error: "Pick days from one week" }, { status: 400 })
+  }
   const span = { gte: fromDayKey(week[0]), lte: fromDayKey(week[6]) }
 
   const rows = await prisma.workout.findMany({
@@ -72,20 +75,39 @@ async function handlePOST(req: Request) {
     .filter((w) => w._count.exercises > 0)
     .map((w) => ({ id: w.id, day: dayKey(w.scheduledDate), name: w.name }))
 
-  const moves = planReflow(sessions, picked)
+  const slots = planSlots(sessions, picked)
+  const moves = slots.filter((m) => m.to !== m.from)
   if (dryRun) return NextResponse.json({ sessions: sessions.length, moves })
   if (!moves.length) return NextResponse.json({ ok: true, moved: 0, moves: [] })
 
+  // Whatever else is on a day (done, rest, a coach's draft) keeps its place;
+  // the sessions landing there follow it, numbered in the coach's order, so
+  // two sessions never share a slot and Today shows them in a stable order.
+  const landing = Array.from(new Set(slots.map((m) => m.to)))
+  const others = await prisma.workout.findMany({
+    where: {
+      clientId: targetId,
+      scheduledDate: { in: landing.map(fromDayKey) },
+      id: { notIn: slots.map((m) => m.id) },
+    },
+    select: { scheduledDate: true, order: true },
+  })
+  const perDay = new Map<string, number>()
+  for (const o of others) {
+    const k = dayKey(o.scheduledDate)
+    perDay.set(k, Math.max(perDay.get(k) ?? 0, o.order))
+  }
+
   const now = new Date()
   const byId = new Map(rows.map((w) => [w.id, w]))
-  const perDay = new Map<string, number>()
 
   await prisma.$transaction(
-    moves.map((m) => {
+    slots.map((m) => {
       const w = byId.get(m.id)!
-      const target = fromDayKey(m.to)
       const n = (perDay.get(m.to) ?? 0) + 1
       perDay.set(m.to, n)
+      if (m.to === m.from) return prisma.workout.update({ where: { id: m.id }, data: { order: n } })
+      const target = fromDayKey(m.to)
       return prisma.workout.update({
         where: { id: m.id },
         data: {

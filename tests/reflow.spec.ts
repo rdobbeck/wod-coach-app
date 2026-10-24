@@ -49,6 +49,9 @@ async function seed(days: string[]) {
   }
 }
 
+/** The seven days of next week, which are always all still ahead. */
+const nextWeek = () => weekDays(new Date(Date.now() + 7 * 86_400_000))
+
 async function signInAsClient(page: Page) {
   await page.goto("/auth/signin")
   await page.locator('input[name="email"]').fill("playwright-client@dev.local")
@@ -94,11 +97,9 @@ test("a week is seven days, Monday first", () => {
 
 test("a client reshapes their week and the coach sees where it went", async ({ browser, page }) => {
   test.setTimeout(90_000)
-  const week = weekDays(new Date())
   const today = dayKey(new Date())
-  // Only days from today on can be used, so build the test around those.
-  const ahead = week.filter((d) => d >= today)
-  test.skip(ahead.length < 3, "needs at least three days left in the week")
+  // Next week is always wholly ahead, so this runs on a Saturday or Sunday too.
+  const ahead = nextWeek()
 
   await seed(ahead.slice(0, 3))
 
@@ -132,7 +133,8 @@ test("a client reshapes their week and the coach sees where it went", async ({ b
     select: { scheduledDate: true, order: true, originalDate: true, movedById: true },
   })
   expect(after.every((w) => dayKey(w.scheduledDate) === ahead[0])).toBe(true)
-  expect(after.map((w) => w.order)).toEqual([1, 1, 2])
+  // One per slot on the day, in the coach's order.
+  expect(after.map((w) => w.order)).toEqual([1, 2, 3])
 
   // The two that moved record where they came from and who moved them.
   const moved = after.filter((w) => w.originalDate)
@@ -176,6 +178,97 @@ test("days in the past are refused", async ({ browser }) => {
 
   const none = await page.request.post("/api/week/reflow", { data: { days: [], today: dayKey(new Date()) } })
   expect(none.status()).toBe(400)
+
+  await ctx.close()
+})
+
+test("sessions sharing a day keep the coach's order", async ({ browser }) => {
+  const week = nextWeek()
+  // The first sits early in the week; the second is already on the only day picked.
+  await seed([week[0], week[6]])
+
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await ctx.newPage()
+  await signInAsClient(page)
+
+  const res = await page.request.post("/api/week/reflow", { data: { days: [week[6]], today: dayKey(new Date()) } })
+  expect(res.ok()).toBe(true)
+
+  const after = await prisma.workout.findMany({
+    where: { clientId, name: { startsWith: "Reflow " } },
+    orderBy: [{ scheduledDate: "asc" }, { order: "asc" }],
+    select: { name: true, scheduledDate: true, order: true },
+  })
+  expect(after.every((w) => dayKey(w.scheduledDate) === week[6])).toBe(true)
+  // No two sessions share a slot, and the coach's first session is still first.
+  expect(after.map((w) => w.order)).toEqual([1, 2])
+  expect(after.map((w) => w.name)).toEqual(["Reflow 1", "Reflow 2"])
+
+  await ctx.close()
+})
+
+test("days from two different weeks are refused", async ({ browser }) => {
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await ctx.newPage()
+  await signInAsClient(page)
+
+  const later = weekDays(new Date(Date.now() + 14 * 86_400_000))
+  const res = await page.request.post("/api/week/reflow", {
+    data: { days: [nextWeek()[0], later[0]], today: dayKey(new Date()), dryRun: true },
+  })
+  expect(res.status()).toBe(400)
+
+  await ctx.close()
+})
+
+test("the sheet plans the week on screen, through to moving the sessions", async ({ browser }) => {
+  test.setTimeout(90_000)
+  const week = nextWeek()
+  await seed([week[0], week[2], week[4]])
+
+  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] }, viewport: { width: 390, height: 844 } })
+  const page = await ctx.newPage()
+  await signInAsClient(page)
+
+  // Open it once on this week, so paging has stale state to get wrong.
+  const plan = page.getByRole("button", { name: "Plan my week" })
+  await plan.click()
+  await page.getByRole("button", { name: "Cancel" }).click()
+
+  await page.getByRole("button", { name: "Next week" }).click()
+  await plan.click()
+
+  // Every day of next week starts ticked.
+  const sheet = page.getByRole("dialog", { name: "Plan my week" })
+  const chips = sheet.locator("button[aria-pressed]")
+  await expect(chips).toHaveCount(7)
+  await expect(sheet.locator('button[aria-pressed="true"]')).toHaveCount(7)
+
+  // Keep only Monday and Tuesday.
+  for (const i of [2, 3, 4, 5, 6]) await chips.nth(i).click()
+
+  const dry = page.waitForRequest((r) => r.url().includes("/api/week/reflow"))
+  await page.getByRole("button", { name: "Show me" }).click()
+  expect(JSON.parse((await dry).postData() ?? "{}").days).toEqual([week[0], week[1]])
+  await expect(page.getByText("Reflow 2", { exact: true })).toBeVisible()
+
+  // Closing throws the preview away; opening again starts fresh.
+  await page.getByRole("button", { name: "Cancel" }).click()
+  await plan.click()
+  await expect(page.getByRole("button", { name: "Move them" })).toBeHidden()
+  await expect(sheet.locator('button[aria-pressed="true"]')).toHaveCount(7)
+  for (const i of [2, 3, 4, 5, 6]) await chips.nth(i).click()
+  await page.getByRole("button", { name: "Show me" }).click()
+
+  await page.getByRole("button", { name: "Move them" }).click()
+  await expect(page.getByText("Moved 2 sessions")).toBeVisible()
+
+  const after = await prisma.workout.findMany({
+    where: { clientId, name: { startsWith: "Reflow " } },
+    orderBy: { name: "asc" },
+    select: { scheduledDate: true, order: true },
+  })
+  expect(after.map((w) => `${dayKey(w.scheduledDate)}#${w.order}`)).toEqual([`${week[0]}#1`, `${week[0]}#2`, `${week[1]}#1`])
 
   await ctx.close()
 })

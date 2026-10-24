@@ -17,6 +17,14 @@ export type Reflow = { id: string; from: string; to: string; name: string }
  * the calendar now.
  */
 export function planReflow(sessions: Movable[], days: string[]): Reflow[] {
+  return planSlots(sessions, days).filter((m) => m.to !== m.from)
+}
+
+/**
+ * The day every session ends up on, including the ones that stay put. Sessions
+ * sharing a day need renumbering together, so the caller needs all of them.
+ */
+export function planSlots(sessions: Movable[], days: string[]): Reflow[] {
   if (!sessions.length || !days.length) return []
 
   const slots: string[] = []
@@ -31,9 +39,7 @@ export function planReflow(sessions: Movable[], days: string[]): Reflow[] {
     for (let i = 0; i < count; i++) slots.push(day)
   }
 
-  return sessions
-    .map((s, i) => ({ id: s.id, from: s.day, to: slots[i], name: s.name }))
-    .filter((m) => m.to && m.to !== m.from)
+  return sessions.map((s, i) => ({ id: s.id, from: s.day, to: slots[i], name: s.name }))
 }
 
 /** The seven day keys of the week containing `from`, Monday first. */
