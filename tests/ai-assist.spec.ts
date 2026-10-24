@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs"
 import { dbUrl } from "../lib/db-url"
 import { dayKey } from "../lib/training-format"
 import { assertUnderCap, spendMeter, AiCapError, monthStart } from "../lib/ai/spend"
-import { parseProposal, isLoadBump, splitContext, renderContext, mergeProposals, extractJson, aiToday, type Change, type Context, type Proposal } from "../lib/ai/assist"
+import { parseProposal, isLoadBump, splitContext, renderContext, mergeProposals, explainEmpty, NOTHING_DONE, extractJson, aiToday, type Change, type Context, type Proposal } from "../lib/ai/assist"
 import { createThreadWriter } from "../lib/ai/thread-writer"
 import { suggestNames } from "../lib/exercise-match"
 
@@ -681,6 +681,115 @@ test("in the panel: a restored proposal whose session is now done is skipped, no
   await expect(page.getByText("Something went wrong")).toBeHidden()
 })
 
+const RESTATED = "Raise the effort by one RPE on every lift next week."
+
+/** First POST gets a confirm card (kind as given); later POSTs get the normal proposal. Bodies are recorded. */
+async function mockConfirm(page: Page, w: Awaited<ReturnType<typeof seedSession>>, kind: "restate" | "question" = "restate") {
+  const bodies: Record<string, unknown>[] = []
+  await page.route("**/api/ai/assist", async (route) => {
+    if (route.request().method() !== "POST") return route.continue()
+    bodies.push(route.request().postDataJSON())
+    const meter = { spent: 0.05, cap: 25, level: "ok" }
+    if (bodies.length === 1) {
+      const text = kind === "restate" ? RESTATED : "Which lifts do you want to make harder?"
+      return route.fulfill({ json: { confirm: { kind, text }, check: { intent: "change_exercises", clear: 0.01 }, meter } })
+    }
+    const [squat] = w.exercises
+    await route.fulfill({
+      json: {
+        reply: "Eased the squat.",
+        changes: [{ action: "replace", workoutId: w.id, workoutName: w.name, date: dayKey(w.scheduledDate), exerciseId: squat.id, exercise: "Back Squat", newExercise: "Goblet Squat", newPrescription: "3x10", libraryId: null, inLibrary: false, reason: "Easier on the knee" }],
+        warnings: [], dropped: [], meter,
+      },
+    })
+  })
+  return bodies
+}
+
+test("in the panel: a vague ask shows what it understood; Yes sends it confirmed", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Confirm Yes`)
+  const bodies = await mockConfirm(page, w)
+  await openPanel(page)
+  await page.getByPlaceholder("Ask a question or describe a change").fill("harder")
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(page.getByText(RESTATED)).toBeVisible()
+  await expect(page.getByRole("button", { name: "Yes, do it" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Not quite" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Yes, do it" }).click()
+  await expect(page.getByText("Eased the squat.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Yes, do it" })).toBeHidden()
+  expect(bodies).toHaveLength(2)
+  expect(bodies[0].confirmed).toBeUndefined()
+  expect(bodies[1].confirmed).toBe(true)
+  expect(bodies[1].message).toBe(RESTATED)
+})
+
+test("in the panel: Not quite puts the restatement in the box to edit", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Confirm Edit`)
+  const bodies = await mockConfirm(page, w)
+  await openPanel(page)
+  await page.getByPlaceholder("Ask a question or describe a change").fill("harder")
+  await page.getByRole("button", { name: "Send" }).click()
+  await page.getByRole("button", { name: "Not quite" }).click()
+  await expect(page.getByPlaceholder("Ask a question or describe a change")).toHaveValue(RESTATED)
+  await expect(page.getByRole("button", { name: "Yes, do it" })).toBeHidden()
+  expect(bodies).toHaveLength(1)
+})
+
+test("in the panel: a restate question shows with no buttons", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Confirm Question`)
+  await mockConfirm(page, w, "question")
+  await openPanel(page)
+  await page.getByPlaceholder("Ask a question or describe a change").fill("harder")
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(page.getByText("Which lifts do you want to make harder?")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Yes, do it" })).toBeHidden()
+  await expect(page.getByRole("button", { name: "Not quite" })).toBeHidden()
+})
+
+test("in the panel: the card and the intent survive a reload", async ({ page }) => {
+  const w = await seedSession(`${PREFIX}Confirm Reload`)
+  await mockConfirm(page, w)
+  await openPanel(page)
+  await page.getByPlaceholder("Ask a question or describe a change").fill("harder")
+  const saved = page.waitForResponse((r) => r.url().includes("/api/ai/assist/thread") && r.request().method() === "PUT" && (r.request().postData() ?? "").includes("change_exercises"))
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(page.getByRole("button", { name: "Yes, do it" })).toBeVisible()
+  expect((await saved).status()).toBe(200)
+
+  await page.reload()
+  await page.waitForLoadState("networkidle")
+  await page.getByRole("button", { name: /Ask AI about/ }).click()
+  await expect(page.getByText(RESTATED)).toBeVisible()
+  await expect(page.getByRole("button", { name: "Yes, do it" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Not quite" })).toBeVisible()
+
+  const row = await prisma.aiThread.findFirstOrThrow({ where: { clientId } })
+  const msgs = row.messages as { role: string; check?: { intent: string } }[]
+  expect(msgs.find((m) => m.role === "user")?.check?.intent).toBe("change_exercises")
+})
+
+test("in the panel: a client sees the confirm card too", async ({ browser }) => {
+  const w = await seedSession(`${PREFIX}Confirm Client`)
+  await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: true } })
+  const { ctx, page } = await clientContext(browser)
+  try {
+    const bodies = await mockConfirm(page, w)
+    await page.waitForLoadState("networkidle")
+    await page.getByRole("button", { name: /Ask AI about/ }).click()
+    await page.getByPlaceholder("Ask a question or describe a change").fill("harder")
+    await page.getByRole("button", { name: "Send" }).click()
+    await expect(page.getByText(RESTATED)).toBeVisible()
+    await page.getByRole("button", { name: "Yes, do it" }).click()
+    await expect(page.getByText("Eased the squat.")).toBeVisible()
+    expect(bodies[1].confirmed).toBe(true)
+  } finally {
+    await ctx.close()
+    await prisma.clientProfile.update({ where: { userId: clientId }, data: { canAskAi: false } })
+  }
+})
+
 test("thread writes go out one at a time, in order, so a slow save can never land after a later one", async () => {
   const calls: { method: string; body: string; done: () => void }[] = []
   const fakeFetch = (_url: string, init?: { method?: string; body?: string }) =>
@@ -1016,4 +1125,22 @@ test("merge: one reply, all changes, warnings once, creates only from the first 
   const bumps = mergeProposals([prop({ changes: [ch({ exerciseId: "e1" })] }), prop({ changes: [ch({ exerciseId: "e5" })] })])
   expect(bumps.autoApply).toBe(true)
   expect(bumps.reply).toBe("Here are the changes I'd make.")
+})
+
+test("part 1 owns asks about days no part holds; later parts do not", () => {
+  const [first, second] = splitContext(bigCtx(10))
+  expect(renderContext(first)).toMatch(/date that has no session/i)
+  expect(renderContext(first)).toMatch(/new session/i)
+  expect(renderContext(second)).not.toMatch(/date that has no session/i)
+})
+
+test("an empty answer never comes back as a bare 'Nothing to change'", () => {
+  expect(explainEmpty(prop({ reply: "" })).reply).toBe(NOTHING_DONE)
+  expect(explainEmpty(prop({ reply: "Nothing to change." })).reply).toBe(NOTHING_DONE)
+  expect(mergeProposals([prop({}), prop({})]).reply).not.toBe("Nothing to change.")
+  // A real answer, a warning, or a change is left alone.
+  expect(explainEmpty(prop({ reply: "Squats are 3x5 on Monday." })).reply).toBe("Squats are 3x5 on Monday.")
+  expect(explainEmpty(prop({ reply: "Nothing to change.", warnings: ["No barbell listed"] })).reply).toBe("Nothing to change.")
+  expect(explainEmpty(prop({ reply: "", changes: [ch({})] })).reply).toBe("")
+  expect(explainEmpty(prop({ reply: "", dropped: ["Part 2 of the program was too big to do in one go; ask again for those sessions."] })).reply).toBe("")
 })
