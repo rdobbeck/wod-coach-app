@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { Change } from "@/lib/ai/assist"
+import type { Intent } from "@/lib/ai/check"
 import { createThreadWriter } from "@/lib/ai/thread-writer"
 
 type Meter = { spent: number; cap: number; level: "ok" | "warn" | "capped" }
@@ -19,6 +20,10 @@ export type Msg = {
   undone?: boolean
   applyNote?: string
   failed?: boolean
+  // A question back instead of a proposal: "restate" has Yes / Not quite, "question" is just text.
+  confirm?: { kind: "restate" | "question"; text: string; answered?: boolean }
+  // What the intent check made of this message (kept on the user's message).
+  check?: { intent: Intent; clear: number; matches?: number }
 }
 
 const EXAMPLES_COACH = [
@@ -145,6 +150,7 @@ export default function AiAssistant({
   // coach by default. A client reviews everything unless they switch this on themselves.
   const [auto, setAuto] = useState(!isClient)
   const end = useRef<HTMLDivElement>(null)
+  const box = useRef<HTMLTextAreaElement>(null)
   const first = clientName.split(" ")[0] || "this client"
   const whose = isClient ? "your" : `${first}'s`
   const about = isClient ? "your training" : first
@@ -228,7 +234,7 @@ export default function AiAssistant({
 
   const patch = (i: number, p: Partial<Msg>) => setMsgs((m) => m.map((x, j) => (j === i ? { ...x, ...p } : x)))
 
-  const send = async (text: string) => {
+  const send = async (text: string, opts: { confirmed?: boolean } = {}) => {
     const message = text.trim()
     if (!message || busy || !loaded) return
     const history = msgs.filter((m) => !m.failed).map((m) => ({ role: m.role, content: m.text }))
@@ -238,7 +244,7 @@ export default function AiAssistant({
     const res = await fetch("/api/ai/assist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId, message, history }),
+      body: JSON.stringify({ clientId, message, history, ...(opts.confirmed ? { confirmed: true } : {}) }),
     }).catch(() => null)
     setBusy(false)
     const d = res ? await res.json().catch(() => ({})) : {}
@@ -252,6 +258,14 @@ export default function AiAssistant({
           failed: true,
         },
       ])
+      return
+    }
+    // The user message just sent sits right before the reply; keep what the check made of it.
+    const userIdx = msgs.length
+    if (d.check) patch(userIdx, { check: d.check })
+    if (d.confirm) {
+      setMsgs((m) => [...m, { role: "assistant", text: d.confirm.text, confirm: { kind: d.confirm.kind, text: d.confirm.text } }])
+      announceFirst()
       return
     }
     const willAuto = auto && !!d.autoApply && !!d.changes?.length
@@ -410,6 +424,31 @@ export default function AiAssistant({
                       <p className="whitespace-pre-line">{m.text}</p>
                     </div>
 
+                    {m.confirm?.kind === "restate" && !m.confirm.answered && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            patch(i, { confirm: { ...m.confirm!, answered: true } })
+                            void send(m.confirm!.text, { confirmed: true })
+                          }}
+                          disabled={busy}
+                          className="pulse-cta flex-1 rounded-xl bg-[#c1272d] px-3 py-2.5 font-display text-base font-bold uppercase tracking-[0.06em] text-white disabled:opacity-50"
+                        >
+                          Yes, do it
+                        </button>
+                        <button
+                          onClick={() => {
+                            patch(i, { confirm: { ...m.confirm!, answered: true } })
+                            setInput(m.confirm!.text)
+                            box.current?.focus()
+                          }}
+                          className="rounded-xl border border-[#e0dad0] px-3 py-2.5 text-sm font-semibold text-[#6b6257]"
+                        >
+                          Not quite
+                        </button>
+                      </div>
+                    )}
+
                     {m.changes && m.changes.length > 0 && (
                       <div className="rounded-2xl border border-[#e0dad0] bg-white">
                         {Array.from(new Set(m.changes.map((c) => `${c.date}|${c.workoutName}`)))
@@ -495,6 +534,7 @@ export default function AiAssistant({
             >
               <div className="flex items-end gap-2">
                 <textarea
+                  ref={box}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
