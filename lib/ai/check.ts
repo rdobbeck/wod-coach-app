@@ -5,8 +5,9 @@ export type Intent = "question" | "change_exercises" | "schedule" | "videos" | "
 
 export const checksOn = () => process.env.AI_CHECKS !== "off"
 
-// Thresholds on Jev's probabilities. Task 5 (eval) sets the final values.
-export const CLEAR_AT = 0.5
+// Thresholds on Jev's probabilities, tuned with scripts/eval-ai-check.ts. Clear asks score about
+// 0.35 and up, vague ones 0.2 and under; a change set that misses its ask scores near 0.
+export const CLEAR_AT = 0.3
 export const QUESTION_AT = 0.8
 export const MISMATCH_AT = 0.2
 
@@ -16,7 +17,7 @@ export const PRE_QUESTIONS: { clear: Question; intent: Question } = {
   clear: {
     type: "noul",
     instructions:
-      "`message`, read together with `recent_turns`, says what to change in the client's training (which day or sessions, and what change), or asks a question, clearly enough that a strength coach could act on it without guessing.",
+      "A strength coach could act on `message` without guessing what is wanted. If `recent_turns` ends with the assistant asking something and `message` answers it (a yes or no, a day, a pick), it is clear, however short. A request is clear when it gives a change, or a goal or limit to plan around (an injury, the equipment on hand, a load increase), and which sessions it covers: a day, a span of days or weeks, or every session. It need not name exercises; the coach picks those. A plain question is clear. It is not clear when it gives no target or no direction for the change.",
   },
   intent: {
     type: "choice",
@@ -35,7 +36,7 @@ export const POST_QUESTIONS: { matches: Question } = {
   matches: {
     type: "noul",
     instructions:
-      "The changes in `proposed_changes` carry out what `message` asks for. Zero changes does not carry out a request to change something.",
+      "At least one edit is listed in `proposed_changes`, and the edits do what `message` asks: the right kind of edit, on the right day, to the right exercise or session. `proposed_changes` of none means no edit is listed.",
   },
 }
 

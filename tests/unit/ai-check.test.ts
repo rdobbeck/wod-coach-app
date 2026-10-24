@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { askJev } from "../../lib/ai/decide"
-import { preDecision, postDecision, preState, changeLines } from "../../lib/ai/check"
+import { preDecision, postDecision, preState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
 import type { Context } from "../../lib/ai/assist"
 
 const stub = (body: unknown, status = 200) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch
@@ -42,18 +42,21 @@ test("askJev times out", async () => {
 })
 
 test("preDecision", () => {
+  const below = (t: number) => t - 0.01
   assert.equal(preDecision(null), "proceed")
-  assert.equal(preDecision({ intent: "question", intentP: 0.95, clear: 0.01 }), "proceed")
-  assert.equal(preDecision({ intent: "change_exercises", intentP: 1, clear: 0.9 }), "proceed")
+  assert.equal(preDecision({ intent: "question", intentP: QUESTION_AT, clear: 0.01 }), "proceed")
+  assert.equal(preDecision({ intent: "question", intentP: below(QUESTION_AT), clear: below(CLEAR_AT) }), "confirm")
+  assert.equal(preDecision({ intent: "change_exercises", intentP: 1, clear: CLEAR_AT }), "proceed")
+  assert.equal(preDecision({ intent: "change_exercises", intentP: 1, clear: below(CLEAR_AT) }), "confirm")
   assert.equal(preDecision({ intent: "unclear", intentP: 0.88, clear: 0.01 }), "confirm")
 })
 
 test("postDecision", () => {
   assert.equal(postDecision("question", 0.0, 0), "ok")
   assert.equal(postDecision("schedule", null, 0), "ok")
-  assert.equal(postDecision("schedule", 0.05, 0), "retry")
-  assert.equal(postDecision("change_exercises", 0.05, 3), "warn")
-  assert.equal(postDecision("schedule", 0.9, 1), "ok")
+  assert.equal(postDecision("schedule", MISMATCH_AT, 0), "retry")
+  assert.equal(postDecision("change_exercises", MISMATCH_AT, 3), "warn")
+  assert.equal(postDecision("schedule", MISMATCH_AT + 0.01, 1), "ok")
 })
 
 const ctx: Context = {
