@@ -1,8 +1,6 @@
 import { noLongDashes } from "@/lib/text"
 import type { Change } from "@/lib/ai/assist"
-
-// Declared here until lib/ai/check.ts exists; Task 3 switches this to an import.
-type Intent = "question" | "change_exercises" | "schedule" | "videos" | "unclear"
+import type { Intent } from "@/lib/ai/check"
 
 /**
  * The saved shape of an Ask AI conversation. It is the panel's Msg, minus
