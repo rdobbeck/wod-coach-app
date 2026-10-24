@@ -1127,6 +1127,19 @@ test("merge: one reply, all changes, warnings once, creates only from the first 
   expect(bumps.reply).toBe("Here are the changes I'd make.")
 })
 
+test("a day name means its next date from today, in every part, so 'Monday' is not each part's own first Monday", () => {
+  // Today 2026-09-30 is a Wednesday; the next Monday, 10-05, sits in part 2.
+  const parts = splitContext(bigCtx(10))
+  for (const p of [...parts, splitContext(bigCtx(3))[0]]) {
+    const text = renderContext(p)
+    expect(text).toContain("DAY NAMES")
+    expect(text).toContain("Monday 2026-10-05")
+    expect(text).toContain("Wednesday 2026-09-30 (today)")
+    expect(text).toMatch(/unless the request says every, each or all/i)
+  }
+  expect(renderContext(parts[2])).toMatch(/not in your EDITABLE SESSIONS/)
+})
+
 test("part 1 owns asks about days no part holds; later parts do not", () => {
   const [first, second] = splitContext(bigCtx(10))
   expect(renderContext(first)).toMatch(/date that has no session/i)

@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import type { Change } from "@/lib/ai/assist"
 import type { Intent } from "@/lib/ai/check"
 import { createThreadWriter } from "@/lib/ai/thread-writer"
+import { historyFor } from "@/lib/ai/history"
 
 type Meter = { spent: number; cap: number; level: "ok" | "warn" | "capped" }
 export type Msg = {
@@ -237,7 +238,7 @@ export default function AiAssistant({
   const send = async (text: string, opts: { confirmed?: boolean } = {}) => {
     const message = text.trim()
     if (!message || busy || !loaded) return
-    const history = msgs.filter((m) => !m.failed).map((m) => ({ role: m.role, content: m.text }))
+    const history = historyFor(msgs)
     setMsgs((m) => [...m, { role: "user", text: message }])
     setInput("")
     setBusy(true)
