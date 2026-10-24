@@ -5,6 +5,11 @@ export type Intent = "question" | "change_exercises" | "schedule" | "videos" | "
 
 export const checksOn = () => process.env.AI_CHECKS !== "off"
 
+/** A confirmed ask was already checked (the person said yes to the confirm card), so it skips the pre-check. */
+export function shouldPreCheck(opts: { confirmed: boolean; on: boolean }): boolean {
+  return opts.on && !opts.confirmed
+}
+
 // Thresholds on Jev's probabilities, tuned with scripts/eval-ai-check.ts. Clear asks score about
 // 0.35 and up, vague ones 0.2 and under; a change set that misses its ask scores near 0.
 export const CLEAR_AT = 0.3

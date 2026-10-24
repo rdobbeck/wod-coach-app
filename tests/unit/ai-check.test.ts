@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { askJev } from "../../lib/ai/decide"
-import { preDecision, postDecision, preState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
+import { preDecision, postDecision, shouldPreCheck, preState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
 import type { Context } from "../../lib/ai/assist"
 
 const stub = (body: unknown, status = 200) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch
@@ -89,4 +89,10 @@ test("changeLines is plain text", () => {
   assert.ok(out.includes('create Sat 2026-10-24 "Swim: 20 min" (Freestyle Swim, Kick)'))
   assert.ok(out.includes("replace Mon 2026-10-26 Upper: Back Squat -> Goblet Squat"))
   assert.ok(!/[–—]/.test(out))
+})
+
+test("shouldPreCheck runs only when checks are on and the ask is not a confirmed one", () => {
+  assert.equal(shouldPreCheck({ confirmed: true, on: true }), false)
+  assert.equal(shouldPreCheck({ confirmed: false, on: false }), false)
+  assert.equal(shouldPreCheck({ confirmed: false, on: true }), true)
 })
