@@ -71,12 +71,16 @@ async function handlePOST(req: Request) {
     }
   }
   if (check && preDecision(check) === "confirm") {
+    let r: Awaited<ReturnType<typeof restate>> | null = null
     try {
-      const r = await restate(preState(ctx, message, history), access.viewer)
-      await settle(RESTATE_MODEL(), preCost + r.costUsd)
-      return NextResponse.json({ confirm: { kind: r.kind, text: r.text }, check: { intent: check.intent, clear: check.clear }, meter: await spendMeter(coachId) })
+      r = await restate(preState(ctx, message, history), access.viewer)
     } catch (e) {
       console.warn("[ai-check]", "restate failed", e)
+    }
+    // Only the model call fails open; a billing failure surfaces like any other.
+    if (r) {
+      await settle(RESTATE_MODEL(), preCost + r.costUsd)
+      return NextResponse.json({ confirm: { kind: r.kind, text: r.text }, check: { intent: check.intent, clear: check.clear }, meter: await spendMeter(coachId) })
     }
   }
 
@@ -130,16 +134,19 @@ async function handlePOST(req: Request) {
     }
     const decision = postDecision(check?.intent ?? "unclear", matches, proposal.changes.length)
     if (decision === "retry" && Date.now() - started < RETRY_BEFORE_MS) {
+      let again: Awaited<ReturnType<typeof callModel>> | null = null
       try {
-        const again = await callModel(parts[0], message + RETRY_NUDGE, history)
-        // The retry is real money and its own row; the post-check cost rides on it.
+        again = await callModel(parts[0], message + RETRY_NUDGE, history)
+      } catch (e) {
+        console.warn("[ai-check]", "retry failed", e)
+      }
+      if (again) {
+        // The retry is real money and its own row, settled outside the catch so a billing failure surfaces; the post-check cost rides on it.
         await settle(again.model, again.costUsd + postCost, again.tokensIn, again.tokensOut)
         if (again.finish !== "length") {
           const retried = parseProposal(again.content, parts[0], match, match.libraryName, match.hasVideo)
           if (retried.changes.length) proposal = retried
         }
-      } catch (e) {
-        console.warn("[ai-check]", "retry failed", e)
       }
     } else if (decision === "warn") {
       proposal = { ...proposal, warnings: [...proposal.warnings, MISMATCH_WARNING], autoApply: false }
