@@ -42,11 +42,12 @@ const EXAMPLES_CLIENT = [
   "Squats have felt easy. Bump the next three weeks.",
 ]
 
-type PreCase = { message: string; history?: Turn[]; expect: "proceed" | "confirm" }
+// `intent` is printed against what Jev picked but does not fail the eval; only decisions do.
+type PreCase = { message: string; history?: Turn[]; expect: "proceed" | "confirm"; intent?: Intent }
 const asked = (content: string): Turn[] => [{ role: "assistant", content }]
 const PRE_CASES: PreCase[] = [
   ...[...EXAMPLES_COACH, ...EXAMPLES_CLIENT].map((message) => ({ message, expect: "proceed" as const })),
-  { message: "Add a swim workout for today as a fresh workout. Keep it 20 minutes long", expect: "proceed" },
+  { message: "Add a swim workout for today as a fresh workout. Keep it 20 minutes long", expect: "proceed", intent: "schedule" },
   { message: "I'm going swimming today. Can I have a 20-minute workout or swim?", expect: "proceed" },
   { message: "swap the back squat on monday for goblet squat 3x10", expect: "proceed" },
   { message: "move Thursday's session to Friday", expect: "proceed" },
@@ -109,7 +110,8 @@ async function runPre(c: PreCase): Promise<Row> {
       got.push(`ERROR ${(e as Error).message}`)
     }
   }
-  const label = c.history ? `${c.message}  [after: ${c.history[0].content}]` : c.message
+  let label = c.history ? `${c.message}  [after: ${c.history[0].content}]` : c.message
+  if (c.intent) label += `  [want intent: ${c.intent}]`
   return { label, expect: c.expect, got, pass }
 }
 

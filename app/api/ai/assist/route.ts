@@ -6,7 +6,7 @@ import { spendMeter } from "@/lib/ai/spend"
 import { settleAiCall } from "@/lib/ai-billing"
 import { buildContext, callModel, explainEmpty, libraryMatcher, mergeProposals, parseProposal, splitContext, type Proposal, type Turn } from "@/lib/ai/assist"
 import { askJev, type JevAnswer } from "@/lib/ai/decide"
-import { checksOn, changeLines, MISMATCH_WARNING, POST_QUESTIONS, postDecision, PRE_QUESTIONS, preDecision, preState, shouldPreCheck, type Intent, type PreCheck } from "@/lib/ai/check"
+import { checksOn, changeLines, MISMATCH_WARNING, POST_QUESTIONS, postDecision, postIntent, PRE_QUESTIONS, preDecision, preState, shouldPostCheck, shouldPreCheck, type Intent, type PreCheck } from "@/lib/ai/check"
 import { restate, RESTATE_MODEL } from "@/lib/ai/restate"
 
 // A large redesign can take a minute or two.
@@ -122,8 +122,9 @@ async function handlePOST(req: Request) {
   }
 
   // Post-check: do the edits do what was asked? No edits for a change ask gets one more try; a miss gets a warning.
+  // A question that still produced edits is checked too.
   let matches: number | null = null
-  if (checksOn() && check?.intent !== "question") {
+  if (shouldPostCheck(check?.intent ?? null, proposal.changes.length, checksOn())) {
     let postCost = 0
     try {
       const post = await askJev({ message, proposed_changes: changeLines(proposal.changes) || "none" }, POST_QUESTIONS)
@@ -132,7 +133,7 @@ async function handlePOST(req: Request) {
     } catch (e) {
       console.warn("[ai-check]", "post-check failed", e)
     }
-    const decision = postDecision(check?.intent ?? "unclear", matches, proposal.changes.length)
+    const decision = postDecision(postIntent(check?.intent ?? null), matches, proposal.changes.length)
     if (decision === "retry" && Date.now() - started < RETRY_BEFORE_MS) {
       let again: Awaited<ReturnType<typeof callModel>> | null = null
       try {

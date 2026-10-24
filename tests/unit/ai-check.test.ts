@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { askJev } from "../../lib/ai/decide"
-import { preDecision, postDecision, shouldPreCheck, preState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
+import { preDecision, postDecision, postIntent, shouldPostCheck, shouldPreCheck, PRE_QUESTIONS, preState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
 import type { Context } from "../../lib/ai/assist"
 
 const stub = (body: unknown, status = 200) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch
@@ -57,6 +57,31 @@ test("postDecision", () => {
   assert.equal(postDecision("schedule", MISMATCH_AT, 0), "retry")
   assert.equal(postDecision("change_exercises", MISMATCH_AT, 3), "warn")
   assert.equal(postDecision("schedule", MISMATCH_AT + 0.01, 1), "ok")
+})
+
+test("shouldPostCheck runs unless a question produced no changes, and never when checks are off", () => {
+  assert.equal(shouldPostCheck("question", 0, true), false)
+  assert.equal(shouldPostCheck("question", 1, true), true)
+  assert.equal(shouldPostCheck("schedule", 0, true), true)
+  assert.equal(shouldPostCheck("change_exercises", 2, true), true)
+  assert.equal(shouldPostCheck(null, 0, true), true)
+  assert.equal(shouldPostCheck("schedule", 2, false), false)
+  assert.equal(shouldPostCheck("question", 1, false), false)
+})
+
+test("postIntent: a question that produced changes is judged as unclear, so a miss still warns", () => {
+  assert.equal(postIntent("question"), "unclear")
+  assert.equal(postIntent(null), "unclear")
+  assert.equal(postIntent("schedule"), "schedule")
+  assert.equal(postDecision(postIntent("question"), MISMATCH_AT, 1), "warn")
+  assert.equal(postDecision(postIntent("question"), MISMATCH_AT + 0.01, 1), "ok")
+})
+
+test("the schedule criterion covers adding, moving and cancelling a session", () => {
+  const c = PRE_QUESTIONS.intent.type === "choice" ? PRE_QUESTIONS.intent.criteria.schedule : ""
+  assert.match(c, /new or extra session or workout/)
+  assert.match(c, /move/i)
+  assert.match(c, /cancel/i)
 })
 
 const ctx: Context = {

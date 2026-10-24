@@ -30,7 +30,7 @@ export const PRE_QUESTIONS: { clear: Question; intent: Question } = {
     criteria: {
       question: "A question to answer, nothing changed",
       change_exercises: "Swap, remove, add or adjust exercises or prescriptions",
-      schedule: "Move, create or cancel whole sessions",
+      schedule: "Add a new or extra session or workout on a day, move one to another day, or cancel one",
       videos: "Attach or fix demo videos",
       unclear: "Not possible to tell what is wanted",
     },
@@ -93,6 +93,14 @@ export function preDecision(check: PreCheck | null): "proceed" | "confirm" {
   if (check.clear >= CLEAR_AT) return "proceed"
   return "confirm"
 }
+
+/** A question that still produced changes gets checked too; a question with no changes has nothing to check. */
+export function shouldPostCheck(intent: Intent | null, changeCount: number, on: boolean): boolean {
+  return on && (intent !== "question" || changeCount > 0)
+}
+
+/** The intent the post decision judges by: a question that produced changes counts as unclear, so a miss still warns. */
+export const postIntent = (intent: Intent | null): Intent => (!intent || intent === "question" ? "unclear" : intent)
 
 export function postDecision(intent: Intent, matches: number | null, changeCount: number): "ok" | "retry" | "warn" {
   if (intent === "question" || matches === null || matches > MISMATCH_AT) return "ok"
