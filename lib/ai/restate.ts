@@ -39,7 +39,9 @@ export async function restate(
     headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: RESTATE_MODEL(),
-      max_tokens: 200,
+      // Haiku reasons by default on OpenRouter and spends the whole budget thinking, leaving no answer.
+      max_tokens: 400,
+      reasoning: { enabled: false },
       usage: { include: true },
       messages: [
         { role: "system", content: SYSTEM },

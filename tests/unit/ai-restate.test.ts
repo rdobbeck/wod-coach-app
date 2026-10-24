@@ -38,7 +38,7 @@ test("restate returns the parsed answer and cost", async () => {
   assert.equal(r.costUsd, 0.0004)
 })
 
-test("restate sends model, usage flag and no client details", async () => {
+test("restate sends model, usage flag, reasoning off, 400 tokens and no client details", async () => {
   let body: any
   process.env.OPENROUTER_API_KEY = "k"
   const fetchImpl = (async (_u: unknown, init?: RequestInit) => {
@@ -47,7 +47,9 @@ test("restate sends model, usage flag and no client details", async () => {
   }) as unknown as typeof fetch
   const r = await restate(state, "client", { fetchImpl })
   assert.equal(body.model, RESTATE_MODEL())
-  assert.equal(body.max_tokens, 200)
+  assert.equal(body.max_tokens, 400)
+  // Haiku reasons by default on OpenRouter and spent the whole budget thinking (content null).
+  assert.deepEqual(body.reasoning, { enabled: false })
   assert.deepEqual(body.usage, { include: true })
   assert.equal(r.costUsd, 0)
 })
