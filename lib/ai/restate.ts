@@ -1,13 +1,15 @@
 import { noLongDashes } from "@/lib/text"
 import type { preState } from "@/lib/ai/check"
+import { dayNames, weekRanges } from "@/lib/ai/days"
 
 export const RESTATE_MODEL = () => process.env.AI_RESTATE_MODEL || "anthropic/claude-haiku-5.5"
 
 const MAX_TEXT = 600
 
-const SYSTEM = `You restate a message from a training app's assistant chat as ONE concrete instruction a programmer could carry out.
-Use only what the person said. Resolve "today", "tomorrow" and weekday names to dates using today's date and the sessions list. Never invent exercises, numbers or days they did not give.
-If you truly cannot tell what they want, return one short question instead.
+const SYSTEM = `You restate a vague message from a training app's assistant chat as ONE concrete instruction a programmer could carry out. The person sees your restatement with a "Yes, do it" button and a "Not quite" button, so a sensible best guess is better than a question: one tap when you are right, an easy edit when you are not.
+Give your best concrete reading whenever there is a sensible default a strength coach would choose. For example, "less volume" becomes taking one set off every exercise in all upcoming sessions; "harder" becomes raising the target RPE by 1 on the main lifts in all upcoming sessions; "more core" becomes adding one core exercise to the end of each upcoming session. Say the scope (which sessions or dates) and the change plainly.
+Resolve "today", "tomorrow", weekday names and "next week" to dates using today's date, day_names, weeks and the sessions list. Do not invent exercise names, dates or numbers beyond a modest default like the examples.
+Return a question only when there is no sensible reading at all, for example "do the thing" or "fix it" with nothing in the recent talk to go on.
 Write in the person's own voice: first person if the viewer is the client, about "the client" if the viewer is the coach.
 Reply only with JSON: {"kind":"restate"|"question","text":"..."}. Do not use dashes of any kind as punctuation.`
 
@@ -45,7 +47,7 @@ export async function restate(
       usage: { include: true },
       messages: [
         { role: "system", content: SYSTEM },
-        { role: "user", content: JSON.stringify({ viewer, ...state }) },
+        { role: "user", content: JSON.stringify({ viewer, ...state, day_names: dayNames(state.today), weeks: weekRanges(state.today) }) },
       ],
     }),
     signal: AbortSignal.timeout(15_000),
