@@ -41,9 +41,12 @@ export const POST_QUESTIONS: { matches: Question } = {
   matches: {
     type: "noul",
     instructions:
-      "At least one edit is listed in `proposed_changes`, and the edits do what `message` asks: the right kind of edit, on the right day, to the right exercise or session. `proposed_changes` of none means no edit is listed.",
+      "At least one edit is listed in `proposed_changes`, and the edits do what `message` asks, read together with `recent_turns` (a short `message` may answer the assistant's last question): the right kind of edit, on the right day, to the right exercise or session. `proposed_changes` of none means no edit is listed.",
   },
 }
+
+/** The last 2 turns, each cut to 300 characters, so a short follow-up ("yes", "tomorrow") is read in context. */
+const recentTurns = (history: Turn[]) => history.slice(-2).map((t) => `${t.role}: ${t.content.slice(0, 300)}`).join("\n")
 
 const weekday = (key: string) => new Date(`${key}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
 
@@ -52,9 +55,14 @@ export function preState(ctx: Context, message: string, history: Turn[]) {
   return {
     today: ctx.today,
     sessions: ctx.sessions.map((s) => `${weekday(s.date)} ${s.date}  ${s.name}`).join("\n"),
-    recent_turns: history.slice(-2).map((t) => `${t.role}: ${t.content.slice(0, 300)}`).join("\n"),
+    recent_turns: recentTurns(history),
     message,
   }
+}
+
+/** What Jev sees after the main call: the talk and the proposed edits. */
+export function postState(message: string, history: Turn[], changes: Change[]) {
+  return { recent_turns: recentTurns(history), message, proposed_changes: changeLines(changes) || "none" }
 }
 
 /** One plain line per proposed change, for the post-check. */
@@ -105,4 +113,9 @@ export const postIntent = (intent: Intent | null): Intent => (!intent || intent 
 export function postDecision(intent: Intent, matches: number | null, changeCount: number): "ok" | "retry" | "warn" {
   if (intent === "question" || matches === null || matches > MISMATCH_AT) return "ok"
   return changeCount === 0 ? "retry" : "warn"
+}
+
+/** A retry needs a pre-check that succeeded with a change intent; with none (failed, off, or a confirmed send) it is just ok. */
+export function effectivePostDecision(decision: "ok" | "retry" | "warn", preIntent: Intent | null): "ok" | "retry" | "warn" {
+  return decision === "retry" && (!preIntent || preIntent === "question") ? "ok" : decision
 }

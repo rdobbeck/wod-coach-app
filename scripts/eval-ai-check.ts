@@ -11,7 +11,7 @@
  * Each Jev call costs about $0.00003.
  */
 import { askJev, type Question } from "../lib/ai/decide"
-import { PRE_QUESTIONS, POST_QUESTIONS, preState, changeLines, preDecision, postDecision, type Intent, type PreCheck } from "../lib/ai/check"
+import { PRE_QUESTIONS, POST_QUESTIONS, preState, postState, changeLines, preDecision, postDecision, type Intent, type PreCheck } from "../lib/ai/check"
 import type { Change, Context, Turn } from "../lib/ai/assist"
 
 const RUNS = Number(process.argv[2] ?? 2)
@@ -71,11 +71,15 @@ const swim: Change = {
   reason: "",
 }
 const farmer: Change = { action: "remove", workoutId: "w3", workoutName: "Full Body B", date: "2026-10-29", exerciseId: "e31", exercise: "Farmer Carry", reason: "" }
-type PostCase = { message: string; changes: Change[]; expect: "ok" | "retry" | "warn" }
+const cancelSwim: Change = { action: "delete", workoutId: "w2", workoutName: "Swim: Efficiency Drills", date: "2026-10-28", reason: "" }
+const swimTomorrow: Change = { ...swim, date: "2026-10-25" }
+type PostCase = { message: string; history?: Turn[]; changes: Change[]; expect: "ok" | "retry" | "warn" }
 const POST_CASES: PostCase[] = [
   { message: "Add a 20 minute swim today", changes: [], expect: "retry" },
   { message: "Add a 20 minute swim today", changes: [swim], expect: "ok" },
   { message: "swap monday's back squat for goblet squat", changes: [farmer], expect: "warn" },
+  { message: "yes", history: asked("Want me to cancel Wednesday's swim?"), changes: [cancelSwim], expect: "ok" },
+  { message: "tomorrow", history: asked("Do you want it today or tomorrow?"), changes: [swimTomorrow], expect: "ok" },
 ]
 
 let calls = 0
@@ -121,8 +125,8 @@ async function runPost(c: PostCase): Promise<Row> {
   for (let i = 0; i < RUNS; i++) {
     try {
       // As in the route: the pre-check's intent feeds the post decision.
-      const p = await preCheck(c.message, [])
-      const a = await jev({ message: c.message, proposed_changes: changeLines(c.changes) || "none" }, POST_QUESTIONS)
+      const p = await preCheck(c.message, c.history ?? [])
+      const a = await jev(postState(c.message, c.history ?? [], c.changes), POST_QUESTIONS)
       if (a.matches.type !== "noul") throw new Error("unexpected answer type")
       const d = postDecision(p.intent, a.matches.noul, c.changes.length)
       if (d !== c.expect) pass = false
@@ -132,7 +136,8 @@ async function runPost(c: PostCase): Promise<Row> {
       got.push(`ERROR ${(e as Error).message}`)
     }
   }
-  const label = `${c.message}  [changes: ${changeLines(c.changes) || "none"}]`
+  const after = c.history ? `  [after: ${c.history[0].content}]` : ""
+  const label = `${c.message}${after}  [changes: ${changeLines(c.changes) || "none"}]`
   return { label, expect: c.expect, got, pass }
 }
 

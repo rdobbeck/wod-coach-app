@@ -6,7 +6,7 @@ import { spendMeter } from "@/lib/ai/spend"
 import { settleAiCall } from "@/lib/ai-billing"
 import { buildContext, callModel, explainEmpty, libraryMatcher, mergeProposals, parseProposal, splitContext, type Proposal, type Turn } from "@/lib/ai/assist"
 import { askJev, type JevAnswer } from "@/lib/ai/decide"
-import { checksOn, changeLines, MISMATCH_WARNING, POST_QUESTIONS, postDecision, postIntent, PRE_QUESTIONS, preDecision, preState, shouldPostCheck, shouldPreCheck, type Intent, type PreCheck } from "@/lib/ai/check"
+import { checksOn, effectivePostDecision, MISMATCH_WARNING, POST_QUESTIONS, postDecision, postIntent, postState, PRE_QUESTIONS, preDecision, preState, shouldPostCheck, shouldPreCheck, type Intent, type PreCheck } from "@/lib/ai/check"
 import { restate, RESTATE_MODEL } from "@/lib/ai/restate"
 
 // A large redesign can take a minute or two.
@@ -127,13 +127,14 @@ async function handlePOST(req: Request) {
   if (shouldPostCheck(check?.intent ?? null, proposal.changes.length, checksOn())) {
     let postCost = 0
     try {
-      const post = await askJev({ message, proposed_changes: changeLines(proposal.changes) || "none" }, POST_QUESTIONS)
+      const post = await askJev(postState(message, history, proposal.changes), POST_QUESTIONS)
       matches = noulOf(post.answers.matches)
       postCost = post.costUsd
     } catch (e) {
       console.warn("[ai-check]", "post-check failed", e)
     }
-    const decision = postDecision(postIntent(check?.intent ?? null), matches, proposal.changes.length)
+    const preIntent = check?.intent ?? null
+    const decision = effectivePostDecision(postDecision(postIntent(preIntent), matches, proposal.changes.length), preIntent)
     if (decision === "retry" && Date.now() - started < RETRY_BEFORE_MS) {
       let again: Awaited<ReturnType<typeof callModel>> | null = null
       try {
@@ -146,7 +147,8 @@ async function handlePOST(req: Request) {
         await settle(again.model, again.costUsd + postCost, again.tokensIn, again.tokensOut)
         if (again.finish !== "length") {
           const retried = parseProposal(again.content, parts[0], match, match.libraryName, match.hasVideo)
-          if (retried.changes.length) proposal = retried
+          // Edits made under the "make a change" nudge are never applied without a look.
+          if (retried.changes.length) proposal = { ...retried, autoApply: false }
         }
       }
     } else if (decision === "warn") {

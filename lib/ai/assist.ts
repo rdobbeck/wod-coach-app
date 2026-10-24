@@ -552,9 +552,9 @@ export function parseProposal(
  */
 export const NOTHING_DONE = "I didn't find anything to change for that. To add a new session, name the day, like \"add a 20 min swim today\"."
 
-// An empty answer says what to try instead of a bare "Nothing to change." Real replies, warnings and changes pass through.
+// An empty answer says what to try instead of a bare "Nothing to change." Real replies, warnings, dropped parts and changes pass through.
 export function explainEmpty(p: Proposal): Proposal {
-  if (p.changes.length || p.warnings.length) return p
+  if (p.changes.length || p.warnings.length || p.dropped.length) return p
   return !p.reply.trim() || /^nothing to change\.?$/i.test(p.reply.trim()) ? { ...p, reply: NOTHING_DONE } : p
 }
 

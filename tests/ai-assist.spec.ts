@@ -1142,4 +1142,5 @@ test("an empty answer never comes back as a bare 'Nothing to change'", () => {
   expect(explainEmpty(prop({ reply: "Squats are 3x5 on Monday." })).reply).toBe("Squats are 3x5 on Monday.")
   expect(explainEmpty(prop({ reply: "Nothing to change.", warnings: ["No barbell listed"] })).reply).toBe("Nothing to change.")
   expect(explainEmpty(prop({ reply: "", changes: [ch({})] })).reply).toBe("")
+  expect(explainEmpty(prop({ reply: "", dropped: ["Part 2 of the program was too big to do in one go; ask again for those sessions."] })).reply).toBe("")
 })

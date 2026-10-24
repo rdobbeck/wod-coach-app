@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { askJev } from "../../lib/ai/decide"
-import { preDecision, postDecision, postIntent, shouldPostCheck, shouldPreCheck, PRE_QUESTIONS, preState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
+import { preDecision, postDecision, postIntent, effectivePostDecision, shouldPostCheck, shouldPreCheck, PRE_QUESTIONS, POST_QUESTIONS, preState, postState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
 import type { Context } from "../../lib/ai/assist"
 
 const stub = (body: unknown, status = 200) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch
@@ -77,6 +77,15 @@ test("postIntent: a question that produced changes is judged as unclear, so a mi
   assert.equal(postDecision(postIntent("question"), MISMATCH_AT + 0.01, 1), "ok")
 })
 
+test("effectivePostDecision: only a successful non-question pre-check may retry", () => {
+  const decide = (intent: Parameters<typeof postIntent>[0], matches: number, n: number) => effectivePostDecision(postDecision(postIntent(intent), matches, n), intent)
+  assert.equal(decide(null, MISMATCH_AT, 0), "ok")
+  assert.equal(decide("question", MISMATCH_AT, 0), "ok")
+  assert.equal(decide("schedule", MISMATCH_AT, 0), "retry")
+  assert.equal(decide(null, MISMATCH_AT, 2), "warn")
+  assert.equal(decide("schedule", MISMATCH_AT + 0.01, 0), "ok")
+})
+
 test("the schedule criterion covers adding, moving and cancelling a session", () => {
   const c = PRE_QUESTIONS.intent.type === "choice" ? PRE_QUESTIONS.intent.criteria.schedule : ""
   assert.match(c, /new or extra session or workout/)
@@ -104,6 +113,15 @@ test("preState lists sessions without exercises and keeps 2 turns", () => {
   assert.ok(!s.recent_turns.includes("turn 1"))
   assert.ok(s.recent_turns.includes("turn 3"))
   assert.ok(s.recent_turns.length < 2 * 330)
+})
+
+test("postState carries the last 2 turns like preState, and matches reads them", () => {
+  const turns = [1, 2, 3].map((i) => ({ role: "user" as const, content: `turn ${i} ${"x".repeat(400)}` }))
+  const s = postState("yes", turns, [])
+  assert.equal(s.message, "yes")
+  assert.equal(s.proposed_changes, "none")
+  assert.equal(s.recent_turns, preState(ctx, "yes", turns).recent_turns)
+  assert.match(POST_QUESTIONS.matches.instructions, /recent_turns/)
 })
 
 test("changeLines is plain text", () => {
