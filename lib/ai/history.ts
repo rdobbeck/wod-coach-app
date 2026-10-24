@@ -6,7 +6,7 @@ type HistoryMsg = { role: "user" | "assistant"; text: string; failed?: boolean; 
  * The conversation as the model reads it. A proposal's text alone ("Added a
  * swim session for today") read as done even after the coach discarded it,
  * so the next answer talked about a swim that was never added. Each proposal
- * now says what became of it.
+ * now starts by saying what became of it.
  */
 export function historyFor(msgs: HistoryMsg[]): Turn[] {
   return msgs
@@ -15,12 +15,13 @@ export function historyFor(msgs: HistoryMsg[]): Turn[] {
       if (m.role !== "assistant" || !m.changes?.length) return { role: m.role, content: m.text }
       const fate =
         m.state === "discarded"
-          ? "These changes were discarded. Nothing was applied."
+          ? "Proposal discarded, nothing applied"
           : m.state === "applied"
             ? m.undone
-              ? "These changes were applied, then undone."
-              : "These changes were applied."
-            : "These changes are waiting for review and have not been applied."
-      return { role: m.role, content: `${m.text} [${fate}]` }
+              ? "Proposal applied, then undone"
+              : "Proposal applied"
+            : "Proposal waiting for review, not applied"
+      // First, not last: the server and the checks cut long turns from the end.
+      return { role: m.role, content: `[${fate}] ${m.text}` }
     })
 }

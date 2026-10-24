@@ -230,7 +230,7 @@ export const renderContext = (ctx: Context) =>
         }`
       : null,
     `TODAY ${ctx.today}`,
-    `DAY NAMES ("Monday", "Thursday's session") mean these dates, unless the request says every, each or all\n${dayNames(ctx.today)}`,
+    `DAY NAMES ("Monday", "Thursday's session") mean these dates, unless the request says every, each or all; "next" plus today's weekday means a week from today\n${dayNames(ctx.today)}`,
     `CLIENT\n${ctx.profile}`,
     `RECENT RESULTS (newest first)\n${ctx.recent || "none logged yet"}`,
     `EDITABLE SESSIONS\n${

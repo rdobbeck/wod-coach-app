@@ -16,11 +16,11 @@ test("proposals carry what became of them, so a discarded swim is not talked abo
     turns.map((t) => t.content),
     [
       "Add a 20 min swim today",
-      "Added a swim session for today. [These changes were discarded. Nothing was applied.]",
+      "[Proposal discarded, nothing applied] Added a swim session for today.",
       "Swap Monday's raise",
-      "Swapped it. [These changes were applied.]",
-      "Bumped squats. [These changes were applied, then undone.]",
-      "Here is a change. [These changes are waiting for review and have not been applied.]",
+      "[Proposal applied] Swapped it.",
+      "[Proposal applied, then undone] Bumped squats.",
+      "[Proposal waiting for review, not applied] Here is a change.",
       "Squats are 3x5 on Monday.",
     ]
   )
@@ -33,4 +33,9 @@ test("failed messages are left out, as before", () => {
     { role: "assistant", text: "Could not reach the AI.", failed: true },
   ])
   assert.deepEqual(turns, [{ role: "user", content: "hi" }])
+})
+
+test("the tag survives the cuts made downstream (2000 chars on the server, 300 in the checks)", () => {
+  const [t] = historyFor([{ role: "assistant", text: "x".repeat(2500), changes: [{}], state: "discarded" }])
+  assert.ok(t.content.slice(0, 300).startsWith("[Proposal discarded, nothing applied]"))
 })
