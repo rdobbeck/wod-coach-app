@@ -1,5 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import { weekRanges } from "../../lib/ai/days"
 import { parseScope, narrowContext, scopeState, scope, SCOPE_MODEL } from "../../lib/ai/scope"
 import type { Context } from "../../lib/ai/assist"
 
@@ -30,11 +31,28 @@ test("narrowing keeps only the asked-about sessions; the rest stay visible by da
   assert.equal(narrowContext(ctx, refs), ctx)
 })
 
+test("the scope prompt keeps sessions the message only refers to, since narrowing hides their exercises", async () => {
+  let body: any = null
+  const fetchImpl = (async (_u: string, init: any) => {
+    body = JSON.parse(init.body)
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"refs":["s1","s3"]}' } }] }), { status: 200 })
+  }) as typeof fetch
+  await scope(ctx, "Make Friday the same as Monday", [], { fetchImpl })
+  assert.match(body.messages[0].content, /refers to/)
+})
+
 test("the scope state shows the whole program by date and name only, with day names and recent talk", () => {
   const s = scopeState(ctx, "Remove the knee raise on Friday", [{ role: "assistant", content: "Which day?" }])
   assert.match(s.sessions, /s3  Fri 2026-10-30  Day 3/)
   assert.match(s.day_names, /Friday 2026-10-30/)
   assert.equal(s.recent_turns, "assistant: Which day?")
+  assert.equal(s.weeks, "this week: 2026-10-19 to 2026-10-25\nnext week: 2026-10-26 to 2026-11-01")
+})
+
+test("weeks run Monday to Sunday, from any day of the week, across a year end", () => {
+  assert.equal(weekRanges("2026-10-26"), "this week: 2026-10-26 to 2026-11-01\nnext week: 2026-11-02 to 2026-11-08")
+  assert.equal(weekRanges("2026-11-01"), "this week: 2026-10-26 to 2026-11-01\nnext week: 2026-11-02 to 2026-11-08")
+  assert.equal(weekRanges("2026-12-31"), "this week: 2026-12-28 to 2027-01-03\nnext week: 2027-01-04 to 2027-01-10")
 })
 
 test("scope sends Haiku with reasoning off and reads its refs and cost", async () => {

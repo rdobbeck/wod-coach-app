@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { askJev } from "../../lib/ai/decide"
-import { preDecision, postDecision, postIntent, effectivePostDecision, shouldPostCheck, shouldPreCheck, answersQuestion, PRE_QUESTIONS, POST_QUESTIONS, preState, postState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
+import { preDecision, postDecision, postIntent, effectivePostDecision, shouldPostCheck, shouldPreCheck, answersQuestion, mayAutoApply, PRE_QUESTIONS, POST_QUESTIONS, preState, postState, changeLines, CLEAR_AT, QUESTION_AT, MISMATCH_AT } from "../../lib/ai/check"
 import type { Context } from "../../lib/ai/assist"
 
 const stub = (body: unknown, status = 200) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch
@@ -148,4 +148,10 @@ test("a reply to Ask AI's own question goes straight through: no confirm card fo
   assert.equal(answersQuestion([{ role: "assistant", content: "Squats are 3x5." }]), false)
   assert.equal(answersQuestion([]), false)
   assert.equal(answersQuestion([{ role: "assistant", content: "Which day?" }, { role: "user", content: "hm" }]), false)
+})
+
+test("edits that follow a Yes on a best guess, or an answer to Ask AI's question, never apply on their own", () => {
+  assert.equal(mayAutoApply({ confirmed: true, answering: false }), false)
+  assert.equal(mayAutoApply({ confirmed: false, answering: true }), false)
+  assert.equal(mayAutoApply({ confirmed: false, answering: false }), true)
 })

@@ -1161,6 +1161,10 @@ test("a narrowed context splits without losing the sessions it set aside", () =>
   // Part 2 sees the four set aside sessions plus part 1's, in date order.
   expect(parts[1].others?.map((o) => o.date)).toEqual(["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10"])
   expect(renderContext(narrowed)).toContain("OTHER UPCOMING SESSIONS (not editable here)")
+  // A narrowed program tells the model the rest were read as outside the ask, so a shortfall shows as a warning.
+  const small = { ...base, sessions: base.sessions.slice(0, 2), others: base.sessions.slice(2).map((s) => ({ date: s.date, name: s.name })) }
+  expect(renderContext(small)).toMatch(/judged not part of the request[\s\S]*say which in "warnings"/)
+  expect(renderContext(base)).not.toMatch(/judged not part of the request/)
 })
 
 test("part 1 owns asks about days no part holds; later parts do not", () => {

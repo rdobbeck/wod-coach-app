@@ -132,3 +132,11 @@ export function answersQuestion(history: Turn[]): boolean {
   const text = last.content.trim()
   return !text.startsWith("[Proposal ") && text.endsWith("?")
 }
+
+/**
+ * A Yes on a best guess agrees to a one-line summary, not to each edit behind
+ * it ("harder" became RPE +1 on every main lift, all load bumps), and a short
+ * answer to Ask AI's question skipped the card entirely. Either way the edits
+ * wait for Apply instead of going in on their own.
+ */
+export const mayAutoApply = ({ confirmed, answering }: { confirmed: boolean; answering: boolean }) => !confirmed && !answering

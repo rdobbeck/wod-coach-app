@@ -213,7 +213,7 @@ Reply with ONLY a JSON object:
 export const renderContext = (ctx: Context) =>
   [
     ctx.part
-      ? `PART ${ctx.part.index + 1} OF ${ctx.part.total}. The program is too big for one answer, so you are handling only the sessions listed under EDITABLE SESSIONS; the other parts are handled separately with the same request. Apply the request fully to your sessions, the same way you would across the whole program. The coach sees one combined answer and never hears about parts, so never mention parts, "my sessions" or ref codes in "reply". If the request is about sessions you do not hold, return an empty "reply", no changes and no warnings.${
+      ? `PART ${ctx.part.index + 1} OF ${ctx.part.total}. The program is too big for one answer, so you are handling only the sessions listed under EDITABLE SESSIONS; the other sessions are handled separately with the same request, or were read as not part of it. Apply the request fully to your sessions, the same way you would across the whole program. The coach sees one combined answer and never hears about parts, so never mention parts, "my sessions" or ref codes in "reply". If the request is about sessions you do not hold, return an empty "reply", no changes and no warnings.${
           ctx.part.index > 0
             ? ' Do not use "create" in this part. Keep "reply" to one short sentence. A day name in the request means its date under DAY NAMES; if that date is not in your EDITABLE SESSIONS, the request is not about your sessions.'
             : ' You also own any request about a date that has no session in the whole program, any request for a new session, and any request you cannot place in the OTHER UPCOMING SESSIONS list. Handle those here, using "create" when a new session is needed.'
@@ -240,6 +240,9 @@ export const renderContext = (ctx: Context) =>
             .join("\n\n")
         : "none: the client has no upcoming sessions"
     }`,
+    ctx.others?.length && !ctx.part
+      ? 'The OTHER UPCOMING SESSIONS were judged not part of the request. If it also needs any of them changed, make no change there and say which in "warnings".'
+      : null,
     ctx.others?.length ? `OTHER UPCOMING SESSIONS (not editable here)\n${ctx.others.map((o) => `  ${weekday(o.date)} ${o.date}  ${o.name}`).join("\n")}` : null,
   ]
     .filter(Boolean)

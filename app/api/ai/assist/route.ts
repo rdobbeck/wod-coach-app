@@ -6,7 +6,7 @@ import { spendMeter } from "@/lib/ai/spend"
 import { settleAiCall } from "@/lib/ai-billing"
 import { buildContext, callModel, explainEmpty, libraryMatcher, mergeProposals, parseProposal, splitContext, type Proposal, type Turn } from "@/lib/ai/assist"
 import { askJev, type JevAnswer } from "@/lib/ai/decide"
-import { answersQuestion, checksOn, effectivePostDecision, MISMATCH_WARNING, POST_QUESTIONS, postDecision, postIntent, postState, PRE_QUESTIONS, preDecision, preState, shouldPostCheck, shouldPreCheck, type Intent, type PreCheck } from "@/lib/ai/check"
+import { answersQuestion, checksOn, mayAutoApply, effectivePostDecision, MISMATCH_WARNING, POST_QUESTIONS, postDecision, postIntent, postState, PRE_QUESTIONS, preDecision, preState, shouldPostCheck, shouldPreCheck, type Intent, type PreCheck } from "@/lib/ai/check"
 import { restate, RESTATE_MODEL } from "@/lib/ai/restate"
 import { narrowContext, scope } from "@/lib/ai/scope"
 
@@ -86,7 +86,8 @@ async function handlePOST(req: Request) {
       : null,
   ])
   // An answer to Ask AI's own question ("Which day?" then "tomorrow") is never sent back for confirmation.
-  if (check && preDecision(check) === "confirm" && !answersQuestion(history)) {
+  const answering = answersQuestion(history)
+  if (check && preDecision(check) === "confirm" && !answering) {
     let r: Awaited<ReturnType<typeof restate>> | null = null
     try {
       r = await restate(preState(ctx, message, history), access.viewer)
@@ -115,12 +116,13 @@ async function handlePOST(req: Request) {
     const e = (results[0] as PromiseRejectedResult).reason as Error
     return NextResponse.json({ error: e?.message || "The AI service is unavailable.", meter: await spendMeter(coachId) }, { status: 502 })
   }
-  // The money is spent whether or not an answer turns out usable.
+  // The money is spent whether or not an answer turns out usable. The checks' cost rides on the first answer that came back.
+  const firstOk = results.findIndex((r) => r.status === "fulfilled")
   for (let i = 0; i < results.length; i++) {
     const r = results[i]
     if (r.status !== "fulfilled") continue
     const out = r.value
-    await settle(out.model, out.costUsd + (i === 0 ? preCost : 0), out.tokensIn, out.tokensOut)
+    await settle(out.model, out.costUsd + (i === firstOk ? preCost : 0), out.tokensIn, out.tokensOut)
   }
 
   const match = await libraryMatcher()
@@ -173,6 +175,7 @@ async function handlePOST(req: Request) {
     }
   }
 
+  if (!mayAutoApply({ confirmed, answering })) proposal = { ...proposal, autoApply: false }
   return NextResponse.json({ ...explainEmpty(proposal), check: checkOut(matches), meter: await spendMeter(coachId) })
 }
 

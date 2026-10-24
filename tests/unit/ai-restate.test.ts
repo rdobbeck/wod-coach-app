@@ -52,6 +52,9 @@ test("restate sends model, usage flag, reasoning off, 400 tokens and no client d
   assert.deepEqual(body.reasoning, { enabled: false })
   assert.deepEqual(body.usage, { include: true })
   assert.equal(r.costUsd, 0)
+  // The prompt resolves "Friday" and "next week" with day_names, so they must be sent.
+  const sent = JSON.parse(body.messages[1].content)
+  assert.match(sent.day_names, /^Saturday 2026-10-24 \(today\)\nSunday 2026-10-25/)
 })
 
 test("restate throws on failure or an unparseable answer", async () => {
