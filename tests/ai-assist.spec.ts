@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs"
 import { dbUrl } from "../lib/db-url"
 import { dayKey } from "../lib/training-format"
 import { assertUnderCap, spendMeter, AiCapError, monthStart } from "../lib/ai/spend"
-import { parseProposal, isLoadBump, splitContext, renderContext, mergeProposals, explainEmpty, NOTHING_DONE, extractJson, aiToday, type Change, type Context, type Proposal } from "../lib/ai/assist"
+import { parseProposal, isLoadBump, splitContext, renderContext, dayNames, mergeProposals, explainEmpty, NOTHING_DONE, extractJson, aiToday, type Change, type Context, type Proposal } from "../lib/ai/assist"
 import { createThreadWriter } from "../lib/ai/thread-writer"
 import { suggestNames } from "../lib/exercise-match"
 
@@ -1125,6 +1125,32 @@ test("merge: one reply, all changes, warnings once, creates only from the first 
   const bumps = mergeProposals([prop({ changes: [ch({ exerciseId: "e1" })] }), prop({ changes: [ch({ exerciseId: "e5" })] })])
   expect(bumps.autoApply).toBe(true)
   expect(bumps.reply).toBe("Here are the changes I'd make.")
+})
+
+test("a day name means its next date from today, in every part, so 'Monday' is not each part's own first Monday", () => {
+  // Today 2026-09-30 is a Wednesday; the next Monday, 10-05, sits in part 2.
+  const parts = splitContext(bigCtx(10))
+  for (const p of [...parts, splitContext(bigCtx(3))[0]]) {
+    const text = renderContext(p)
+    expect(text).toContain("DAY NAMES")
+    expect(text).toContain("Monday 2026-10-05")
+    expect(text).toContain("Wednesday 2026-09-30 (today)")
+    expect(text).toMatch(/unless the request says every, each or all/i)
+  }
+  expect(renderContext(parts[2])).toMatch(/not in your EDITABLE SESSIONS/)
+})
+
+test("day names cross month, year and DST boundaries on the right dates", () => {
+  expect(dayNames("2026-12-30").split("\n")).toEqual([
+    "Wednesday 2026-12-30 (today)", "Thursday 2026-12-31", "Friday 2027-01-01", "Saturday 2027-01-02",
+    "Sunday 2027-01-03", "Monday 2027-01-04", "Tuesday 2027-01-05",
+  ])
+  // US clocks change on 2026-03-08 and 2026-11-01; the dates must not slip.
+  expect(dayNames("2026-03-07").split("\n")[1]).toBe("Sunday 2026-03-08")
+  expect(dayNames("2026-11-01").split("\n")[1]).toBe("Monday 2026-11-02")
+  // On a Monday, "Monday" is today and "next Monday" is a week out.
+  expect(dayNames("2026-10-26").split("\n")[0]).toBe("Monday 2026-10-26 (today)")
+  expect(renderContext({ ...bigCtx(2), today: "2026-10-26" })).toMatch(/"next" plus today's weekday means a week from today/)
 })
 
 test("part 1 owns asks about days no part holds; later parts do not", () => {
