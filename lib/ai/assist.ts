@@ -210,7 +210,9 @@ export const renderContext = (ctx: Context) =>
   [
     ctx.part
       ? `PART ${ctx.part.index + 1} OF ${ctx.part.total}. The program is too big for one answer, so you are handling only the sessions listed under EDITABLE SESSIONS; the other parts are handled separately with the same request. Apply the request fully to your sessions, the same way you would across the whole program. The coach sees one combined answer and never hears about parts, so never mention parts, "my sessions" or ref codes in "reply". If the request is about sessions you do not hold, return an empty "reply", no changes and no warnings.${
-          ctx.part.index > 0 ? ' Do not use "create" in this part. Keep "reply" to one short sentence.' : ""
+          ctx.part.index > 0
+            ? ' Do not use "create" in this part. Keep "reply" to one short sentence.'
+            : ' You also own any request about a date that has no session in the whole program, any request for a new session, and any request you cannot place in the OTHER UPCOMING SESSIONS list. Handle those here, using "create" when a new session is needed.'
         }`
       : null,
     `TODAY ${ctx.today}`,
@@ -534,7 +536,7 @@ export function parseProposal(
 
   const warnings = (Array.isArray(j?.warnings) ? j.warnings : []).map((w: unknown) => str(w, 400)).filter(Boolean) as string[]
   return {
-    reply: str(j?.reply, 2000) ?? (changes.length ? "Here are the changes I'd make." : "Nothing to change."),
+    reply: str(j?.reply, 2000) ?? (changes.length ? "Here are the changes I'd make." : ""),
     changes,
     warnings,
     dropped,
@@ -548,6 +550,14 @@ export function parseProposal(
  * The first part's reply speaks for the whole; only the first part may create
  * sessions, so a parallel part can never add duplicates.
  */
+export const NOTHING_DONE = "I didn't find anything to change for that. To add a new session, name the day, like \"add a 20 min swim today\"."
+
+// An empty answer says what to try instead of a bare "Nothing to change." Real replies, warnings and changes pass through.
+export function explainEmpty(p: Proposal): Proposal {
+  if (p.changes.length || p.warnings.length) return p
+  return !p.reply.trim() || /^nothing to change\.?$/i.test(p.reply.trim()) ? { ...p, reply: NOTHING_DONE } : p
+}
+
 export function mergeProposals(parts: (Proposal | null)[]): Proposal {
   const changes: Change[] = []
   const warnings: string[] = []
@@ -575,7 +585,7 @@ export function mergeProposals(parts: (Proposal | null)[]): Proposal {
     dropped.push(...p.dropped)
   })
   return {
-    reply: reply || (changes.length ? "Here are the changes I'd make." : "Nothing to change."),
+    reply: reply || (changes.length ? "Here are the changes I'd make." : ""),
     changes: changes.slice(0, MAX_MERGED_CHANGES),
     warnings,
     dropped,

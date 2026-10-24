@@ -4,7 +4,7 @@ import { withAlert } from "@/lib/alert"
 import { decideAssistFunding } from "@/lib/ai/funding"
 import { spendMeter } from "@/lib/ai/spend"
 import { settleAiCall } from "@/lib/ai-billing"
-import { buildContext, callModel, libraryMatcher, mergeProposals, parseProposal, splitContext, type Proposal, type Turn } from "@/lib/ai/assist"
+import { buildContext, callModel, explainEmpty, libraryMatcher, mergeProposals, parseProposal, splitContext, type Proposal, type Turn } from "@/lib/ai/assist"
 
 // A large redesign can take a minute or two.
 export const maxDuration = 120
@@ -67,7 +67,7 @@ async function handlePOST(req: Request) {
     }
     return parseProposal(r.value.content, parts[i], match, match.libraryName, match.hasVideo)
   })
-  const proposal = parts.length === 1 ? proposals[0]! : mergeProposals(proposals)
+  const proposal = explainEmpty(parts.length === 1 ? proposals[0]! : mergeProposals(proposals))
   if (parts.length === 1 && results[0].status === "fulfilled" && results[0].value.finish === "length") {
     return NextResponse.json({ ...proposal, reply: proposal.dropped[0], dropped: [], meter: await spendMeter(coachId) })
   }

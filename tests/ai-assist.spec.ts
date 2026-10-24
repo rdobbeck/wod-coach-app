@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs"
 import { dbUrl } from "../lib/db-url"
 import { dayKey } from "../lib/training-format"
 import { assertUnderCap, spendMeter, AiCapError, monthStart } from "../lib/ai/spend"
-import { parseProposal, isLoadBump, splitContext, renderContext, mergeProposals, extractJson, aiToday, type Change, type Context, type Proposal } from "../lib/ai/assist"
+import { parseProposal, isLoadBump, splitContext, renderContext, mergeProposals, explainEmpty, NOTHING_DONE, extractJson, aiToday, type Change, type Context, type Proposal } from "../lib/ai/assist"
 import { createThreadWriter } from "../lib/ai/thread-writer"
 import { suggestNames } from "../lib/exercise-match"
 
@@ -1016,4 +1016,21 @@ test("merge: one reply, all changes, warnings once, creates only from the first 
   const bumps = mergeProposals([prop({ changes: [ch({ exerciseId: "e1" })] }), prop({ changes: [ch({ exerciseId: "e5" })] })])
   expect(bumps.autoApply).toBe(true)
   expect(bumps.reply).toBe("Here are the changes I'd make.")
+})
+
+test("part 1 owns asks about days no part holds; later parts do not", () => {
+  const [first, second] = splitContext(bigCtx(10))
+  expect(renderContext(first)).toMatch(/date that has no session/i)
+  expect(renderContext(first)).toMatch(/new session/i)
+  expect(renderContext(second)).not.toMatch(/date that has no session/i)
+})
+
+test("an empty answer never comes back as a bare 'Nothing to change'", () => {
+  expect(explainEmpty(prop({ reply: "" })).reply).toBe(NOTHING_DONE)
+  expect(explainEmpty(prop({ reply: "Nothing to change." })).reply).toBe(NOTHING_DONE)
+  expect(mergeProposals([prop({}), prop({})]).reply).not.toBe("Nothing to change.")
+  // A real answer, a warning, or a change is left alone.
+  expect(explainEmpty(prop({ reply: "Squats are 3x5 on Monday." })).reply).toBe("Squats are 3x5 on Monday.")
+  expect(explainEmpty(prop({ reply: "Nothing to change.", warnings: ["No barbell listed"] })).reply).toBe("Nothing to change.")
+  expect(explainEmpty(prop({ reply: "", changes: [ch({})] })).reply).toBe("")
 })
