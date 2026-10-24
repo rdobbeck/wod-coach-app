@@ -8,6 +8,7 @@ import Tour from "@/components/client/Tour"
 import NotificationsPrompt from "@/components/client/NotificationsPrompt"
 import { requireClient } from "@/lib/require-client"
 import AskAiHint from "@/components/client/AskAiHint"
+import NoCoachCard from "@/components/client/NoCoachCard"
 import { spendMeter } from "@/lib/ai/spend"
 import { DEFAULT_MINUTES, planIsStale } from "@/lib/calendar-invite"
 
@@ -121,6 +122,8 @@ export default async function ClientToday() {
 
   return (
     <>
+      {/* No coach and nothing scheduled: most likely signed in with the wrong account. */}
+      {!coachLink && !workouts.length && <NoCoachCard email={session.user.email ?? null} />}
       <TodayView
         firstName={session.user.name?.split(" ")[0] ?? "there"}
         coachName={coachLink?.coach.name ?? null}
