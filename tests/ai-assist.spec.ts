@@ -1163,8 +1163,19 @@ test("a narrowed context splits without losing the sessions it set aside", () =>
   expect(renderContext(narrowed)).toContain("OTHER UPCOMING SESSIONS (not editable here)")
   // A narrowed program tells the model the rest were read as outside the ask, so a shortfall shows as a warning.
   const small = { ...base, sessions: base.sessions.slice(0, 2), others: base.sessions.slice(2).map((s) => ({ date: s.date, name: s.name })) }
-  expect(renderContext(small)).toMatch(/judged not part of the request[\s\S]*say which in "warnings"/)
+  expect(renderContext(small)).toMatch(/judged not part of the request[\s\S]*say which by day and name in "warnings"/)
   expect(renderContext(base)).not.toMatch(/judged not part of the request/)
+  expect(renderContext(small)).toMatch(/Otherwise do not mention them at all/)
+})
+
+test("the editing model gets this week and next week as dates, the same ones the scope step used", () => {
+  const text = renderContext({ ...bigCtx(2), today: "2026-10-24" })
+  expect(text).toContain("this week: 2026-10-19 to 2026-10-25\nnext week: 2026-10-26 to 2026-11-01")
+})
+
+test("the coach never sees ref codes or prompt headings: the model is told to name sessions by day and name", async () => {
+  const src = (await import("node:fs")).readFileSync("lib/ai/assist.ts", "utf8")
+  expect(src).toMatch(/never by ref code \(s1, s3e2\) or by the headings in this prompt/)
 })
 
 test("part 1 owns asks about days no part holds; later parts do not", () => {

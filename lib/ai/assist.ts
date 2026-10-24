@@ -3,7 +3,7 @@ import { buildExerciseMatcher } from "@/lib/exercise-match"
 import { noLongDashes } from "@/lib/text"
 import { dayKey, summarizeEntry } from "@/lib/training-format"
 import { measureOfLogged } from "@/lib/training"
-import { dayNames } from "@/lib/ai/days"
+import { dayNames, weekRanges } from "@/lib/ai/days"
 
 export { dayNames }
 
@@ -195,6 +195,7 @@ Rules:
 - Keep the intent of each session and a sensible balance of pushing, pulling, legs and trunk.
 - Respect the client's injuries and equipment.
 - If the request cannot be fully met, say so plainly in "warnings". If it is unclear, ask one short question in "reply" and return no changes.
+- The coach reads "reply" and "warnings". Name sessions by day and name ("Monday's Full Body A"), never by ref code (s1, s3e2) or by the headings in this prompt (EDITABLE SESSIONS, OTHER UPCOMING SESSIONS, DAY NAMES).
 - Never use em dashes or en dashes.
 
 Reply with ONLY a JSON object:
@@ -221,6 +222,7 @@ export const renderContext = (ctx: Context) =>
       : null,
     `TODAY ${ctx.today}`,
     `DAY NAMES ("Monday", "Thursday's session") mean these dates, unless the request says every, each or all; "next" plus today's weekday means a week from today\n${dayNames(ctx.today)}`,
+    `WEEKS ("this week", "next week") run Monday to Sunday and mean these dates\n${weekRanges(ctx.today)}`,
     `CLIENT\n${ctx.profile}`,
     `RECENT RESULTS (newest first)\n${ctx.recent || "none logged yet"}`,
     `EDITABLE SESSIONS\n${
@@ -241,7 +243,7 @@ export const renderContext = (ctx: Context) =>
         : "none: the client has no upcoming sessions"
     }`,
     ctx.others?.length && !ctx.part
-      ? 'The OTHER UPCOMING SESSIONS were judged not part of the request. If it also needs any of them changed, make no change there and say which in "warnings".'
+      ? 'The OTHER UPCOMING SESSIONS were judged not part of the request. If it also needs any of them changed, make no change there and say which by day and name in "warnings". Otherwise do not mention them at all.'
       : null,
     ctx.others?.length ? `OTHER UPCOMING SESSIONS (not editable here)\n${ctx.others.map((o) => `  ${weekday(o.date)} ${o.date}  ${o.name}`).join("\n")}` : null,
   ]
