@@ -28,6 +28,14 @@ export default function PlanWeekButton({ week, className = "" }: { week: string[
   const [preview, setPreview] = useState<{ sessions: number; moves: Move[] } | null>(null)
   const [busy, setBusy] = useState(false)
 
+  // Start fresh each time: the week on screen may have changed since the last
+  // open, and a preview from then would move the wrong sessions.
+  const show = () => {
+    setPicked(usable)
+    setPreview(null)
+    setOpen(true)
+  }
+
   const toggle = (d: string) => {
     setPreview(null)
     setPicked((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d].sort()))
@@ -66,13 +74,18 @@ export default function PlanWeekButton({ week, className = "" }: { week: string[
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className={className}>
+      <button onClick={show} className={className}>
         Plan my week
       </button>
 
       {open && (
         <div className="fixed inset-0 z-40 flex items-end bg-black/60" onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
-          <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-app-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Plan my week"
+            className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-app-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+          >
             <h2 className="font-display text-2xl font-bold">Which days can you train?</h2>
             <p className="mt-1 text-sm text-app-muted">Your sessions this week spread across the days you pick.</p>
 
